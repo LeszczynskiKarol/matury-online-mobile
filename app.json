@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Matury Online",
+    "slug": "matury-online",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "matury-online",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a1f"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "pl.matury-online.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0a1f"
+      },
+      "package": "pl.matury_online.app"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      "expo-asset"
+    ]
+  }
+}
