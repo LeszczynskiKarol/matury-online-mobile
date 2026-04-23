@@ -5,7 +5,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
-// ── Auth Stack ────────────────────────────────────────────────────────────
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -13,7 +12,6 @@ export type AuthStackParamList = {
   ForgotPassword: undefined;
 };
 
-// ── Main Tabs ─────────────────────────────────────────────────────────────
 export type MainTabParamList = {
   HomeTab: undefined;
   SubjectsTab: undefined;
@@ -21,7 +19,6 @@ export type MainTabParamList = {
   ProfileTab: undefined;
 };
 
-// ── Nested Stacks ─────────────────────────────────────────────────────────
 export type HomeStackParamList = {
   Dashboard: undefined;
 };
@@ -50,10 +47,10 @@ export type QuizStackParamList = {
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
+  Subscription: undefined;
   Settings: undefined;
 };
 
-// ── Root ──────────────────────────────────────────────────────────────────
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;

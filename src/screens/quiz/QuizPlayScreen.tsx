@@ -10,6 +10,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { submitAnswer, completeSession } from '../../api/sessions';
+import { skipQuestion as apiSkipQuestion } from '../../api/questions';
 import { OptionCard } from '../../components/quiz/OptionCard';
 import { ProgressBar } from '../../components/common/ProgressBar';
 import { Button } from '../../components/ui/Button';
@@ -54,12 +55,21 @@ export function QuizPlayScreen() {
       case 'CLOSED':
         return selectedAnswer;
       case 'TRUE_FALSE':
-        return selectedAnswer; // simplified — single T/F
+        return selectedAnswer;
       case 'OPEN':
         return openAnswer;
       default:
         return selectedAnswer || openAnswer;
     }
+  };
+
+  const resetForNextQuestion = () => {
+    setSelectedAnswer(null);
+    setOpenAnswer('');
+    setSubmitted(false);
+    setResult(null);
+    startTime.current = Date.now();
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   const handleSubmit = async () => {
@@ -88,37 +98,51 @@ export function QuizPlayScreen() {
     }
   };
 
-  const handleNext = async () => {
+  // ── SKIP — identical logic to web QuizPlayer.skipQuestion ──────────────
+  const handleSkip = useCallback(() => {
+    if (!question) return;
+
+    // Record skip in backend (fire & forget)
+    apiSkipQuestion(question.id, sessionId).catch(console.error);
+
     if (isLastQuestion) {
-      // Complete session
-      try {
-        const sessionResult = await completeSession(sessionId);
-        navigation.replace('QuizResult', {
-          sessionId,
-          questionsAnswered: sessionResult.questionsAnswered,
-          correctAnswers: sessionResult.correctAnswers,
-          accuracy: sessionResult.accuracy,
-          xpEarned: sessionResult.totalXpEarned,
-          totalTimeMs: sessionResult.totalTimeMs,
-        });
-      } catch {
-        navigation.replace('QuizResult', {
-          sessionId,
-          questionsAnswered: total,
-          correctAnswers: stats.correct,
-          accuracy: total > 0 ? Math.round((stats.correct / total) * 100) : 0,
-          xpEarned: stats.totalXp,
-          totalTimeMs: 0,
-        });
-      }
+      // Last question — finish session
+      goToResults();
     } else {
       setCurrentIndex((i) => i + 1);
-      setSelectedAnswer(null);
-      setOpenAnswer('');
-      setSubmitted(false);
-      setResult(null);
-      startTime.current = Date.now();
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      resetForNextQuestion();
+    }
+  }, [question, currentIndex, isLastQuestion, sessionId]);
+
+  const goToResults = async () => {
+    try {
+      const sessionResult = await completeSession(sessionId);
+      navigation.replace('QuizResult', {
+        sessionId,
+        questionsAnswered: sessionResult.questionsAnswered,
+        correctAnswers: sessionResult.correctAnswers,
+        accuracy: sessionResult.accuracy,
+        xpEarned: sessionResult.totalXpEarned,
+        totalTimeMs: sessionResult.totalTimeMs,
+      });
+    } catch {
+      navigation.replace('QuizResult', {
+        sessionId,
+        questionsAnswered: total,
+        correctAnswers: stats.correct,
+        accuracy: total > 0 ? Math.round((stats.correct / total) * 100) : 0,
+        xpEarned: stats.totalXp,
+        totalTimeMs: 0,
+      });
+    }
+  };
+
+  const handleNext = async () => {
+    if (isLastQuestion) {
+      await goToResults();
+    } else {
+      setCurrentIndex((i) => i + 1);
+      resetForNextQuestion();
     }
   };
 
@@ -135,7 +159,6 @@ export function QuizPlayScreen() {
 
   if (!question) return null;
 
-  // ── Determine option state ─────────────────────────────────────────────
   const getOptionState = (optId: string) => {
     if (!submitted) return optId === selectedAnswer ? 'selected' : 'default';
     if (content.correctAnswer === optId) return 'correct';
@@ -175,7 +198,7 @@ export function QuizPlayScreen() {
         contentContainerStyle={{
           paddingHorizontal: spacing[5],
           paddingTop: spacing[5],
-          paddingBottom: insets.bottom + 120,
+          paddingBottom: 140,
         }}
       >
         {/* Metadata */}
@@ -184,7 +207,7 @@ export function QuizPlayScreen() {
             style={{
               paddingHorizontal: 10,
               paddingVertical: 3,
-              borderRadius: radius.full,
+              borderRadius: 9999,
               backgroundColor: theme.primaryLight,
             }}
           >
@@ -192,13 +215,7 @@ export function QuizPlayScreen() {
               {question.type.replace('_', ' ')}
             </Text>
           </View>
-          <View
-            style={{
-              flexDirection: 'row',
-              gap: 3,
-              alignItems: 'center',
-            }}
-          >
+          <View style={{ flexDirection: 'row', gap: 3, alignItems: 'center' }}>
             {[1, 2, 3, 4, 5].map((d) => (
               <View
                 key={d}
@@ -231,7 +248,7 @@ export function QuizPlayScreen() {
           {content.question || content.prompt}
         </Text>
 
-        {/* ── CLOSED — ABCD options ──────────────────────────────────────── */}
+        {/* CLOSED — ABCD */}
         {question.type === 'CLOSED' && content.options && (
           <View style={{ gap: 10 }}>
             {content.options.map((opt: any) => (
@@ -247,7 +264,7 @@ export function QuizPlayScreen() {
           </View>
         )}
 
-        {/* ── TRUE_FALSE ─────────────────────────────────────────────────── */}
+        {/* TRUE_FALSE */}
         {question.type === 'TRUE_FALSE' && content.statements && (
           <View style={{ gap: 12 }}>
             {content.statements.map((stmt: any, i: number) => (
@@ -267,7 +284,7 @@ export function QuizPlayScreen() {
                         style={{
                           flex: 1,
                           paddingVertical: 10,
-                          borderRadius: radius.xl,
+                          borderRadius: 16,
                           borderWidth: 2,
                           borderColor: selectedAnswer === key ? colors.brand[500] : theme.border,
                           backgroundColor: selectedAnswer === key ? colors.brand[500] + '1A' : 'transparent',
@@ -292,7 +309,7 @@ export function QuizPlayScreen() {
           </View>
         )}
 
-        {/* ── OPEN — text input ──────────────────────────────────────────── */}
+        {/* OPEN / ESSAY */}
         {(question.type === 'OPEN' || question.type === 'ESSAY') && (
           <TextInput
             value={openAnswer}
@@ -306,7 +323,7 @@ export function QuizPlayScreen() {
               backgroundColor: theme.inputBg,
               borderWidth: 1,
               borderColor: theme.border,
-              borderRadius: radius.xl,
+              borderRadius: 16,
               padding: spacing[4],
               fontSize: 15,
               fontFamily: 'DMSans_400Regular',
@@ -317,7 +334,7 @@ export function QuizPlayScreen() {
           />
         )}
 
-        {/* ── Fallback for unsupported types ─────────────────────────────── */}
+        {/* Fallback — show options for other types */}
         {!['CLOSED', 'TRUE_FALSE', 'OPEN', 'ESSAY'].includes(question.type) &&
           content.options && (
             <View style={{ gap: 10 }}>
@@ -334,7 +351,7 @@ export function QuizPlayScreen() {
             </View>
           )}
 
-        {/* ── Result feedback ────────────────────────────────────────────── */}
+        {/* Feedback */}
         {submitted && result && (
           <Card
             style={{
@@ -387,7 +404,7 @@ export function QuizPlayScreen() {
         )}
       </ScrollView>
 
-      {/* Bottom action bar */}
+      {/* ── Bottom action bar ──────────────────────────────────────────── */}
       <View
         style={{
           position: 'absolute',
@@ -396,23 +413,44 @@ export function QuizPlayScreen() {
           right: 0,
           paddingHorizontal: spacing[5],
           paddingTop: 12,
-          paddingBottom: insets.bottom + 12,
+          paddingBottom: insets.bottom + 16,
           backgroundColor: theme.card,
           borderTopWidth: 1,
           borderTopColor: theme.borderLight,
         }}
       >
         {!submitted ? (
-          <Button
-            title="Sprawdź"
-            onPress={handleSubmit}
-            loading={loading}
-            disabled={!selectedAnswer && !openAnswer}
-            size="lg"
-          />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            {/* Pomiń */}
+            <TouchableOpacity
+              onPress={handleSkip}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingVertical: 12,
+                paddingHorizontal: 4,
+              }}
+            >
+              <Ionicons name="play-forward" size={16} color={theme.textTertiary} />
+              <Text style={{ fontSize: 13, fontFamily: 'DMSans_500Medium', color: theme.textTertiary }}>
+                Pomiń
+              </Text>
+            </TouchableOpacity>
+
+            {/* Sprawdź */}
+            <View style={{ flex: 1 }}>
+              <Button
+                title={loading ? 'Sprawdzam...' : 'Sprawdź odpowiedź'}
+                onPress={handleSubmit}
+                loading={loading}
+                disabled={!selectedAnswer && !openAnswer}
+              />
+            </View>
+          </View>
         ) : (
           <Button
-            title={isLastQuestion ? 'Zakończ quiz' : 'Następne pytanie'}
+            title={isLastQuestion ? 'Zakończ quiz' : 'Następne pytanie →'}
             onPress={handleNext}
             variant={isLastQuestion ? 'secondary' : 'primary'}
             size="lg"

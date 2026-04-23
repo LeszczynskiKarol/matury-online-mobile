@@ -33,6 +33,12 @@
       "expo-font",
       "expo-secure-store",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1f3ea108-1701-4d72-ab54-490ec21ca248"
+      }
+    },
+    "owner": "karolleszczynski"
   }
 }
