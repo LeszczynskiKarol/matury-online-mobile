@@ -16,12 +16,6 @@ import { colors } from "./src/theme/colors";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-const prefix = Linking.createURL("/");
-
-const linking = {
-  prefixes: [prefix, "matury-online://"],
-};
-
 const navLightTheme = {
   ...DefaultTheme,
   colors: {
@@ -91,10 +85,7 @@ function AppInner() {
   return (
     <>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      <NavigationContainer
-        theme={isDark ? navDarkTheme : navLightTheme}
-        linking={linking}
-      >
+      <NavigationContainer theme={isDark ? navDarkTheme : navLightTheme}>
         <RootNavigator />
       </NavigationContainer>
     </>

@@ -2,41 +2,65 @@
 // Quiz Setup Screen — configure and start a session
 // ============================================================================
 
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import { subjectsApi } from '../../api';
-import { createSession, type SessionType } from '../../api/sessions';
-import type { Subject } from '../../api/subjects';
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import { colors } from '../../theme/colors';
-import { spacing, radius } from '../../theme';
-import type { QuizStackParamList } from '../../navigation/types';
+import React, { useEffect, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "../../context/AuthContext";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import { subjectsApi } from "../../api";
+import { createSession, type SessionType } from "../../api/sessions";
+import type { Subject } from "../../api/subjects";
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { colors } from "../../theme/colors";
+import { spacing, radius } from "../../theme";
+import type { QuizStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<QuizStackParamList>;
 
-const SESSION_TYPES: { value: SessionType; label: string; icon: string; desc: string }[] = [
-  { value: 'PRACTICE', label: 'Praktyka', icon: '🎯', desc: 'Ćwicz we własnym tempie' },
-  { value: 'ADAPTIVE', label: 'Adaptacyjny', icon: '🧠', desc: 'AI dobiera trudność' },
-  { value: 'MOCK_EXAM', label: 'Egzamin', icon: '📝', desc: 'Symulacja matury' },
+const SESSION_TYPES: {
+  value: SessionType;
+  label: string;
+  icon: string;
+  desc: string;
+}[] = [
+  {
+    value: "PRACTICE",
+    label: "Praktyka",
+    icon: "🎯",
+    desc: "Ćwicz we własnym tempie",
+  },
+  {
+    value: "ADAPTIVE",
+    label: "Adaptacyjny",
+    icon: "🧠",
+    desc: "AI dobiera trudność",
+  },
+  {
+    value: "MOCK_EXAM",
+    label: "Egzamin",
+    icon: "📝",
+    desc: "Symulacja matury",
+  },
 ];
 
 const QUESTION_COUNTS = [5, 10, 15, 20, 30];
 
 export function QuizSetupScreen() {
   const insets = useSafeAreaInsets();
+  const { isPremium } = useAuth();
   const { colors: theme } = useTheme();
   const navigation = useNavigation<Nav>();
   const route = useRoute<any>();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState<string>(route.params?.subjectId || '');
-  const [selectedType, setSelectedType] = useState<SessionType>('PRACTICE');
+  const [selectedSubject, setSelectedSubject] = useState<string>(
+    route.params?.subjectId || "",
+  );
+  const [selectedType, setSelectedType] = useState<SessionType>("PRACTICE");
   const [questionCount, setQuestionCount] = useState(10);
   const [loading, setLoading] = useState(false);
 
@@ -54,7 +78,7 @@ export function QuizSetupScreen() {
 
   const handleStart = async () => {
     if (!selectedSubject) {
-      return Alert.alert('Wybierz przedmiot');
+      return Alert.alert("Wybierz przedmiot");
     }
     setLoading(true);
     try {
@@ -66,21 +90,69 @@ export function QuizSetupScreen() {
       });
 
       if (session.error) {
-        Alert.alert('Błąd', session.error);
+        Alert.alert("Błąd", session.error);
         return;
       }
 
-      navigation.navigate('QuizPlay', {
+      navigation.navigate("QuizPlay", {
         sessionId: session.sessionId,
         questions: session.questions,
-        subjectName: selectedSubjectData?.name || 'Quiz',
+        subjectName: selectedSubjectData?.name || "Quiz",
       });
     } catch (err: any) {
-      Alert.alert('Błąd', err.message || 'Nie udało się utworzyć sesji');
+      Alert.alert("Błąd", err.message || "Nie udało się utworzyć sesji");
     } finally {
       setLoading(false);
     }
   };
+
+  if (!isPremium) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: theme.background,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingHorizontal: spacing[6],
+        }}
+      >
+        <Text style={{ fontSize: 48, marginBottom: 16 }}>🔒</Text>
+        <Text
+          style={{
+            fontSize: 22,
+            fontWeight: "700",
+            color: theme.text,
+            textAlign: "center",
+            marginBottom: 8,
+          }}
+        >
+          Quiz wymaga Premium
+        </Text>
+        <Text
+          style={{
+            fontSize: 14,
+            color: theme.textSecondary,
+            textAlign: "center",
+            lineHeight: 22,
+            marginBottom: 24,
+          }}
+        >
+          Wykup subskrypcję, aby uzyskać dostęp do quizów, pytań i wszystkich
+          funkcji platformy.
+        </Text>
+        <Button
+          title="Zobacz plany Premium"
+          onPress={() =>
+            navigation
+              .getParent()
+              ?.navigate("ProfileTab", { screen: "Subscription" })
+          }
+          icon={<Ionicons name="diamond" size={16} color="#fff" />}
+        />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -91,16 +163,34 @@ export function QuizSetupScreen() {
         paddingHorizontal: spacing[5],
       }}
     >
-      <Text style={{ fontSize: 28, fontFamily: 'Outfit_700Bold', color: theme.text, marginBottom: 24 }}>
+      <Text
+        style={{
+          fontSize: 28,
+          fontFamily: "Outfit_700Bold",
+          color: theme.text,
+          marginBottom: 24,
+        }}
+      >
         Nowy quiz
       </Text>
 
       {/* Subject picker */}
-      <Text style={{ fontSize: 16, fontFamily: 'Outfit_600SemiBold', color: theme.text, marginBottom: 12 }}>
+      <Text
+        style={{
+          fontSize: 16,
+          fontFamily: "Outfit_600SemiBold",
+          color: theme.text,
+          marginBottom: 12,
+        }}
+      >
         Przedmiot
       </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 24 }}
+      >
+        <View style={{ flexDirection: "row", gap: 8 }}>
           {subjects.map((s) => (
             <TouchableOpacity
               key={s.id}
@@ -110,15 +200,22 @@ export function QuizSetupScreen() {
                 paddingVertical: 10,
                 borderRadius: radius.xl,
                 borderWidth: 2,
-                borderColor: s.id === selectedSubject ? colors.brand[500] : theme.border,
-                backgroundColor: s.id === selectedSubject ? colors.brand[500] + '1A' : 'transparent',
+                borderColor:
+                  s.id === selectedSubject ? colors.brand[500] : theme.border,
+                backgroundColor:
+                  s.id === selectedSubject
+                    ? colors.brand[500] + "1A"
+                    : "transparent",
               }}
             >
               <Text
                 style={{
                   fontSize: 14,
-                  fontFamily: 'Outfit_500Medium',
-                  color: s.id === selectedSubject ? colors.brand[600] : theme.textSecondary,
+                  fontFamily: "Outfit_500Medium",
+                  color:
+                    s.id === selectedSubject
+                      ? colors.brand[600]
+                      : theme.textSecondary,
                 }}
               >
                 {s.icon} {s.name}
@@ -129,7 +226,14 @@ export function QuizSetupScreen() {
       </ScrollView>
 
       {/* Session type */}
-      <Text style={{ fontSize: 16, fontFamily: 'Outfit_600SemiBold', color: theme.text, marginBottom: 12 }}>
+      <Text
+        style={{
+          fontSize: 16,
+          fontFamily: "Outfit_600SemiBold",
+          color: theme.text,
+          marginBottom: 12,
+        }}
+      >
         Tryb
       </Text>
       <View style={{ gap: 8, marginBottom: 24 }}>
@@ -143,17 +247,37 @@ export function QuizSetupScreen() {
               variant="stat"
               style={{
                 borderWidth: 2,
-                borderColor: st.value === selectedType ? colors.brand[500] : theme.cardBorder,
-                backgroundColor: st.value === selectedType ? colors.brand[500] + '0D' : theme.card,
+                borderColor:
+                  st.value === selectedType
+                    ? colors.brand[500]
+                    : theme.cardBorder,
+                backgroundColor:
+                  st.value === selectedType
+                    ? colors.brand[500] + "0D"
+                    : theme.card,
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
                 <Text style={{ fontSize: 24 }}>{st.icon}</Text>
                 <View>
-                  <Text style={{ fontSize: 15, fontFamily: 'Outfit_600SemiBold', color: theme.text }}>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontFamily: "Outfit_600SemiBold",
+                      color: theme.text,
+                    }}
+                  >
                     {st.label}
                   </Text>
-                  <Text style={{ fontSize: 12, fontFamily: 'DMSans_400Regular', color: theme.textSecondary }}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "DMSans_400Regular",
+                      color: theme.textSecondary,
+                    }}
+                  >
                     {st.desc}
                   </Text>
                 </View>
@@ -164,10 +288,17 @@ export function QuizSetupScreen() {
       </View>
 
       {/* Question count */}
-      <Text style={{ fontSize: 16, fontFamily: 'Outfit_600SemiBold', color: theme.text, marginBottom: 12 }}>
+      <Text
+        style={{
+          fontSize: 16,
+          fontFamily: "Outfit_600SemiBold",
+          color: theme.text,
+          marginBottom: 12,
+        }}
+      >
         Liczba pytań
       </Text>
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 32 }}>
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 32 }}>
         {QUESTION_COUNTS.map((n) => (
           <TouchableOpacity
             key={n}
@@ -177,16 +308,19 @@ export function QuizSetupScreen() {
               paddingVertical: 12,
               borderRadius: radius.xl,
               borderWidth: 2,
-              borderColor: n === questionCount ? colors.brand[500] : theme.border,
-              backgroundColor: n === questionCount ? colors.brand[500] + '1A' : 'transparent',
-              alignItems: 'center',
+              borderColor:
+                n === questionCount ? colors.brand[500] : theme.border,
+              backgroundColor:
+                n === questionCount ? colors.brand[500] + "1A" : "transparent",
+              alignItems: "center",
             }}
           >
             <Text
               style={{
                 fontSize: 16,
-                fontFamily: 'Outfit_600SemiBold',
-                color: n === questionCount ? colors.brand[600] : theme.textSecondary,
+                fontFamily: "Outfit_600SemiBold",
+                color:
+                  n === questionCount ? colors.brand[600] : theme.textSecondary,
               }}
             >
               {n}

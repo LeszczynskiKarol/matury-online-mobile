@@ -2,8 +2,7 @@
 // Navigation — Type definitions
 // ============================================================================
 
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { NavigatorScreenParams } from "@react-navigation/native";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -16,7 +15,7 @@ export type MainTabParamList = {
   HomeTab: undefined;
   SubjectsTab: undefined;
   QuizTab: undefined;
-  ProfileTab: undefined;
+  ProfileTab: NavigatorScreenParams<ProfileStackParamList> | undefined;
 };
 
 export type HomeStackParamList = {
