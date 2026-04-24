@@ -2,15 +2,21 @@
 // Auth API — /api/auth/*
 // ============================================================================
 
-import { api, setToken, clearToken } from './client';
+import { api, setToken, clearToken } from "./client";
 
 export interface User {
   id: string;
   email: string;
   name: string | null;
   avatarUrl: string | null;
-  role: 'STUDENT' | 'ADMIN';
-  subscriptionStatus: 'FREE' | 'ACTIVE' | 'ONE_TIME' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED';
+  role: "STUDENT" | "ADMIN";
+  subscriptionStatus:
+    | "FREE"
+    | "ACTIVE"
+    | "ONE_TIME"
+    | "PAST_DUE"
+    | "CANCELLED"
+    | "EXPIRED";
   subscriptionEnd: string | null;
   totalXp: number;
   globalLevel: number;
@@ -54,8 +60,8 @@ export async function register(data: {
   name?: string;
   acceptTerms: boolean;
 }): Promise<RegisterResponse> {
-  return api<RegisterResponse>('/auth/register', {
-    method: 'POST',
+  return api<RegisterResponse>("/auth/register", {
+    method: "POST",
     body: data,
     auth: false,
   });
@@ -66,8 +72,8 @@ export async function verifyEmail(
   email: string,
   code: string,
 ): Promise<AuthResponse> {
-  const res = await api<AuthResponse>('/auth/verify', {
-    method: 'POST',
+  const res = await api<AuthResponse>("/auth/verify", {
+    method: "POST",
     body: { email, code },
     auth: false,
   });
@@ -77,8 +83,8 @@ export async function verifyEmail(
 
 // ── Resend code ───────────────────────────────────────────────────────────
 export async function resendCode(email: string): Promise<{ sent: boolean }> {
-  return api('/auth/resend-code', {
-    method: 'POST',
+  return api("/auth/resend-code", {
+    method: "POST",
     body: { email },
     auth: false,
   });
@@ -89,8 +95,8 @@ export async function login(
   email: string,
   password: string,
 ): Promise<AuthResponse> {
-  const res = await api<AuthResponse>('/auth/login', {
-    method: 'POST',
+  const res = await api<AuthResponse>("/auth/login", {
+    method: "POST",
     body: { email, password },
     auth: false,
   });
@@ -102,8 +108,8 @@ export async function login(
 export async function loginWithGoogle(
   credential: string,
 ): Promise<AuthResponse> {
-  const res = await api<AuthResponse>('/auth/google', {
-    method: 'POST',
+  const res = await api<AuthResponse>("/auth/google", {
+    method: "POST",
     body: { credential },
     auth: false,
   });
@@ -113,13 +119,15 @@ export async function loginWithGoogle(
 
 // ── Me ────────────────────────────────────────────────────────────────────
 export async function getMe(): Promise<User> {
-  return api<User>('/auth/me');
+  return api<User>("/auth/me");
 }
 
 // ── Forgot password ───────────────────────────────────────────────────────
-export async function forgotPassword(email: string): Promise<{ sent: boolean }> {
-  return api('/auth/forgot-password', {
-    method: 'POST',
+export async function forgotPassword(
+  email: string,
+): Promise<{ sent: boolean }> {
+  return api("/auth/forgot-password", {
+    method: "POST",
     body: { email },
     auth: false,
   });
@@ -128,9 +136,18 @@ export async function forgotPassword(email: string): Promise<{ sent: boolean }> 
 // ── Logout ────────────────────────────────────────────────────────────────
 export async function logout(): Promise<void> {
   try {
-    await api('/auth/logout', { method: 'POST' });
+    await api("/auth/logout", { method: "POST" });
   } catch {
     // ignore
   }
   await clearToken();
+}
+
+// ── Delete account ────────────────────────────────────────────────────
+export async function deleteAccount(): Promise<{ deleted: boolean }> {
+  const res = await api<{ deleted: boolean }>("/auth/account", {
+    method: "DELETE",
+  });
+  await clearToken();
+  return res;
 }

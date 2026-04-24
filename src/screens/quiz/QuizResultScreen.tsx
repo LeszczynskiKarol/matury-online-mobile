@@ -2,17 +2,17 @@
 // Quiz Result Screen — session complete
 // ============================================================================
 
-import React from 'react';
-import { View, Text } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import { ProgressBar } from '../../components/common/ProgressBar';
-import { colors } from '../../theme/colors';
-import { spacing, radius } from '../../theme';
+import React from "react";
+import { View, Text } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { ProgressBar } from "../../components/common/ProgressBar";
+import { colors } from "../../theme/colors";
+import { spacing, radius } from "../../theme";
 
 export function QuizResultScreen() {
   const insets = useSafeAreaInsets();
@@ -20,26 +20,28 @@ export function QuizResultScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
-  const {
-    questionsAnswered,
-    correctAnswers,
-    accuracy,
-    xpEarned,
-    totalTimeMs,
-  } = route.params;
+  const { questionsAnswered, correctAnswers, accuracy, xpEarned, totalTimeMs } =
+    route.params;
 
   const minutes = Math.floor(totalTimeMs / 60000);
   const seconds = Math.floor((totalTimeMs % 60000) / 1000);
 
-  const emoji = accuracy >= 90 ? '🏆' : accuracy >= 70 ? '🎯' : accuracy >= 50 ? '💪' : '📚';
+  const emoji =
+    accuracy >= 90
+      ? "🏆"
+      : accuracy >= 70
+        ? "🎯"
+        : accuracy >= 50
+          ? "💪"
+          : "📚";
   const message =
     accuracy >= 90
-      ? 'Fantastyczny wynik!'
+      ? "Fantastyczny wynik!"
       : accuracy >= 70
-        ? 'Dobra robota!'
+        ? "Dobra robota!"
         : accuracy >= 50
-          ? 'Nieźle, ćwicz dalej!'
-          : 'Nie poddawaj się!';
+          ? "Nieźle, ćwicz dalej!"
+          : "Nie poddawaj się!";
 
   return (
     <View
@@ -51,12 +53,12 @@ export function QuizResultScreen() {
       }}
     >
       {/* Big result */}
-      <View style={{ alignItems: 'center', marginBottom: 40 }}>
+      <View style={{ alignItems: "center", marginBottom: 40 }}>
         <Text style={{ fontSize: 64, marginBottom: 12 }}>{emoji}</Text>
         <Text
           style={{
             fontSize: 32,
-            fontFamily: 'Outfit_800ExtraBold',
+            fontFamily: "Outfit_800ExtraBold",
             color: theme.text,
             marginBottom: 4,
           }}
@@ -66,7 +68,7 @@ export function QuizResultScreen() {
         <Text
           style={{
             fontSize: 18,
-            fontFamily: 'Outfit_600SemiBold',
+            fontFamily: "Outfit_600SemiBold",
             color: theme.textSecondary,
           }}
         >
@@ -75,31 +77,74 @@ export function QuizResultScreen() {
       </View>
 
       {/* Stats cards */}
-      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
-        <Card variant="stat" style={{ flex: 1, alignItems: 'center' }}>
-          <Ionicons name="checkmark-circle" size={22} color={colors.brand[500]} />
-          <Text style={{ fontSize: 22, fontFamily: 'Outfit_700Bold', color: theme.text, marginTop: 4 }}>
+      <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
+        <Card variant="stat" style={{ flex: 1, alignItems: "center" }}>
+          <Ionicons
+            name="checkmark-circle"
+            size={22}
+            color={colors.brand[500]}
+          />
+          <Text
+            style={{
+              fontSize: 22,
+              fontFamily: "Outfit_700Bold",
+              color: theme.text,
+              marginTop: 4,
+            }}
+          >
             {correctAnswers}/{questionsAnswered}
           </Text>
-          <Text style={{ fontSize: 11, fontFamily: 'DMSans_400Regular', color: theme.textSecondary }}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontFamily: "DMSans_400Regular",
+              color: theme.textSecondary,
+            }}
+          >
             Poprawne
           </Text>
         </Card>
-        <Card variant="stat" style={{ flex: 1, alignItems: 'center' }}>
+        <Card variant="stat" style={{ flex: 1, alignItems: "center" }}>
           <Ionicons name="star" size={22} color={colors.yellow[500]} />
-          <Text style={{ fontSize: 22, fontFamily: 'Outfit_700Bold', color: theme.text, marginTop: 4 }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontFamily: "Outfit_700Bold",
+              color: theme.text,
+              marginTop: 4,
+            }}
+          >
             +{xpEarned}
           </Text>
-          <Text style={{ fontSize: 11, fontFamily: 'DMSans_400Regular', color: theme.textSecondary }}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontFamily: "DMSans_400Regular",
+              color: theme.textSecondary,
+            }}
+          >
             XP
           </Text>
         </Card>
-        <Card variant="stat" style={{ flex: 1, alignItems: 'center' }}>
+        <Card variant="stat" style={{ flex: 1, alignItems: "center" }}>
           <Ionicons name="time" size={22} color={colors.navy[500]} />
-          <Text style={{ fontSize: 22, fontFamily: 'Outfit_700Bold', color: theme.text, marginTop: 4 }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontFamily: "Outfit_700Bold",
+              color: theme.text,
+              marginTop: 4,
+            }}
+          >
             {minutes > 0 ? `${minutes}m` : `${seconds}s`}
           </Text>
-          <Text style={{ fontSize: 11, fontFamily: 'DMSans_400Regular', color: theme.textSecondary }}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontFamily: "DMSans_400Regular",
+              color: theme.textSecondary,
+            }}
+          >
             Czas
           </Text>
         </Card>
@@ -107,13 +152,26 @@ export function QuizResultScreen() {
 
       {/* Accuracy bar */}
       <Card style={{ marginBottom: 32 }}>
-        <Text style={{ fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: theme.text, marginBottom: 8 }}>
+        <Text
+          style={{
+            fontSize: 14,
+            fontFamily: "Outfit_600SemiBold",
+            color: theme.text,
+            marginBottom: 8,
+          }}
+        >
           Trafność
         </Text>
         <ProgressBar
           progress={accuracy}
           height={10}
-          color={accuracy >= 70 ? colors.brand[500] : accuracy >= 50 ? colors.orange[500] : colors.red[500]}
+          color={
+            accuracy >= 70
+              ? colors.brand[500]
+              : accuracy >= 50
+                ? colors.orange[500]
+                : colors.red[500]
+          }
         />
       </Card>
 
@@ -121,12 +179,12 @@ export function QuizResultScreen() {
       <View style={{ gap: 12 }}>
         <Button
           title="Nowy quiz"
-          onPress={() => navigation.replace('QuizSetup')}
+          onPress={() => navigation.replace("QuizSetup")}
           icon={<Ionicons name="refresh" size={18} color="#fff" />}
         />
         <Button
-          title="Wróć do start"
-          onPress={() => navigation.getParent()?.navigate('HomeTab')}
+          title="Wróć do panelu"
+          onPress={() => navigation.getParent()?.navigate("HomeTab")}
           variant="ghost"
         />
       </View>

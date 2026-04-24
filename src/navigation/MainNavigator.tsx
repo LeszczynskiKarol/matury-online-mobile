@@ -151,6 +151,27 @@ export function MainNavigator() {
       <Tab.Screen
         name="SubjectsTab"
         component={SubjectsStackNav}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 1,
+                routes: [
+                  { name: "HomeTab" },
+                  {
+                    name: "SubjectsTab",
+                    state: {
+                      routes: [{ name: "SubjectsList" }],
+                    },
+                  },
+                  { name: "QuizTab" },
+                  { name: "ProfileTab" },
+                ],
+              }),
+            );
+          },
+        })}
         options={{
           tabBarLabel: "Przedmioty",
           tabBarIcon: ({ color, size }) => (

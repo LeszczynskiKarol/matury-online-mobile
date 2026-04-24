@@ -2,8 +2,7 @@
 // Navigation — Type definitions
 // ============================================================================
 
-import type { NavigatorScreenParams } from "@react-navigation/native";
-
+// ── Auth Stack ────────────────────────────────────────────────────────────
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -11,13 +10,15 @@ export type AuthStackParamList = {
   ForgotPassword: undefined;
 };
 
+// ── Main Tabs ─────────────────────────────────────────────────────────────
 export type MainTabParamList = {
   HomeTab: undefined;
   SubjectsTab: undefined;
   QuizTab: undefined;
-  ProfileTab: NavigatorScreenParams<ProfileStackParamList> | undefined;
+  ProfileTab: undefined;
 };
 
+// ── Nested Stacks ─────────────────────────────────────────────────────────
 export type HomeStackParamList = {
   Dashboard: undefined;
 };
@@ -33,6 +34,8 @@ export type QuizStackParamList = {
     sessionId: string;
     questions: any[];
     subjectName: string;
+    subjectId: string; // ← NEW: needed for live filters
+    questionTypes?: string[]; // ← NEW: initial category types from setup
   };
   QuizResult: {
     sessionId: string;
@@ -50,6 +53,7 @@ export type ProfileStackParamList = {
   Settings: undefined;
 };
 
+// ── Root ──────────────────────────────────────────────────────────────────
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;

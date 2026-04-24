@@ -2,7 +2,7 @@
 // Subjects API — /api/subjects/*
 // ============================================================================
 
-import { api } from './client';
+import { api } from "./client";
 
 export interface Subject {
   id: string;
@@ -30,9 +30,11 @@ export interface Topic {
 }
 
 export async function getSubjects(): Promise<Subject[]> {
-  return api<Subject[]>('/subjects');
+  return api<Subject[]>("/subjects");
 }
 
-export async function getSubject(slug: string): Promise<Subject & { topics: Topic[] }> {
+export async function getSubject(
+  slug: string,
+): Promise<Subject & { topics: Topic[] }> {
   return api(`/subjects/${slug}`);
 }

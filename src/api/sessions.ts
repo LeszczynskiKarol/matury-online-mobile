@@ -2,10 +2,15 @@
 // Sessions API — /api/sessions/*
 // ============================================================================
 
-import { api } from './client';
-import type { Question } from './questions';
+import { api } from "./client";
+import type { Question } from "./questions";
 
-export type SessionType = 'PRACTICE' | 'TOPIC_DRILL' | 'REVIEW' | 'MOCK_EXAM' | 'ADAPTIVE';
+export type SessionType =
+  | "PRACTICE"
+  | "TOPIC_DRILL"
+  | "REVIEW"
+  | "MOCK_EXAM"
+  | "ADAPTIVE";
 
 interface CreateSessionResponse {
   sessionId: string;
@@ -32,15 +37,17 @@ export async function createSession(params: {
   difficulty?: number;
   questionCount?: number;
 }): Promise<CreateSessionResponse> {
-  return api<CreateSessionResponse>('/sessions/create', {
-    method: 'POST',
+  return api<CreateSessionResponse>("/sessions/create", {
+    method: "POST",
     body: params,
   });
 }
 
-export async function completeSession(id: string): Promise<CompleteSessionResponse> {
+export async function completeSession(
+  id: string,
+): Promise<CompleteSessionResponse> {
   return api<CompleteSessionResponse>(`/sessions/${id}/complete`, {
-    method: 'POST',
+    method: "POST",
   });
 }
 
@@ -48,7 +55,7 @@ export async function getSessionHistory(params?: {
   subjectId?: string;
   limit?: number;
 }): Promise<any[]> {
-  return api('/sessions/history', { params: params as any });
+  return api("/sessions/history", { params: params as any });
 }
 
 // ============================================================================
@@ -81,8 +88,8 @@ export async function submitAnswer(data: {
   response: any;
   timeSpentMs?: number;
 }): Promise<SubmitAnswerResponse> {
-  return api<SubmitAnswerResponse>('/answers/submit', {
-    method: 'POST',
+  return api<SubmitAnswerResponse>("/answers/submit", {
+    method: "POST",
     body: data,
   });
 }
@@ -150,5 +157,5 @@ export interface DashboardData {
 }
 
 export async function getDashboard(): Promise<DashboardData> {
-  return api<DashboardData>('/dashboard');
+  return api<DashboardData>("/dashboard");
 }

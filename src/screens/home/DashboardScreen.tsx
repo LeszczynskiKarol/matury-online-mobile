@@ -2,21 +2,28 @@
 // Dashboard Screen — different view for FREE vs PREMIUM
 // ============================================================================
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity, Linking } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
-import { getDashboard, type DashboardData } from '../../api/sessions';
-import { getSubjects, type Subject } from '../../api/subjects';
-import { Card } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
-import { ProgressBar } from '../../components/common/ProgressBar';
-import { colors } from '../../theme/colors';
-import { spacing, radius } from '../../theme';
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Linking,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
+import { getDashboard, type DashboardData } from "../../api/sessions";
+import { getSubjects, type Subject } from "../../api/subjects";
+import { Card } from "../../components/ui/Card";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { ProgressBar } from "../../components/common/ProgressBar";
+import { colors } from "../../theme/colors";
+import { spacing, radius } from "../../theme";
 
 export function DashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -38,13 +45,15 @@ export function DashboardScreen() {
       setData(dashboardData);
       setSubjects(subjectsData.filter((s) => s.isActive));
     } catch (err) {
-      console.error('Dashboard fetch error:', err);
+      console.error("Dashboard fetch error:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -52,12 +61,21 @@ export function DashboardScreen() {
     setRefreshing(false);
   };
 
-  const firstName = user?.name?.split(' ')[0] || 'Cześć';
+  const firstName = user?.name?.split(" ")[0] || "Cześć";
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 16, color: theme.textSecondary }}>Ładowanie...</Text>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: theme.background,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text style={{ fontSize: 16, color: theme.textSecondary }}>
+          Ładowanie...
+        </Text>
       </View>
     );
   }
@@ -72,42 +90,99 @@ export function DashboardScreen() {
           paddingBottom: insets.bottom + 100,
           paddingHorizontal: spacing[5],
         }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand[500]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.brand[500]}
+          />
+        }
       >
         {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 24,
+          }}
+        >
           <View>
-            <Text style={{ fontSize: 14, color: theme.textSecondary }}>Witaj 👋</Text>
-            <Text style={{ fontSize: 24, fontWeight: '700', color: theme.text }}>{firstName}</Text>
+            <Text style={{ fontSize: 14, color: theme.textSecondary }}>
+              Witaj 👋
+            </Text>
+            <Text
+              style={{ fontSize: 24, fontWeight: "700", color: theme.text }}
+            >
+              {firstName}
+            </Text>
           </View>
           <TouchableOpacity onPress={toggle}>
-            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={22} color={theme.textSecondary} />
+            <Ionicons
+              name={isDark ? "sunny-outline" : "moon-outline"}
+              size={22}
+              color={theme.textSecondary}
+            />
           </TouchableOpacity>
         </View>
 
         {/* Premium CTA */}
-        <Card style={{ marginBottom: 24, borderWidth: 2, borderColor: colors.brand[500] }}>
-          <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+        <Card
+          style={{
+            marginBottom: 24,
+            borderWidth: 2,
+            borderColor: colors.brand[500],
+          }}
+        >
+          <View style={{ alignItems: "center", paddingVertical: 8 }}>
             <Text style={{ fontSize: 32, marginBottom: 8 }}>🔒</Text>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, textAlign: 'center', marginBottom: 4 }}>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "700",
+                color: theme.text,
+                textAlign: "center",
+                marginBottom: 4,
+              }}
+            >
               Odblokuj pełny dostęp
             </Text>
-            <Text style={{ fontSize: 13, color: theme.textSecondary, textAlign: 'center', marginBottom: 16, lineHeight: 20 }}>
-              Wszystkie przedmioty, nieograniczone pytania, AI ocena wypracowań i więcej
+            <Text
+              style={{
+                fontSize: 13,
+                color: theme.textSecondary,
+                textAlign: "center",
+                marginBottom: 16,
+                lineHeight: 20,
+              }}
+            >
+              Wszystkie przedmioty, nieograniczone pytania, AI ocena wypracowań
+              i więcej
             </Text>
             <Button
               title="Przejdź na Premium — od 49 zł/mies."
-              onPress={() => navigation.navigate('ProfileTab', { screen: 'Subscription' })}
+              onPress={() =>
+                navigation.navigate("ProfileTab", { screen: "Subscription" })
+              }
               icon={<Ionicons name="star" size={16} color="#fff" />}
             />
           </View>
         </Card>
 
         {/* Greyed-out subjects */}
-        <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 12 }}>
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "700",
+            color: theme.text,
+            marginBottom: 12,
+          }}
+        >
           Dostępne przedmioty
         </Text>
-        <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 16 }}>
+        <Text
+          style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 16 }}
+        >
           Wykup Premium, aby uzyskać dostęp
         </Text>
 
@@ -119,43 +194,57 @@ export function DashboardScreen() {
                 backgroundColor: theme.card,
                 borderWidth: 1,
                 borderColor: theme.cardBorder,
-                borderRadius: radius['2xl'],
+                borderRadius: radius["2xl"],
                 padding: spacing[5],
                 opacity: 0.5,
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
                 <View
                   style={{
                     width: 40,
                     height: 40,
                     borderRadius: radius.lg,
-                    backgroundColor: (s.color || '#6366f1') + '1A',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    backgroundColor: (s.color || "#6366f1") + "1A",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  <Text style={{ fontSize: 20 }}>{s.icon || '📚'}</Text>
+                  <Text style={{ fontSize: 20 }}>{s.icon || "📚"}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text }}>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "600",
+                      color: theme.text,
+                    }}
+                  >
                     {s.name}
                   </Text>
                   <Text style={{ fontSize: 12, color: theme.textSecondary }}>
-                    {s._count?.questions || '100+'} pytań
+                    {s._count?.questions || "100+"} pytań
                   </Text>
                 </View>
-                <Ionicons name="lock-closed" size={18} color={theme.textTertiary} />
+                <Ionicons
+                  name="lock-closed"
+                  size={18}
+                  color={theme.textTertiary}
+                />
               </View>
             </View>
           ))}
         </View>
 
         {/* Bottom CTA */}
-        <View style={{ marginTop: 24, alignItems: 'center' }}>
+        <View style={{ marginTop: 24, alignItems: "center" }}>
           <Button
             title="Zobacz plany Premium"
-            onPress={() => navigation.navigate('ProfileTab', { screen: 'Subscription' })}
+            onPress={() =>
+              navigation.navigate("ProfileTab", { screen: "Subscription" })
+            }
             variant="secondary"
             icon={<Ionicons name="diamond" size={16} color="#fff" />}
           />
@@ -173,39 +262,88 @@ export function DashboardScreen() {
         paddingBottom: insets.bottom + 100,
         paddingHorizontal: spacing[5],
       }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand[500]} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.brand[500]}
+        />
+      }
     >
       {/* Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 24,
+        }}
+      >
         <View>
-          <Text style={{ fontSize: 14, color: theme.textSecondary }}>Witaj 👋</Text>
-          <Text style={{ fontSize: 24, fontWeight: '700', color: theme.text }}>{firstName}</Text>
+          <Text style={{ fontSize: 14, color: theme.textSecondary }}>
+            Witaj 👋
+          </Text>
+          <Text style={{ fontSize: 24, fontWeight: "700", color: theme.text }}>
+            {firstName}
+          </Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Badge variant="streak" value={`${data?.user.currentStreak || 0}🔥`} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Badge
+            variant="streak"
+            value={`${data?.user.currentStreak || 0}🔥`}
+          />
           <TouchableOpacity onPress={toggle}>
-            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={22} color={theme.textSecondary} />
+            <Ionicons
+              name={isDark ? "sunny-outline" : "moon-outline"}
+              size={22}
+              color={theme.textSecondary}
+            />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Stats row */}
-      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+      <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
         <Card variant="stat" style={{ flex: 1 }}>
           <Text style={{ fontSize: 11, color: theme.textSecondary }}>XP</Text>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: theme.primaryText, marginTop: 2 }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "700",
+              color: theme.primaryText,
+              marginTop: 2,
+            }}
+          >
             {data?.user.totalXp || 0}
           </Text>
         </Card>
         <Card variant="stat" style={{ flex: 1 }}>
-          <Text style={{ fontSize: 11, color: theme.textSecondary }}>Poziom</Text>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: theme.secondaryText, marginTop: 2 }}>
+          <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+            Poziom
+          </Text>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "700",
+              color: theme.secondaryText,
+              marginTop: 2,
+            }}
+          >
             {data?.user.globalLevel || 1}
           </Text>
         </Card>
         <Card variant="stat" style={{ flex: 1 }}>
-          <Text style={{ fontSize: 11, color: theme.textSecondary }}>Powtórki</Text>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: colors.orange[500], marginTop: 2 }}>
+          <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+            Powtórki
+          </Text>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "700",
+              color: colors.orange[500],
+              marginTop: 2,
+            }}
+          >
             {data?.dueReviews || 0}
           </Text>
         </Card>
@@ -214,56 +352,172 @@ export function DashboardScreen() {
       {/* Daily goal */}
       {data?.today && (
         <Card style={{ marginBottom: 20 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>Cel dnia</Text>
-            {data.today.isCompleted && <Badge variant="xp" value="✅ Zrobione!" />}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <Text
+              style={{ fontSize: 16, fontWeight: "600", color: theme.text }}
+            >
+              Cel dnia
+            </Text>
+            {data.today.isCompleted && (
+              <Badge variant="xp" value="✅ Zrobione!" />
+            )}
           </View>
           <View style={{ gap: 12 }}>
             <View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 13, color: theme.textSecondary }}>Pytania</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginBottom: 4,
+                }}
+              >
+                <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+                  Pytania
+                </Text>
+                <Text
+                  style={{ fontSize: 13, fontWeight: "600", color: theme.text }}
+                >
                   {data.today.questionsCompleted}/{data.today.targetQuestions}
                 </Text>
               </View>
-              <ProgressBar progress={(data.today.questionsCompleted / data.today.targetQuestions) * 100} height={6} />
+              <ProgressBar
+                progress={
+                  (data.today.questionsCompleted / data.today.targetQuestions) *
+                  100
+                }
+                height={6}
+              />
             </View>
             <View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 13, color: theme.textSecondary }}>XP</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginBottom: 4,
+                }}
+              >
+                <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+                  XP
+                </Text>
+                <Text
+                  style={{ fontSize: 13, fontWeight: "600", color: theme.text }}
+                >
                   {data.today.xpEarned}/{data.today.targetXp}
                 </Text>
               </View>
-              <ProgressBar progress={(data.today.xpEarned / data.today.targetXp) * 100} height={6} color={colors.navy[500]} />
+              <ProgressBar
+                progress={(data.today.xpEarned / data.today.targetXp) * 100}
+                height={6}
+                color={colors.navy[500]}
+              />
             </View>
           </View>
         </Card>
       )}
 
-      {/* Subject progress */}
+      {/* Subject progress — sorted by recent sessions */}
       {data?.subjectProgress && data.subjectProgress.length > 0 && (
         <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontSize: 18, fontWeight: '600', color: theme.text, marginBottom: 12 }}>Twoje przedmioty</Text>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "600",
+              color: theme.text,
+              marginBottom: 12,
+            }}
+          >
+            Ostatnie przedmioty
+          </Text>
           <View style={{ gap: 12 }}>
-            {data.subjectProgress.map((sp) => (
-              <TouchableOpacity key={sp.subject.slug} activeOpacity={0.85} onPress={() => navigation.navigate('SubjectsTab')}>
-                <Card variant="stat">
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <View style={{ width: 40, height: 40, borderRadius: radius.lg, backgroundColor: (sp.subject.color || '#6366f1') + '1A', alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 20 }}>{sp.subject.icon || '📚'}</Text>
+            {(() => {
+              // Sortuj po recentSessions (jak na webie)
+              const orderMap = new Map<string, number>();
+              (data.recentSessions || []).forEach((s) => {
+                if (!orderMap.has(s.subject.slug)) {
+                  orderMap.set(s.subject.slug, orderMap.size);
+                }
+              });
+              return [...data.subjectProgress].sort((a, b) => {
+                const aO = orderMap.get(a.subject.slug) ?? 999;
+                const bO = orderMap.get(b.subject.slug) ?? 999;
+                if (aO !== bO) return aO - bO;
+                return b.questionsAnswered - a.questionsAnswered;
+              });
+            })().map((sp) => {
+              // Znajdź subject ID z listy subjects
+              const subjectObj = subjects.find(
+                (s) => s.slug === sp.subject.slug,
+              );
+              return (
+                <TouchableOpacity
+                  key={sp.subject.slug}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    if (subjectObj) {
+                      navigation.navigate("QuizTab", {
+                        screen: "QuizSetup",
+                        params: { subjectId: subjectObj.id },
+                      });
+                    }
+                  }}
+                >
+                  <Card variant="stat">
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: radius.lg,
+                          backgroundColor:
+                            (sp.subject.color || "#6366f1") + "1A",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text style={{ fontSize: 20 }}>
+                          {sp.subject.icon || "📚"}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 15,
+                            fontWeight: "600",
+                            color: theme.text,
+                          }}
+                        >
+                          {sp.subject.name}
+                        </Text>
+                        <Text
+                          style={{ fontSize: 12, color: theme.textSecondary }}
+                        >
+                          Poz. {sp.level} · {sp.questionsAnswered} pytań ·{" "}
+                          {sp.accuracy}% trafność
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="play-circle"
+                        size={24}
+                        color={colors.brand[500]}
+                      />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text }}>{sp.subject.name}</Text>
-                      <Text style={{ fontSize: 12, color: theme.textSecondary }}>
-                        Poz. {sp.level} · {sp.questionsAnswered} pytań · {sp.accuracy}% trafność
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color={theme.textTertiary} />
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            ))}
+                  </Card>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       )}
@@ -271,16 +525,51 @@ export function DashboardScreen() {
       {/* Recent sessions */}
       {data?.recentSessions && data.recentSessions.length > 0 && (
         <View>
-          <Text style={{ fontSize: 18, fontWeight: '600', color: theme.text, marginBottom: 12 }}>Ostatnie sesje</Text>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "600",
+              color: theme.text,
+              marginBottom: 12,
+            }}
+          >
+            Ostatnie sesje
+          </Text>
           <View style={{ gap: 8 }}>
             {data.recentSessions.map((s) => (
               <Card key={s.id} variant="stat">
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontSize: 16 }}>{s.subject.icon || '📝'}</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <Text style={{ fontSize: 16 }}>
+                      {s.subject.icon || "📝"}
+                    </Text>
                     <View>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: theme.text }}>{s.subject.name}</Text>
-                      <Text style={{ fontSize: 12, color: theme.textSecondary }}>{s.questionsAnswered} pytań · {s.accuracy}%</Text>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "500",
+                          color: theme.text,
+                        }}
+                      >
+                        {s.subject.name}
+                      </Text>
+                      <Text
+                        style={{ fontSize: 12, color: theme.textSecondary }}
+                      >
+                        {s.questionsAnswered} pytań · {s.accuracy}%
+                      </Text>
                     </View>
                   </View>
                   <Badge variant="xp" value={`+${s.xpEarned} XP`} />

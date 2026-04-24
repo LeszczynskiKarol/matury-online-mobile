@@ -2,17 +2,26 @@
 // Auth Context — manages user state + token persistence
 // ============================================================================
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { authApi } from '../api';
-import { getToken, clearToken } from '../api/client';
-import type { User } from '../api/auth';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import { authApi } from "../api";
+import { getToken, clearToken } from "../api/client";
+import type { User } from "../api/auth";
 
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isLoggedIn: boolean;
   isPremium: boolean;
-  login: (email: string, password: string) => Promise<{ requiresVerification?: boolean; email?: string }>;
+  login: (
+    email: string,
+    password: string,
+  ) => Promise<{ requiresVerification?: boolean; email?: string }>;
   register: (data: {
     email: string;
     password: string;
@@ -50,8 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isPremium =
-    user?.subscriptionStatus === 'ACTIVE' ||
-    (user?.subscriptionStatus === 'ONE_TIME' &&
+    user?.subscriptionStatus === "ACTIVE" ||
+    (user?.subscriptionStatus === "ONE_TIME" &&
       !!user?.subscriptionEnd &&
       new Date(user.subscriptionEnd) > new Date());
 
@@ -63,16 +72,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(me);
       return {};
     } catch (err: any) {
-      if (err.code === 'EMAIL_NOT_VERIFIED') {
+      if (err.code === "EMAIL_NOT_VERIFIED") {
         return { requiresVerification: true, email: err.data?.email || email };
       }
       throw err;
     }
   }, []);
 
-  const register = useCallback(async (data: Parameters<typeof authApi.register>[0]) => {
-    return authApi.register(data);
-  }, []);
+  const register = useCallback(
+    async (data: Parameters<typeof authApi.register>[0]) => {
+      return authApi.register(data);
+    },
+    [],
+  );
 
   const verifyEmail = useCallback(async (email: string, code: string) => {
     await authApi.verifyEmail(email, code);
@@ -123,6 +135,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be inside AuthProvider');
+  if (!ctx) throw new Error("useAuth must be inside AuthProvider");
   return ctx;
 }

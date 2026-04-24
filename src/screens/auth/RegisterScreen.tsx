@@ -2,7 +2,8 @@
 // Register Screen
 // ============================================================================
 
-import React, { useState } from 'react';
+import * as WebBrowser from "expo-web-browser";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,19 +12,19 @@ import {
   Platform,
   TouchableOpacity,
   Alert,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { ApiError } from '../../api/client';
-import { colors } from '../../theme/colors';
-import { spacing, radius } from '../../theme';
-import type { AuthStackParamList } from '../../navigation/types';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
+import { Button } from "../../components/ui/Button";
+import { Input } from "../../components/ui/Input";
+import { ApiError } from "../../api/client";
+import { colors } from "../../theme/colors";
+import { spacing, radius } from "../../theme";
+import type { AuthStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AuthStackParamList>;
 
@@ -33,20 +34,20 @@ export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
   const { register } = useAuth();
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleRegister = async () => {
     const errs: Record<string, string> = {};
-    if (!email.trim()) errs.email = 'Podaj email';
-    if (password.length < 8) errs.password = 'Min. 8 znaków';
-    if (password !== passwordConfirm) errs.passwordConfirm = 'Hasła nie pasują';
-    if (!acceptTerms) errs.terms = 'Musisz zaakceptować regulamin';
+    if (!email.trim()) errs.email = "Podaj email";
+    if (password.length < 8) errs.password = "Min. 8 znaków";
+    if (password !== passwordConfirm) errs.passwordConfirm = "Hasła nie pasują";
+    if (!acceptTerms) errs.terms = "Musisz zaakceptować regulamin";
     if (Object.keys(errs).length > 0) return setErrors(errs);
 
     setLoading(true);
@@ -60,13 +61,13 @@ export function RegisterScreen() {
         acceptTerms,
       });
       if (result.requiresVerification) {
-        navigation.navigate('Verify', { email: result.email });
+        navigation.navigate("Verify", { email: result.email });
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        Alert.alert('Błąd', err.message);
+        Alert.alert("Błąd", err.message);
       } else {
-        Alert.alert('Błąd', 'Nie udało się połączyć z serwerem');
+        Alert.alert("Błąd", "Nie udało się połączyć z serwerem");
       }
     } finally {
       setLoading(false);
@@ -76,7 +77,7 @@ export function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: theme.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
         contentContainerStyle={{
@@ -90,10 +91,21 @@ export function RegisterScreen() {
         {/* Back button */}
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 24 }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            marginBottom: 24,
+          }}
         >
           <Ionicons name="chevron-back" size={22} color={theme.text} />
-          <Text style={{ fontSize: 15, fontFamily: 'DMSans_500Medium', color: theme.text }}>
+          <Text
+            style={{
+              fontSize: 15,
+              fontFamily: "DMSans_500Medium",
+              color: theme.text,
+            }}
+          >
             Wróć
           </Text>
         </TouchableOpacity>
@@ -102,7 +114,7 @@ export function RegisterScreen() {
         <Text
           style={{
             fontSize: 28,
-            fontFamily: 'Outfit_700Bold',
+            fontFamily: "Outfit_700Bold",
             color: theme.text,
             marginBottom: 8,
           }}
@@ -112,7 +124,7 @@ export function RegisterScreen() {
         <Text
           style={{
             fontSize: 15,
-            fontFamily: 'DMSans_400Regular',
+            fontFamily: "DMSans_400Regular",
             color: theme.textSecondary,
             marginBottom: 32,
           }}
@@ -160,48 +172,95 @@ export function RegisterScreen() {
           />
 
           {/* Terms checkbox */}
-          <TouchableOpacity
-            onPress={() => setAcceptTerms(!acceptTerms)}
+          <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "flex-start",
               gap: 10,
               marginTop: 4,
             }}
           >
-            <View
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                borderWidth: 2,
-                borderColor: errors.terms
-                  ? colors.red[500]
-                  : acceptTerms
-                    ? colors.brand[500]
-                    : theme.border,
-                backgroundColor: acceptTerms ? colors.brand[500] : 'transparent',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+            {/* Checkbox — osobny touchable */}
+            <TouchableOpacity
+              onPress={() => setAcceptTerms(!acceptTerms)}
+              style={{ paddingTop: 2 }}
             >
-              {acceptTerms && (
-                <Ionicons name="checkmark" size={14} color="#fff" />
-              )}
-            </View>
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  borderWidth: 2,
+                  borderColor: errors.terms
+                    ? colors.red[500]
+                    : acceptTerms
+                      ? colors.brand[500]
+                      : theme.border,
+                  backgroundColor: acceptTerms
+                    ? colors.brand[500]
+                    : "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {acceptTerms && (
+                  <Ionicons name="checkmark" size={14} color="#fff" />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* Tekst z linkami — osobny element */}
             <Text
               style={{
                 flex: 1,
                 fontSize: 13,
-                fontFamily: 'DMSans_400Regular',
+                fontFamily: "DMSans_400Regular",
                 color: theme.textSecondary,
               }}
+              onPress={() => setAcceptTerms(!acceptTerms)}
             >
-              Akceptuję regulamin i politykę prywatności
+              Akceptuję{" "}
+              <Text
+                style={{
+                  color: colors.brand[500],
+                  textDecorationLine: "underline",
+                }}
+                onPress={() =>
+                  WebBrowser.openBrowserAsync(
+                    "https://www.matury-online.pl/regulamin",
+                  )
+                }
+                suppressHighlighting
+              >
+                regulamin
+              </Text>{" "}
+              i{" "}
+              <Text
+                style={{
+                  color: colors.brand[500],
+                  textDecorationLine: "underline",
+                }}
+                onPress={() =>
+                  WebBrowser.openBrowserAsync(
+                    "https://www.matury-online.pl/polityka-prywatnosci",
+                  )
+                }
+                suppressHighlighting
+              >
+                politykę prywatności
+              </Text>
             </Text>
-          </TouchableOpacity>
+          </View>
+
           {errors.terms && (
-            <Text style={{ fontSize: 12, color: colors.red[500], marginLeft: 32, marginTop: -8 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                color: colors.red[500],
+                marginLeft: 32,
+                marginTop: -8,
+              }}
+            >
               {errors.terms}
             </Text>
           )}
@@ -217,8 +276,8 @@ export function RegisterScreen() {
         {/* Login link */}
         <View
           style={{
-            flexDirection: 'row',
-            justifyContent: 'center',
+            flexDirection: "row",
+            justifyContent: "center",
             marginTop: 32,
             gap: 4,
           }}
@@ -226,7 +285,7 @@ export function RegisterScreen() {
           <Text
             style={{
               fontSize: 14,
-              fontFamily: 'DMSans_400Regular',
+              fontFamily: "DMSans_400Regular",
               color: theme.textSecondary,
             }}
           >
@@ -236,7 +295,7 @@ export function RegisterScreen() {
             <Text
               style={{
                 fontSize: 14,
-                fontFamily: 'DMSans_600SemiBold',
+                fontFamily: "DMSans_600SemiBold",
                 color: colors.brand[500],
               }}
             >

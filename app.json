@@ -12,9 +12,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#0a0a1f"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "pl.matury-online.app",
@@ -32,7 +30,8 @@
     "plugins": [
       "expo-font",
       "expo-secure-store",
-      "expo-asset"
+      "expo-asset",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
