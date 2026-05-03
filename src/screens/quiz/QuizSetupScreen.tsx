@@ -183,6 +183,41 @@ const SUBJECT_CATEGORIES: Record<string, SessionCategory[]> = {
       desc: "Analiza fragmentów tekstów",
     },
   ],
+  niemiecki: [
+    {
+      label: "Pisanie",
+      icon: "✏️",
+      types: ["OPEN", "ESSAY"],
+      desc: "Pytania otwarte i wypracowania",
+    },
+    {
+      label: "Testy i quizy",
+      icon: "🔘",
+      types: [
+        "CLOSED",
+        "MULTI_SELECT",
+        "TRUE_FALSE",
+        "FILL_IN",
+        "MATCHING",
+        "ORDERING",
+        "ERROR_FIND",
+        "CLOZE",
+      ],
+      desc: "Gramatyka, słownictwo, Use of English",
+    },
+    {
+      label: "Praca z tekstem",
+      icon: "📄",
+      types: ["WIAZKA"],
+      desc: "Reading comprehension",
+    },
+    {
+      label: "Słuchanie",
+      icon: "🎧",
+      types: ["LISTENING"],
+      desc: "AI generuje nagrania w czasie rzeczywistym",
+    },
+  ],
   angielski: [
     {
       label: "Pisanie",
@@ -311,7 +346,7 @@ const QUESTION_COUNTS = [5, 10, 15, 20, 30];
 
 export function QuizSetupScreen() {
   const insets = useSafeAreaInsets();
-  const { colors: theme } = useTheme();
+  const { colors: theme, isDark } = useTheme();
   const { isPremium } = useAuth();
   const navigation = useNavigation<Nav>();
   const route = useRoute<any>();
@@ -682,10 +717,14 @@ export function QuizSetupScreen() {
                   borderWidth: 2,
                   borderColor: !selectedCategory
                     ? colors.brand[500]
-                    : theme.cardBorder,
+                    : isDark
+                      ? theme.cardBorder
+                      : "transparent",
                   backgroundColor: !selectedCategory
                     ? colors.brand[500] + "0D"
-                    : theme.card,
+                    : isDark
+                      ? theme.card
+                      : "#FFFFFF",
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 12,
@@ -721,11 +760,15 @@ export function QuizSetupScreen() {
                     borderColor:
                       selectedCategory?.label === cat.label
                         ? colors.brand[500]
-                        : theme.cardBorder,
+                        : isDark
+                          ? theme.cardBorder
+                          : "transparent",
                     backgroundColor:
                       selectedCategory?.label === cat.label
                         ? colors.brand[500] + "0D"
-                        : theme.card,
+                        : isDark
+                          ? theme.card
+                          : "#FFFFFF",
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 12,

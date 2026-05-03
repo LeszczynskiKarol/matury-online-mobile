@@ -4,6 +4,8 @@
 
 import React from "react";
 import { Platform } from "react-native";
+import { RankingScreen } from "../screens/profile/RankingScreen";
+import { BadgesScreen } from "../screens/profile/BadgesScreen";
 import { CommonActions } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -11,6 +13,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import { colors } from "../theme/colors";
+import { ExamPlayerScreen } from "../screens/exam/ExamPlayerScreen";
+import { ExamResultsScreen } from "../screens/exam/ExamResultsScreen";
+import { ExamHistoryScreen } from "../screens/exam/ExamHistoryScreen";
+import { AiCreditsHistoryScreen } from "../screens/profile/AiCreditsHistoryScreen";
 import type {
   MainTabParamList,
   HomeStackParamList,
@@ -20,6 +26,7 @@ import type {
 } from "./types";
 
 import { DashboardScreen } from "../screens/home/DashboardScreen";
+import { SessionHistoryScreen } from "../screens/home/SessionHistoryScreen";
 import { SubjectsScreen } from "../screens/subjects/SubjectsScreen";
 import { SubjectDetailScreen } from "../screens/subjects/SubjectDetailScreen";
 import { QuizSetupScreen } from "../screens/quiz/QuizSetupScreen";
@@ -27,6 +34,7 @@ import { QuizPlayScreen } from "../screens/quiz/QuizPlayScreen";
 import { QuizResultScreen } from "../screens/quiz/QuizResultScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
 import { SubscriptionScreen } from "../screens/profile/SubscriptionScreen";
+import { ExamSelectorScreen } from "../screens/exam/ExamSelectorScreen";
 
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 function HomeStackNav() {
@@ -39,6 +47,10 @@ function HomeStackNav() {
       }}
     >
       <HomeStack.Screen name="Dashboard" component={DashboardScreen} />
+      <HomeStack.Screen
+        name="SessionHistory"
+        component={SessionHistoryScreen}
+      />
     </HomeStack.Navigator>
   );
 }
@@ -89,6 +101,31 @@ function QuizStackNav() {
   );
 }
 
+import type { ExamStackParamList } from "./types";
+
+const ExamStack = createNativeStackNavigator<ExamStackParamList>();
+function ExamStackNav() {
+  const { colors: theme } = useTheme();
+  return (
+    <ExamStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.background },
+        animation: "slide_from_right",
+      }}
+    >
+      <ExamStack.Screen name="ExamSelector" component={ExamSelectorScreen} />
+      <ExamStack.Screen
+        name="ExamPlay"
+        component={ExamPlayerScreen}
+        options={{ gestureEnabled: false }}
+      />
+      <ExamStack.Screen name="ExamResults" component={ExamResultsScreen} />
+      <ExamStack.Screen name="ExamHistory" component={ExamHistoryScreen} />
+    </ExamStack.Navigator>
+  );
+}
+
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 function ProfileStackNav() {
   const { colors: theme } = useTheme();
@@ -102,6 +139,12 @@ function ProfileStackNav() {
     >
       <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
       <ProfileStack.Screen name="Subscription" component={SubscriptionScreen} />
+      <ProfileStack.Screen name="Badges" component={BadgesScreen} />
+      <ProfileStack.Screen name="Ranking" component={RankingScreen} />
+      <ProfileStack.Screen
+        name="AiCreditsHistory"
+        component={AiCreditsHistoryScreen}
+      />
     </ProfileStack.Navigator>
   );
 }
@@ -186,6 +229,16 @@ export function MainNavigator() {
           tabBarLabel: "Quiz",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="play-circle-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ExamTab"
+        component={ExamStackNav}
+        options={{
+          tabBarLabel: "Egzamin",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="document-text-outline" size={size} color={color} />
           ),
         }}
       />

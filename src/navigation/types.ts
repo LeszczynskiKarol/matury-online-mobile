@@ -16,11 +16,13 @@ export type MainTabParamList = {
   SubjectsTab: undefined;
   QuizTab: undefined;
   ProfileTab: undefined;
+  ExamTab: undefined;
 };
 
 // ── Nested Stacks ─────────────────────────────────────────────────────────
 export type HomeStackParamList = {
   Dashboard: undefined;
+  SessionHistory: undefined;
 };
 
 export type SubjectsStackParamList = {
@@ -50,11 +52,21 @@ export type QuizStackParamList = {
 export type ProfileStackParamList = {
   ProfileMain: undefined;
   Subscription: undefined;
-  Settings: undefined;
+  Badges: undefined;
+  Ranking: undefined;
+  AiCreditsHistory: undefined;
 };
 
 // ── Root ──────────────────────────────────────────────────────────────────
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
+};
+
+// ── Exam Stack ────────────────────────────────────────────────────────────
+export type ExamStackParamList = {
+  ExamSelector: undefined;
+  ExamPlay: { examId: string; subjectId: string };
+  ExamResults: { attemptId: string };
+  ExamHistory: undefined;
 };

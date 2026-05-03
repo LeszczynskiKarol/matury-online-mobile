@@ -3,13 +3,14 @@
 // ============================================================================
 
 import React, { useEffect, useState, useCallback } from "react";
+import { getProfile, type ProfileResponse } from "../../api/gamification";
 import {
   View,
   Text,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  Linking,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -35,15 +36,18 @@ export function DashboardScreen() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<ProfileResponse | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [dashboardData, subjectsData] = await Promise.all([
+      const [dashboardData, subjectsData, profileData] = await Promise.all([
         getDashboard().catch(() => null),
         getSubjects().catch(() => []),
+        getProfile().catch(() => null),
       ]);
       setData(dashboardData);
       setSubjects(subjectsData.filter((s) => s.isActive));
+      setProfile(profileData);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
@@ -279,13 +283,65 @@ export function DashboardScreen() {
           marginBottom: 24,
         }}
       >
-        <View>
-          <Text style={{ fontSize: 14, color: theme.textSecondary }}>
-            Witaj 👋
-          </Text>
-          <Text style={{ fontSize: 24, fontWeight: "700", color: theme.text }}>
-            {firstName}
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: colors.navy[600],
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
+            {user?.avatarUrl ? (
+              <Image
+                source={{ uri: user.avatarUrl }}
+                style={{ width: 44, height: 44, borderRadius: 22 }}
+              />
+            ) : (
+              <Text style={{ fontSize: 18, fontWeight: "700", color: "#fff" }}>
+                {(user?.name?.[0] || user?.email?.[0] || "M").toUpperCase()}
+              </Text>
+            )}
+          </View>
+          <View>
+            <Text style={{ fontSize: 14, color: theme.textSecondary }}>
+              Witaj 👋
+            </Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <Text
+                style={{ fontSize: 24, fontWeight: "700", color: theme.text }}
+              >
+                {firstName}
+              </Text>
+              {profile?.title && (
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 10,
+                    backgroundColor: profile.title.color + "20",
+                    borderWidth: 1,
+                    borderColor: profile.title.color + "30",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: profile.title.color,
+                    }}
+                  >
+                    {profile.title.emoji} {profile.title.name}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           <Badge
@@ -332,26 +388,16 @@ export function DashboardScreen() {
             {data?.user.globalLevel || 1}
           </Text>
         </Card>
-        <Card variant="stat" style={{ flex: 1 }}>
-          <Text style={{ fontSize: 11, color: theme.textSecondary }}>
-            Powtórki
-          </Text>
-          <Text
-            style={{
-              fontSize: 22,
-              fontWeight: "700",
-              color: colors.orange[500],
-              marginTop: 2,
-            }}
-          >
-            {data?.dueReviews || 0}
-          </Text>
-        </Card>
       </View>
 
       {/* Daily goal */}
       {data?.today && (
-        <Card style={{ marginBottom: 20 }}>
+        <Card
+          style={{
+            marginBottom: 20,
+            backgroundColor: isDark ? theme.card : "#FFFFFF",
+          }}
+        >
           <View
             style={{
               flexDirection: "row",
@@ -420,6 +466,61 @@ export function DashboardScreen() {
             </View>
           </View>
         </Card>
+      )}
+
+      {/* Next badge hint */}
+      {data?.recentAchievements && data.recentAchievements.length > 0 && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() =>
+            navigation.navigate("ProfileTab", { screen: "Badges" })
+          }
+        >
+          <Card
+            style={{
+              marginBottom: 20,
+              borderWidth: 1,
+              borderColor: colors.yellow[500] + "30",
+              backgroundColor: isDark
+                ? colors.yellow[500] + "08"
+                : colors.yellow[500] + "08",
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+            >
+              <Text style={{ fontSize: 28 }}>
+                {data.recentAchievements[0].icon}
+              </Text>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "600",
+                    color: colors.yellow[500],
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  Ostatnia odznaka
+                </Text>
+                <Text
+                  style={{ fontSize: 15, fontWeight: "700", color: theme.text }}
+                >
+                  {data.recentAchievements[0].name}
+                </Text>
+                <Text style={{ fontSize: 12, color: theme.textSecondary }}>
+                  {data.recentAchievements[0].description}
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={theme.textTertiary}
+              />
+            </View>
+          </Card>
+        </TouchableOpacity>
       )}
 
       {/* Subject progress — sorted by recent sessions */}
@@ -576,6 +677,44 @@ export function DashboardScreen() {
                 </View>
               </Card>
             ))}
+            {/* Link do pełnej historii */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate("SessionHistory")}
+              style={{ alignItems: "center", marginTop: 8 }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  paddingVertical: 10,
+                  paddingHorizontal: 16,
+                  borderRadius: 14,
+                  backgroundColor: colors.brand[500] + "0D",
+                }}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={16}
+                  color={colors.brand[500]}
+                />
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: "600",
+                    color: colors.brand[500],
+                  }}
+                >
+                  Pełna historia sesji
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={14}
+                  color={colors.brand[500]}
+                />
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
       )}

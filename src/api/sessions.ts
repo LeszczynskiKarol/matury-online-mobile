@@ -66,6 +66,13 @@ interface SubmitAnswerResponse {
   answerId: string;
   isCorrect: boolean | null;
   score: number | null;
+  gamification?: {
+    xp: number;
+    streak: number;
+    levelUp?: boolean;
+    newLevel?: number;
+    badges?: { slug: string; name: string; icon: string; xpReward: number }[];
+  };
   pointsEarned: number;
   xpEarned: number;
   explanation: string | null;

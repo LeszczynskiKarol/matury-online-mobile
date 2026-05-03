@@ -25,8 +25,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0a1f"
       },
-      "package": "pl.matury_online.app"
+      "package": "pl.matury_online.app",
+      "permissions": [],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
+      "versionCode": 3,
+      "softwareKeyboardLayoutMode": "pan"
     },
+
     "plugins": [
       "expo-font",
       "expo-secure-store",

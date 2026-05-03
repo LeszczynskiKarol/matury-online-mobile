@@ -4,12 +4,13 @@
 
 import { colors } from "../../theme/colors";
 import { ListeningQuestion } from "../../components/quiz/ListeningQuestion";
+import { ReportButton } from "../../components/quiz/ReportQuestion";
+import { processGamificationResponse } from "../../components/common/GamificationToasts";
 import {
   startListening,
   nextListening,
   endListening,
 } from "../../api/listening";
-
 import React, {
   useState,
   useRef,
@@ -39,13 +40,16 @@ import {
   skipQuestion as apiSkipQuestion,
   getQuestions,
   getFilterOptions,
+  trackView,
+  Question,
+  FilterOptions,
 } from "../../api/questions";
-import type { Question, FilterOptions } from "../../api/questions";
 import { OptionCard } from "../../components/quiz/OptionCard";
 import { ProgressBar } from "../../components/common/ProgressBar";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { parseChemText } from "../../utils/chemText";
+import { MathEditor } from "../../components/exam/MathEditor";
 import { spacing } from "../../theme";
 import type { QuizStackParamList } from "../../navigation/types";
 
@@ -96,7 +100,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function QuizPlayScreen() {
   const insets = useSafeAreaInsets();
-  const { colors: theme } = useTheme();
+  const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
   const route = useRoute<any>();
 
@@ -134,7 +138,8 @@ export function QuizPlayScreen() {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ correct: 0, totalXp: 0, answered: 0 });
   const startTime = useRef(Date.now());
-
+  const viewedIds = useRef<Set<string>>(new Set());
+  const [resultsMap, setResultsMap] = useState<Record<string, any>>({});
   // ── Live filter state (identical to web) ────────────────────────────────
   const [filters, setFilters] = useState<LiveFilters>(() => ({
     ...EMPTY_FILTERS,
@@ -195,9 +200,36 @@ export function QuizPlayScreen() {
     }
   }, [subjectId]);
 
+  // ── Track question view (only once per question) ────────────────────────
+  useEffect(() => {
+    if (!question || loadingMore || listeningLoading) return;
+    if (viewedIds.current.has(question.id)) return;
+    viewedIds.current.add(question.id);
+    trackView(question.id, listeningSessionId || sessionId).catch(() => {});
+  }, [question?.id]);
+
   // ── Derived ─────────────────────────────────────────────────────────────
 
   const content = question?.content;
+
+  const MATH_SUBJECT_NAMES = [
+    "matematyka",
+    "fizyka",
+    "chemia",
+    "informatyka",
+    "biologia",
+  ];
+  const needsMathEditor =
+    MATH_SUBJECT_NAMES.some((s) => subjectName?.toLowerCase().includes(s)) ||
+    MATH_SUBJECT_NAMES.some((s) =>
+      question?.topic?.name?.toLowerCase().includes(s),
+    );
+  console.log(
+    "[MATH-DEBUG] subjectName:",
+    JSON.stringify(subjectName),
+    "needsMathEditor:",
+    needsMathEditor,
+  );
   const hasActiveFilters =
     filters.topicIds.length > 0 ||
     filters.types.length > 0 ||
@@ -406,9 +438,12 @@ export function QuizPlayScreen() {
         response,
         timeSpentMs,
       });
+      if (res.gamification)
+        processGamificationResponse(res.gamification as any);
       answeredIds.current.add(question.id);
       setResult(res);
       setSubmitted(true);
+      setResultsMap((prev) => ({ ...prev, [question.id]: res }));
       setStats((prev) => ({
         correct: prev.correct + (res.isCorrect ? 1 : 0),
         totalXp: prev.totalXp + (res.xpEarned || 0),
@@ -554,6 +589,16 @@ export function QuizPlayScreen() {
     isListeningOnly,
     listeningSessionId,
   ]);
+
+  const handlePrevious = useCallback(() => {
+    if (currentIndex <= 0) return;
+    setCurrentIndex((i) => i - 1);
+    setSelectedAnswer(null);
+    setOpenAnswer("");
+    setSubmitted(false);
+    setResult(null);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [currentIndex]);
 
   const goToResults = async () => {
     if (isListeningOnly && listeningSessionId) {
@@ -911,6 +956,66 @@ export function QuizPlayScreen() {
                   {question.source}
                 </Text>
               )}
+              {(() => {
+                const t = question.type;
+                const c = content;
+                if (t === "LISTENING")
+                  return <AiBadge label="~4 kr." isDark={isDark} />;
+                if (t === "OPEN")
+                  return <AiBadge label="~1 kr." isDark={isDark} />;
+                if (t === "ESSAY")
+                  return <AiBadge label="~3 kr." isDark={isDark} />;
+                if (t === "EXPERIMENT_DESIGN")
+                  return (
+                    <AiBadge
+                      label={`~${c.fields?.length || 1} kr.`}
+                      isDark={isDark}
+                    />
+                  );
+                if (
+                  t === "WIAZKA" &&
+                  c.subQuestions?.some((sq: any) => sq.type === "OPEN")
+                ) {
+                  const n = c.subQuestions.filter(
+                    (sq: any) => sq.type === "OPEN",
+                  ).length;
+                  return <AiBadge label={`~${n} kr.`} isDark={isDark} />;
+                }
+                if (t === "CALCULATION" && c.showSteps)
+                  return <AiBadge label="~1 kr." />;
+                if (
+                  [
+                    "CLOZE",
+                    "FILL_IN",
+                    "TABLE_DATA",
+                    "GRAPH_INTERPRET",
+                    "DIAGRAM_LABEL",
+                    "CROSS_PUNNETT",
+                    "CALCULATION",
+                  ].includes(t)
+                ) {
+                  const n =
+                    t === "CLOZE"
+                      ? Object.keys(c.blanks || {}).length
+                      : t === "FILL_IN"
+                        ? c.blanks?.length || 1
+                        : t === "TABLE_DATA" || t === "GRAPH_INTERPRET"
+                          ? c.subQuestions?.length || 1
+                          : t === "DIAGRAM_LABEL"
+                            ? c.labels?.length || 1
+                            : t === "CROSS_PUNNETT"
+                              ? c.questions?.length || 1
+                              : 1;
+                  return <AiBadge label={`~${n} kr.`} isDark={isDark} />;
+                }
+                return null;
+              })()}
+              <ReportButton
+                questionId={question.id}
+                questionPreview={
+                  content?.question || content?.context || content?.prompt
+                }
+              />
             </View>
 
             {/* Work / Epoch badges */}
@@ -928,7 +1033,9 @@ export function QuizPlayScreen() {
                 {content.work && (
                   <View
                     style={{
-                      backgroundColor: "#f3e8ff",
+                      backgroundColor: isDark ? "#5b21b615" : "#f3e8ff",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#5b21b640" : "#e9d5ff",
                       paddingHorizontal: 10,
                       paddingVertical: 5,
                       borderRadius: 99,
@@ -938,7 +1045,7 @@ export function QuizPlayScreen() {
                       style={{
                         fontSize: 11,
                         fontWeight: "600",
-                        color: "#7c3aed",
+                        color: isDark ? "#c4b5fd" : "#7c3aed",
                       }}
                     >
                       📚 {content.work}
@@ -949,7 +1056,13 @@ export function QuizPlayScreen() {
                   content.epochLabel !== question.topic?.name && (
                     <View
                       style={{
-                        backgroundColor: "#e0e7ff",
+                        backgroundColor: isDark
+                          ? colors.navy[500] + "15"
+                          : "#e0e7ff",
+                        borderWidth: 1,
+                        borderColor: isDark
+                          ? colors.navy[500] + "30"
+                          : "#c7d2fe",
                         paddingHorizontal: 10,
                         paddingVertical: 5,
                         borderRadius: 99,
@@ -959,7 +1072,7 @@ export function QuizPlayScreen() {
                         style={{
                           fontSize: 11,
                           fontWeight: "500",
-                          color: "#4f46e5",
+                          color: isDark ? colors.navy[400] : "#4f46e5",
                         }}
                       >
                         {content.epochLabel}
@@ -969,7 +1082,11 @@ export function QuizPlayScreen() {
                 {content.author && (
                   <View
                     style={{
-                      backgroundColor: "#e0e7ff",
+                      backgroundColor: isDark
+                        ? colors.navy[500] + "15"
+                        : "#e0e7ff",
+                      borderWidth: 1,
+                      borderColor: isDark ? colors.navy[500] + "30" : "#c7d2fe",
                       paddingHorizontal: 10,
                       paddingVertical: 5,
                       borderRadius: 99,
@@ -979,7 +1096,7 @@ export function QuizPlayScreen() {
                       style={{
                         fontSize: 11,
                         fontWeight: "500",
-                        color: "#4f46e5",
+                        color: isDark ? colors.navy[400] : "#4f46e5",
                       }}
                     >
                       ✍️ {content.author}
@@ -1015,7 +1132,39 @@ export function QuizPlayScreen() {
                 </Text>
               </View>
             )}
-
+            {/* Word do analizy */}
+            {content.word && (
+              <View
+                style={{
+                  padding: 16,
+                  borderRadius: 16,
+                  backgroundColor: isDark ? colors.navy[500] + "15" : "#eef2ff",
+                  borderWidth: 1,
+                  borderColor: isDark ? colors.navy[500] + "30" : "#c7d2fe",
+                  marginBottom: 16,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: isDark ? colors.navy[400] : "#6366f1",
+                    marginBottom: 4,
+                  }}
+                >
+                  Wyraz:
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 22,
+                    fontWeight: "700",
+                    color: isDark ? colors.navy[300] : "#4338ca",
+                  }}
+                >
+                  „{content.word}"
+                </Text>
+              </View>
+            )}
             {/* Source text */}
             {content.sourceText && (
               <View
@@ -1195,6 +1344,11 @@ export function QuizPlayScreen() {
               result &&
               !(
                 result.revealed && ["EXPERIMENT_DESIGN"].includes(question.type)
+              ) &&
+              !(
+                result.revealed &&
+                ["OPEN", "ESSAY"].includes(question.type) &&
+                content?.sampleAnswer
               ) && (
                 <Card
                   style={{
@@ -1203,7 +1357,9 @@ export function QuizPlayScreen() {
                       ? colors.navy[400]
                       : result.isCorrect
                         ? colors.brand[500]
-                        : colors.red[500],
+                        : result.score > 0
+                          ? "#f59e0b"
+                          : colors.red[500],
                     borderWidth: 2,
                   }}
                 >
@@ -1240,14 +1396,18 @@ export function QuizPlayScreen() {
                           ? colors.navy[500]
                           : result.isCorrect
                             ? colors.brand[600]
-                            : colors.red[600],
+                            : result.score > 0
+                              ? "#d97706"
+                              : colors.red[600],
                       }}
                     >
                       {result.revealed
                         ? "Poprawna odpowiedź"
                         : result.isCorrect
                           ? "Brawo!"
-                          : "Niestety, źle"}
+                          : result.score > 0
+                            ? `Częściowo — ${Math.round(result.score * 100)}%`
+                            : "Niestety, źle"}
                     </Text>
                     {!result.revealed &&
                       result.score != null &&
@@ -1300,7 +1460,6 @@ export function QuizPlayScreen() {
                     </Text>
                   )}
                   {result.correctAnswer &&
-                    !result.revealed &&
                     !result.isCorrect &&
                     !["EXPERIMENT_DESIGN", "CALCULATION"].includes(
                       question.type,
@@ -1579,27 +1738,453 @@ export function QuizPlayScreen() {
             {/* OPEN / ESSAY */}
             {(question.type === "OPEN" || question.type === "ESSAY") && (
               <>
-                <TextInput
-                  value={openAnswer}
-                  onChangeText={setOpenAnswer}
-                  multiline
-                  numberOfLines={6}
-                  editable={!submitted}
-                  placeholder="Wpisz odpowiedź..."
-                  placeholderTextColor={theme.textTertiary}
+                <View
                   style={{
-                    backgroundColor: theme.inputBg,
-                    borderWidth: 1,
-                    borderColor: theme.border,
-                    borderRadius: 16,
-                    padding: spacing[4],
-                    fontSize: 15,
-                    fontFamily: "DMSans_400Regular",
-                    color: theme.text,
-                    textAlignVertical: "top",
-                    minHeight: 150,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    marginBottom: 10,
                   }}
-                />
+                >
+                  <Text style={{ fontSize: 11, color: theme.textTertiary }}>
+                    Twoja odpowiedź zostanie oceniona przez sztuczną
+                    inteligencję
+                  </Text>
+                </View>
+
+                {/* Hints */}
+                {content.hints && content.hints.length > 0 && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      marginBottom: 12,
+                    }}
+                  >
+                    {content.hints.map((h: string, i: number) => (
+                      <View
+                        key={i}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 10,
+                          backgroundColor: isDark ? "#0c4a6e20" : "#f0f9ff",
+                          borderWidth: 1,
+                          borderColor: isDark ? "#0c4a6e50" : "#bae6fd",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDark ? "#38bdf8" : "#0284c7",
+                          }}
+                        >
+                          💡 {h}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Instruction */}
+                {content.instruction && (
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: theme.textSecondary,
+                      fontStyle: "italic",
+                      marginBottom: 12,
+                      lineHeight: 21,
+                    }}
+                  >
+                    {content.instruction}
+                  </Text>
+                )}
+
+                {/* Quote / sentencja */}
+                {content.quote && (
+                  <View
+                    style={{
+                      padding: 18,
+                      borderRadius: 16,
+                      backgroundColor: isDark ? "#5b21b615" : "#f5f3ff",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#5b21b640" : "#ddd6fe",
+                      marginBottom: 14,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontStyle: "italic",
+                        fontWeight: "500",
+                        color: isDark ? "#c4b5fd" : "#5b21b6",
+                        lineHeight: 22,
+                        textAlign: "center",
+                      }}
+                    >
+                      „{content.quote}"
+                    </Text>
+                  </View>
+                )}
+
+                {/* Slogan / hasło */}
+                {content.slogan && !content.quote && (
+                  <View
+                    style={{
+                      padding: 16,
+                      borderRadius: 16,
+                      backgroundColor: isDark ? "#5b21b615" : "#f5f3ff",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#5b21b640" : "#ddd6fe",
+                      marginBottom: 14,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: isDark ? "#a78bfa" : "#7c3aed",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Hasło:
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        fontWeight: "700",
+                        color: isDark ? "#c4b5fd" : "#5b21b6",
+                      }}
+                    >
+                      „{content.slogan}"
+                    </Text>
+                  </View>
+                )}
+
+                {/* Zdanie do przekształcenia */}
+                {content.originalSentence && (
+                  <View
+                    style={{
+                      padding: 14,
+                      borderRadius: 16,
+                      backgroundColor: isDark ? "#0c4a6e15" : "#f0f9ff",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#0c4a6e40" : "#bae6fd",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: isDark ? "#38bdf8" : "#0284c7",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Zdanie:
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "500",
+                        color: isDark ? "#bae6fd" : "#0c4a6e",
+                      }}
+                    >
+                      „{content.originalSentence}"
+                    </Text>
+                    {content.transformation && (
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: isDark ? "#7dd3fc" : "#0369a1",
+                          fontStyle: "italic",
+                          marginTop: 6,
+                        }}
+                      >
+                        → {content.transformation}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Zdanie do oceny */}
+                {content.statement && !content.originalSentence && (
+                  <View
+                    style={{
+                      padding: 14,
+                      borderRadius: 16,
+                      backgroundColor: theme.inputBg,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: theme.textTertiary,
+                        marginBottom: 4,
+                      }}
+                    >
+                      Zdanie do oceny:
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "500",
+                        color: theme.text,
+                      }}
+                    >
+                      „{content.statement}"
+                    </Text>
+                  </View>
+                )}
+
+                {/* Frazeologizm */}
+                {content.phrase && (
+                  <View
+                    style={{
+                      padding: 16,
+                      borderRadius: 16,
+                      backgroundColor: isDark ? "#92400e15" : "#fffbeb",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#92400e40" : "#fde68a",
+                      marginBottom: 14,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: isDark ? "#fbbf24" : "#d97706",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Frazeologizm:
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        fontWeight: "700",
+                        color: isDark ? "#fcd34d" : "#92400e",
+                      }}
+                    >
+                      {content.phrase}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Requirements */}
+                {content.requirements && content.requirements.length > 0 && (
+                  <View
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: isDark ? "#04785710" : "#ecfdf5",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#04785740" : "#a7f3d0",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "700",
+                        color: isDark ? "#34d399" : "#047857",
+                        marginBottom: 6,
+                      }}
+                    >
+                      ✅ Wymagania:
+                    </Text>
+                    {content.requirements.map((r: string, i: number) => (
+                      <Text
+                        key={i}
+                        style={{
+                          fontSize: 12,
+                          color: isDark ? "#6ee7b7" : "#065f46",
+                          lineHeight: 19,
+                        }}
+                      >
+                        • {r}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+
+                {/* Words do użycia */}
+                {content.words && content.words.length > 0 && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {content.words.map((w: string, i: number) => (
+                      <View
+                        key={i}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 10,
+                          backgroundColor: isDark ? "#92400e15" : "#fffbeb",
+                          borderWidth: 1,
+                          borderColor: isDark ? "#92400e40" : "#fde68a",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: "600",
+                            color: isDark ? "#fbbf24" : "#92400e",
+                          }}
+                        >
+                          {w}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Sugerowane lektury */}
+                {content.suggestedWorks &&
+                  content.suggestedWorks.length > 0 && (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        gap: 6,
+                        marginBottom: 14,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, color: theme.textTertiary }}>
+                        Sugerowane:
+                      </Text>
+                      {content.suggestedWorks.map((w: string, i: number) => (
+                        <View
+                          key={i}
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: 10,
+                            backgroundColor: isDark ? "#5b21b615" : "#f3e8ff",
+                            borderWidth: 1,
+                            borderColor: isDark ? "#5b21b640" : "#ddd6fe",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: "500",
+                              color: isDark ? "#a78bfa" : "#7c3aed",
+                            }}
+                          >
+                            📚 {w}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                {/* Word limit */}
+                {content.wordLimit && (
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: theme.textTertiary,
+                      marginBottom: 8,
+                    }}
+                  >
+                    📝 Limit:{" "}
+                    {typeof content.wordLimit === "object"
+                      ? `${content.wordLimit.min}–${content.wordLimit.max} słów`
+                      : `do ${content.wordLimit} słów`}
+                  </Text>
+                )}
+
+                {needsMathEditor && !submitted ? (
+                  <MathEditor
+                    value={openAnswer}
+                    onChange={setOpenAnswer}
+                    placeholder={
+                      question.type === "ESSAY"
+                        ? "Napisz odpowiedź z wzorami..."
+                        : "Wpisz odpowiedź..."
+                    }
+                    taskType="math_short_calc"
+                  />
+                ) : (
+                  <TextInput
+                    value={openAnswer}
+                    onChangeText={setOpenAnswer}
+                    multiline
+                    numberOfLines={6}
+                    editable={!submitted}
+                    placeholder="Wpisz odpowiedź..."
+                    placeholderTextColor={theme.textTertiary}
+                    style={{
+                      backgroundColor: theme.inputBg,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      borderRadius: 16,
+                      padding: spacing[4],
+                      fontSize: 15,
+                      fontFamily: "DMSans_400Regular",
+                      color: theme.text,
+                      textAlignVertical: "top",
+                      minHeight: 150,
+                    }}
+                  />
+                )}
+                {(() => {
+                  const text = openAnswer || "";
+                  const wordCount = text.trim()
+                    ? text.trim().split(/\s+/).length
+                    : 0;
+                  const minWords = content.wordLimit
+                    ? typeof content.wordLimit === "object"
+                      ? content.wordLimit.min
+                      : content.wordLimit
+                    : null;
+                  const maxWords =
+                    content.wordLimit && typeof content.wordLimit === "object"
+                      ? content.wordLimit.max
+                      : null;
+                  const underMin = minWords && wordCount < minWords;
+                  const overMax = maxWords && wordCount > maxWords;
+                  return (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "flex-end",
+                        marginTop: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "500",
+                          fontVariant: ["tabular-nums"],
+                          color: overMax
+                            ? colors.red[500]
+                            : underMin
+                              ? colors.red[400]
+                              : theme.textTertiary,
+                        }}
+                      >
+                        {wordCount}{" "}
+                        {minWords
+                          ? `/ ${minWords}${maxWords ? `–${maxWords}` : ""}`
+                          : ""}{" "}
+                        słów
+                      </Text>
+                    </View>
+                  );
+                })()}
                 {submitted && content.sampleAnswer && (
                   <View
                     style={{
@@ -1695,6 +2280,10 @@ export function QuizPlayScreen() {
                             {shuffledRight.map((right: string) => {
                               const isThis = userVal === right;
                               const taken = usedValues.has(right) && !isThis;
+                              const isCorrectOption = right === pair.right;
+                              const showCorrect = submitted && isCorrectOption;
+                              const showWrong =
+                                submitted && isThis && !isCorrectOption;
                               return (
                                 <TouchableOpacity
                                   key={right}
@@ -1708,37 +2297,45 @@ export function QuizPlayScreen() {
                                     borderRadius: 14,
                                     borderWidth: 2,
                                     borderColor: submitted
-                                      ? isThis && isCorrect
+                                      ? showCorrect
                                         ? colors.brand[500]
-                                        : isThis && isWrong
+                                        : showWrong
                                           ? colors.red[500]
                                           : theme.border
                                       : isThis
                                         ? colors.brand[500]
                                         : theme.border,
                                     backgroundColor: submitted
-                                      ? isThis && isCorrect
+                                      ? showCorrect
                                         ? colors.brand[500] + "15"
-                                        : isThis && isWrong
+                                        : showWrong
                                           ? colors.red[500] + "15"
                                           : "transparent"
                                       : isThis
                                         ? colors.brand[500] + "15"
                                         : "transparent",
-                                    opacity: taken ? 0.3 : 1,
+                                    opacity:
+                                      submitted &&
+                                      !showCorrect &&
+                                      !showWrong &&
+                                      !isThis
+                                        ? 0.3
+                                        : 1,
                                   }}
                                 >
                                   <Text
                                     style={{
                                       fontSize: 13,
                                       fontWeight: "500",
-                                      color: isThis
-                                        ? submitted
-                                          ? isCorrect
-                                            ? colors.brand[600]
-                                            : colors.red[600]
-                                          : colors.brand[600]
-                                        : theme.textSecondary,
+                                      color: submitted
+                                        ? showCorrect
+                                          ? colors.brand[600]
+                                          : showWrong
+                                            ? colors.red[600]
+                                            : theme.textTertiary
+                                        : isThis
+                                          ? colors.brand[600]
+                                          : theme.textSecondary,
                                     }}
                                   >
                                     {right}
@@ -1846,7 +2443,13 @@ export function QuizPlayScreen() {
                               style={{ marginHorizontal: 4, marginVertical: 2 }}
                             >
                               <TextInput
-                                value={ans[blankId] || ""}
+                                value={
+                                  submitted &&
+                                  !isOk &&
+                                  blank?.acceptedAnswers?.[0]
+                                    ? blank.acceptedAnswers[0]
+                                    : ans[blankId] || ""
+                                }
                                 onChangeText={(text) =>
                                   !submitted &&
                                   setSelectedAnswer({ ...ans, [blankId]: text })
@@ -1859,31 +2462,28 @@ export function QuizPlayScreen() {
                                   paddingHorizontal: 10,
                                   paddingVertical: 6,
                                   fontSize: 14,
+                                  fontWeight:
+                                    submitted &&
+                                    !isOk &&
+                                    blank?.acceptedAnswers?.[0]
+                                      ? "600"
+                                      : undefined,
                                   borderBottomWidth: 2,
                                   backgroundColor: "transparent",
-                                  color: theme.text,
+                                  color:
+                                    submitted &&
+                                    !isOk &&
+                                    blank?.acceptedAnswers?.[0]
+                                      ? colors.brand[600]
+                                      : theme.text,
                                   textAlign: "center",
                                   borderBottomColor: submitted
-                                    ? isOk
+                                    ? isOk || blank?.acceptedAnswers?.[0]
                                       ? colors.brand[500]
                                       : colors.red[500]
                                     : colors.navy[400],
                                 }}
                               />
-                              {submitted &&
-                                !isOk &&
-                                blank?.acceptedAnswers?.[0] && (
-                                  <Text
-                                    style={{
-                                      fontSize: 10,
-                                      color: colors.brand[600],
-                                      textAlign: "center",
-                                      marginTop: 2,
-                                    }}
-                                  >
-                                    {blank.acceptedAnswers[0]}
-                                  </Text>
-                                )}
                             </View>
                           );
                         })}
@@ -1932,7 +2532,11 @@ export function QuizPlayScreen() {
                               : `Luka ${i + 1}`}
                           </Text>
                           <TextInput
-                            value={ans[b.id] || ""}
+                            value={
+                              submitted && !isOk && b.acceptedAnswers?.[0]
+                                ? b.acceptedAnswers[0]
+                                : ans[b.id] || ""
+                            }
                             onChangeText={(text) =>
                               !submitted &&
                               setSelectedAnswer({ ...ans, [b.id]: text })
@@ -1944,28 +2548,20 @@ export function QuizPlayScreen() {
                               backgroundColor: theme.inputBg,
                               borderWidth: 1,
                               borderColor: submitted
-                                ? isOk
+                                ? isOk || b.acceptedAnswers?.[0]
                                   ? colors.brand[500]
                                   : colors.red[500]
                                 : theme.border,
-                              borderRadius: 12,
-                              paddingHorizontal: 14,
-                              paddingVertical: 10,
-                              fontSize: 14,
-                              color: theme.text,
+                              color:
+                                submitted && !isOk && b.acceptedAnswers?.[0]
+                                  ? colors.brand[600]
+                                  : theme.text,
+                              fontWeight:
+                                submitted && !isOk && b.acceptedAnswers?.[0]
+                                  ? "600"
+                                  : undefined,
                             }}
                           />
-                          {submitted && !isOk && b.acceptedAnswers?.[0] && (
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                color: colors.brand[600],
-                                marginTop: 4,
-                              }}
-                            >
-                              Poprawna: {b.acceptedAnswers[0]}
-                            </Text>
-                          )}
                         </View>
                       );
                     })}
@@ -1999,13 +2595,17 @@ export function QuizPlayScreen() {
                         height={content.graph.height || 280}
                       />
                     )}
-                    {content.subQuestions?.map((sq: any) => {
+                    {content.subQuestions?.map((sq: any, sqIdx: number) => {
                       const userVal = (ans[sq.id] || "").trim().toLowerCase();
-                      const isOk =
+                      const deterministicOk =
                         submitted &&
                         sq.acceptedAnswers?.some(
                           (a: string) => a.toLowerCase().trim() === userVal,
                         );
+                      const aiOk =
+                        submitted &&
+                        result?.aiGrading?.subQuestions?.[sq.id]?.score >= 0.5;
+                      const isOk = deterministicOk || aiOk;
                       return (
                         <View key={sq.id}>
                           <Text
@@ -2018,41 +2618,118 @@ export function QuizPlayScreen() {
                           >
                             {sq.text}
                           </Text>
-                          <TextInput
-                            value={ans[sq.id] || ""}
-                            onChangeText={(text) =>
-                              !submitted &&
-                              setSelectedAnswer({ ...ans, [sq.id]: text })
-                            }
-                            editable={!submitted}
-                            placeholder="Odpowiedź..."
-                            placeholderTextColor={theme.textTertiary}
-                            style={{
-                              backgroundColor: theme.inputBg,
-                              borderWidth: 1,
-                              borderColor: submitted
-                                ? isOk
-                                  ? colors.brand[500]
-                                  : colors.red[500]
-                                : theme.border,
-                              borderRadius: 12,
-                              paddingHorizontal: 14,
-                              paddingVertical: 10,
-                              fontSize: 14,
-                              color: theme.text,
-                            }}
-                          />
-                          {submitted && !isOk && sq.acceptedAnswers?.[0] && (
-                            <Text
+                          {needsMathEditor && !submitted ? (
+                            <MathEditor
+                              value={ans[sq.id] || ""}
+                              onChange={(text) =>
+                                setSelectedAnswer({ ...ans, [sq.id]: text })
+                              }
+                              placeholder="Odpowiedź..."
+                              taskType="math_short_calc"
+                              showExample={sqIdx === 0}
+                            />
+                          ) : (
+                            <TextInput
+                              value={
+                                submitted &&
+                                !isOk &&
+                                !result?.aiGrading?.subQuestions?.[sq.id] &&
+                                sq.acceptedAnswers?.[0]
+                                  ? sq.acceptedAnswers[0]
+                                  : ans[sq.id] || ""
+                              }
+                              onChangeText={(text) =>
+                                !submitted &&
+                                setSelectedAnswer({ ...ans, [sq.id]: text })
+                              }
+                              editable={!submitted}
+                              placeholder="Odpowiedź..."
+                              placeholderTextColor={theme.textTertiary}
                               style={{
-                                fontSize: 11,
-                                color: colors.brand[600],
-                                marginTop: 4,
+                                backgroundColor: theme.inputBg,
+                                borderWidth: 1,
+                                borderColor: submitted
+                                  ? isOk ||
+                                    (!result?.aiGrading?.subQuestions?.[
+                                      sq.id
+                                    ] &&
+                                      sq.acceptedAnswers?.[0])
+                                    ? colors.brand[500]
+                                    : colors.red[500]
+                                  : theme.border,
+
+                                borderRadius: 12,
+                                paddingHorizontal: 14,
+                                paddingVertical: 10,
+                                fontSize: 14,
+                                color:
+                                  submitted &&
+                                  !isOk &&
+                                  !result?.aiGrading?.subQuestions?.[sq.id] &&
+                                  sq.acceptedAnswers?.[0]
+                                    ? colors.brand[600]
+                                    : theme.text,
+                                fontWeight:
+                                  submitted &&
+                                  !isOk &&
+                                  !result?.aiGrading?.subQuestions?.[sq.id] &&
+                                  sq.acceptedAnswers?.[0]
+                                    ? "600"
+                                    : undefined,
                               }}
-                            >
-                              Poprawna: {sq.acceptedAnswers[0]}
-                            </Text>
+                            />
                           )}
+                          {submitted &&
+                            result?.aiGrading?.subQuestions?.[sq.id] && (
+                              <View
+                                style={{
+                                  marginTop: 6,
+                                  padding: 10,
+                                  borderRadius: 10,
+                                  borderWidth: 1,
+                                  borderColor:
+                                    result.aiGrading.subQuestions[sq.id]
+                                      .score >= 0.5
+                                      ? colors.brand[500]
+                                      : colors.red[500],
+                                  backgroundColor:
+                                    result.aiGrading.subQuestions[sq.id]
+                                      .score >= 0.5
+                                      ? colors.brand[500] + "10"
+                                      : colors.red[500] + "10",
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: "700",
+                                    color:
+                                      result.aiGrading.subQuestions[sq.id]
+                                        .score >= 0.5
+                                        ? colors.brand[600]
+                                        : colors.red[600],
+                                  }}
+                                >
+                                  {result.aiGrading.subQuestions[sq.id].score >=
+                                  0.5
+                                    ? "✅"
+                                    : "❌"}{" "}
+                                  Ocena AI
+                                </Text>
+                                <Text
+                                  style={{
+                                    fontSize: 11,
+                                    color: theme.textSecondary,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {
+                                    result.aiGrading.subQuestions[sq.id]
+                                      .feedback
+                                  }
+                                </Text>
+                              </View>
+                            )}
                         </View>
                       );
                     })}
@@ -2144,13 +2821,17 @@ export function QuizPlayScreen() {
                         ))}
                       </View>
                     </ScrollView>
-                    {content.subQuestions?.map((sq: any) => {
+                    {content.subQuestions?.map((sq: any, sqIdx: number) => {
                       const userVal = (ans[sq.id] || "").trim().toLowerCase();
-                      const isOk =
+                      const deterministicOk =
                         submitted &&
                         sq.acceptedAnswers?.some(
                           (a: string) => a.toLowerCase().trim() === userVal,
                         );
+                      const aiOk =
+                        submitted &&
+                        result?.aiGrading?.subQuestions?.[sq.id]?.score >= 0.5;
+                      const isOk = deterministicOk || aiOk;
                       return (
                         <View key={sq.id}>
                           <Text
@@ -2163,41 +2844,117 @@ export function QuizPlayScreen() {
                           >
                             {sq.text}
                           </Text>
-                          <TextInput
-                            value={ans[sq.id] || ""}
-                            onChangeText={(text) =>
-                              !submitted &&
-                              setSelectedAnswer({ ...ans, [sq.id]: text })
-                            }
-                            editable={!submitted}
-                            placeholder="Odpowiedź..."
-                            placeholderTextColor={theme.textTertiary}
-                            style={{
-                              backgroundColor: theme.inputBg,
-                              borderWidth: 1,
-                              borderColor: submitted
-                                ? isOk
-                                  ? colors.brand[500]
-                                  : colors.red[500]
-                                : theme.border,
-                              borderRadius: 12,
-                              paddingHorizontal: 14,
-                              paddingVertical: 10,
-                              fontSize: 14,
-                              color: theme.text,
-                            }}
-                          />
-                          {submitted && !isOk && sq.acceptedAnswers?.[0] && (
-                            <Text
+                          {needsMathEditor && !submitted ? (
+                            <MathEditor
+                              value={ans[sq.id] || ""}
+                              onChange={(text) =>
+                                setSelectedAnswer({ ...ans, [sq.id]: text })
+                              }
+                              placeholder="Odpowiedź..."
+                              taskType="math_short_calc"
+                              showExample={sqIdx === 0}
+                            />
+                          ) : (
+                            <TextInput
+                              value={
+                                submitted &&
+                                !isOk &&
+                                !result?.aiGrading?.subQuestions?.[sq.id] &&
+                                sq.acceptedAnswers?.[0]
+                                  ? sq.acceptedAnswers[0]
+                                  : ans[sq.id] || ""
+                              }
+                              onChangeText={(text) =>
+                                !submitted &&
+                                setSelectedAnswer({ ...ans, [sq.id]: text })
+                              }
+                              editable={!submitted}
+                              placeholder="Odpowiedź..."
+                              placeholderTextColor={theme.textTertiary}
                               style={{
-                                fontSize: 11,
-                                color: colors.brand[600],
-                                marginTop: 4,
+                                backgroundColor: theme.inputBg,
+                                borderWidth: 1,
+                                borderColor: submitted
+                                  ? isOk ||
+                                    (!result?.aiGrading?.subQuestions?.[
+                                      sq.id
+                                    ] &&
+                                      sq.acceptedAnswers?.[0])
+                                    ? colors.brand[500]
+                                    : colors.red[500]
+                                  : theme.border,
+                                borderRadius: 12,
+                                paddingHorizontal: 14,
+                                paddingVertical: 10,
+                                fontSize: 14,
+                                color:
+                                  submitted &&
+                                  !isOk &&
+                                  !result?.aiGrading?.subQuestions?.[sq.id] &&
+                                  sq.acceptedAnswers?.[0]
+                                    ? colors.brand[600]
+                                    : theme.text,
+                                fontWeight:
+                                  submitted &&
+                                  !isOk &&
+                                  !result?.aiGrading?.subQuestions?.[sq.id] &&
+                                  sq.acceptedAnswers?.[0]
+                                    ? "600"
+                                    : undefined,
                               }}
-                            >
-                              Poprawna: {sq.acceptedAnswers[0]}
-                            </Text>
+                            />
                           )}
+                          {submitted &&
+                            result?.aiGrading?.subQuestions?.[sq.id] && (
+                              <View
+                                style={{
+                                  marginTop: 6,
+                                  padding: 10,
+                                  borderRadius: 10,
+                                  borderWidth: 1,
+                                  borderColor:
+                                    result.aiGrading.subQuestions[sq.id]
+                                      .score >= 0.5
+                                      ? colors.brand[500]
+                                      : colors.red[500],
+                                  backgroundColor:
+                                    result.aiGrading.subQuestions[sq.id]
+                                      .score >= 0.5
+                                      ? colors.brand[500] + "10"
+                                      : colors.red[500] + "10",
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: "700",
+                                    color:
+                                      result.aiGrading.subQuestions[sq.id]
+                                        .score >= 0.5
+                                        ? colors.brand[600]
+                                        : colors.red[600],
+                                  }}
+                                >
+                                  {result.aiGrading.subQuestions[sq.id].score >=
+                                  0.5
+                                    ? "✅"
+                                    : "❌"}{" "}
+                                  Ocena AI
+                                </Text>
+                                <Text
+                                  style={{
+                                    fontSize: 11,
+                                    color: theme.textSecondary,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {
+                                    result.aiGrading.subQuestions[sq.id]
+                                      .feedback
+                                  }
+                                </Text>
+                              </View>
+                            )}
                         </View>
                       );
                     })}
@@ -2351,6 +3108,14 @@ export function QuizPlayScreen() {
                   const step = items.find((s: any) => s.id === idx);
                   return step?.text || "";
                 };
+
+                const correctOrder: any[] = submitted
+                  ? result?.correctAnswer || content.correctOrder
+                  : [];
+                const anyWrong =
+                  submitted &&
+                  correctOrder.some((v: any, i: number) => v !== ord[i]);
+
                 return (
                   <View style={{ gap: 8 }}>
                     <Text
@@ -2362,66 +3127,131 @@ export function QuizPlayScreen() {
                     >
                       Ustaw w poprawnej kolejności
                     </Text>
-                    {ord.map((idx: any, i: number) => (
-                      <View
-                        key={i}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: 12,
-                          borderRadius: 14,
-                          backgroundColor: theme.inputBg,
-                        }}
-                      >
-                        <Text
+
+                    {ord.map((idx: any, i: number) => {
+                      const isCorrectPos = submitted && correctOrder[i] === idx;
+                      const isWrongPos = submitted && correctOrder[i] !== idx;
+                      // która pozycja jest poprawna dla tego elementu
+                      const shouldBeAt = submitted
+                        ? correctOrder.indexOf(idx)
+                        : -1;
+
+                      return (
+                        <View
+                          key={i}
                           style={{
-                            fontSize: 12,
-                            fontWeight: "700",
-                            color: theme.textTertiary,
-                            width: 20,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: 12,
+                            borderRadius: 14,
+                            borderWidth: submitted ? 2 : 0,
+                            borderColor: isCorrectPos
+                              ? colors.brand[500]
+                              : isWrongPos
+                                ? colors.red[500]
+                                : "transparent",
+                            backgroundColor: isCorrectPos
+                              ? colors.brand[500] + "15"
+                              : isWrongPos
+                                ? colors.red[500] + "12"
+                                : theme.inputBg,
                           }}
                         >
-                          {i + 1}.
-                        </Text>
-                        <Text
-                          style={{ flex: 1, fontSize: 13, color: theme.text }}
-                        >
-                          {getLabel(idx)}
-                        </Text>
-                        <View style={{ flexDirection: "row", gap: 4 }}>
-                          <TouchableOpacity
-                            onPress={() => i > 0 && mv(i, -1)}
-                            disabled={submitted || i === 0}
-                            style={{ padding: 4, opacity: i === 0 ? 0.3 : 1 }}
-                          >
-                            <Ionicons
-                              name="chevron-up"
-                              size={18}
-                              color={theme.textSecondary}
-                            />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => i < ord.length - 1 && mv(i, 1)}
-                            disabled={submitted || i === ord.length - 1}
+                          {/* Numer pozycji */}
+                          <Text
                             style={{
-                              padding: 4,
-                              opacity: i === ord.length - 1 ? 0.3 : 1,
+                              fontSize: 12,
+                              fontWeight: "700",
+                              width: 22,
+                              color: isCorrectPos
+                                ? colors.brand[600]
+                                : isWrongPos
+                                  ? colors.red[500]
+                                  : theme.textTertiary,
                             }}
                           >
+                            {i + 1}.
+                          </Text>
+
+                          {/* Treść elementu */}
+                          <Text
+                            style={{
+                              flex: 1,
+                              fontSize: 13,
+                              color: theme.text,
+                              lineHeight: 20,
+                            }}
+                          >
+                            {getLabel(idx)}
+                          </Text>
+
+                          {/* Po submicie: ikona + hint gdzie powinno być */}
+                          {isCorrectPos && (
                             <Ionicons
-                              name="chevron-down"
+                              name="checkmark-circle"
                               size={18}
-                              color={theme.textSecondary}
+                              color={colors.brand[500]}
                             />
-                          </TouchableOpacity>
+                          )}
+                          {isWrongPos && (
+                            <View style={{ alignItems: "flex-end", gap: 2 }}>
+                              <Ionicons
+                                name="close-circle"
+                                size={18}
+                                color={colors.red[500]}
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 9,
+                                  color: colors.red[400],
+                                  fontWeight: "600",
+                                }}
+                              >
+                                → poz. {shouldBeAt + 1}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* Przed submitem: strzałki */}
+                          {!submitted && (
+                            <View style={{ flexDirection: "row", gap: 2 }}>
+                              <TouchableOpacity
+                                onPress={() => i > 0 && mv(i, -1)}
+                                disabled={i === 0}
+                                style={{
+                                  padding: 6,
+                                  opacity: i === 0 ? 0.3 : 1,
+                                }}
+                              >
+                                <Ionicons
+                                  name="chevron-up"
+                                  size={18}
+                                  color={theme.textSecondary}
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => i < ord.length - 1 && mv(i, 1)}
+                                disabled={i === ord.length - 1}
+                                style={{
+                                  padding: 6,
+                                  opacity: i === ord.length - 1 ? 0.3 : 1,
+                                }}
+                              >
+                                <Ionicons
+                                  name="chevron-down"
+                                  size={18}
+                                  color={theme.textSecondary}
+                                />
+                              </TouchableOpacity>
+                            </View>
+                          )}
                         </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 );
               })()}
-
             {/* WIAZKA */}
             {question.type === "WIAZKA" &&
               content.subQuestions &&
@@ -2436,6 +3266,9 @@ export function QuizPlayScreen() {
                   if (submitted) return;
                   setSelectedAnswer({ ...ans, [id]: v });
                 };
+                const firstOpenIdx = content.subQuestions.findIndex(
+                  (sq: any) => sq.type === "OPEN",
+                );
                 return (
                   <View style={{ gap: 16 }}>
                     {content.subQuestions.map((sq: any, i: number) => (
@@ -2555,25 +3388,203 @@ export function QuizPlayScreen() {
                           </View>
                         )}
                         {sq.type === "OPEN" && (
-                          <TextInput
-                            value={ans[sq.id] || ""}
-                            onChangeText={(text) => set(sq.id, text)}
-                            editable={!submitted}
-                            multiline
-                            placeholder="Odpowiedź..."
-                            placeholderTextColor={theme.textTertiary}
-                            style={{
-                              backgroundColor: theme.card,
-                              borderWidth: 1,
-                              borderColor: theme.border,
-                              borderRadius: 12,
-                              padding: 10,
-                              fontSize: 13,
-                              color: theme.text,
-                              minHeight: 60,
-                              textAlignVertical: "top",
-                            }}
-                          />
+                          <>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 4,
+                                marginBottom: 6,
+                              }}
+                            ></View>
+
+                            {needsMathEditor && !submitted ? (
+                              <MathEditor
+                                value={ans[sq.id] || ""}
+                                onChange={(text) => set(sq.id, text)}
+                                placeholder="Odpowiedź..."
+                                taskType="math_short_calc"
+                                showExample={i === firstOpenIdx}
+                              />
+                            ) : (
+                              <TextInput
+                                value={ans[sq.id] || ""}
+                                onChangeText={(text) => set(sq.id, text)}
+                                editable={!submitted}
+                                multiline
+                                placeholder="Odpowiedź..."
+                                placeholderTextColor={theme.textTertiary}
+                                style={{
+                                  backgroundColor: theme.card,
+                                  borderWidth: 1,
+                                  borderColor: theme.border,
+                                  borderRadius: 12,
+                                  padding: 10,
+                                  fontSize: 13,
+                                  color: theme.text,
+                                  minHeight: 60,
+                                  textAlignVertical: "top",
+                                }}
+                              />
+                            )}
+                            {submitted &&
+                              result?.aiGrading?.subQuestions?.[sq.id] && (
+                                <View
+                                  style={{
+                                    marginTop: 8,
+                                    padding: 12,
+                                    borderRadius: 12,
+                                    borderWidth: 1,
+                                    borderColor:
+                                      result.aiGrading.subQuestions[sq.id]
+                                        .score >= 0.5
+                                        ? colors.brand[500]
+                                        : colors.red[500],
+                                    backgroundColor:
+                                      result.aiGrading.subQuestions[sq.id]
+                                        .score >= 0.5
+                                        ? colors.brand[500] + "10"
+                                        : colors.red[500] + "10",
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: "700",
+                                      color:
+                                        result.aiGrading.subQuestions[sq.id]
+                                          .score >= 0.5
+                                          ? colors.brand[600]
+                                          : colors.red[600],
+                                      marginBottom: 4,
+                                    }}
+                                  >
+                                    {result.aiGrading.subQuestions[sq.id]
+                                      .score >= 0.5
+                                      ? "✅"
+                                      : "❌"}{" "}
+                                    {result.aiGrading.subQuestions[sq.id]
+                                      .pointsEarned ?? 0}
+                                    /{sq.points || 1} pkt
+                                  </Text>
+                                  <Text
+                                    style={{
+                                      fontSize: 12,
+                                      color: theme.textSecondary,
+                                      lineHeight: 18,
+                                    }}
+                                  >
+                                    {
+                                      result.aiGrading.subQuestions[sq.id]
+                                        .feedback
+                                    }
+                                  </Text>
+                                </View>
+                              )}
+                            {submitted &&
+                              sq.type === "OPEN" &&
+                              !result?.aiGrading?.subQuestions?.[sq.id] &&
+                              !ans[sq.id]?.trim() && (
+                                <View
+                                  style={{
+                                    marginTop: 8,
+                                    padding: 12,
+                                    borderRadius: 12,
+                                    backgroundColor: colors.red[500] + "10",
+                                    borderWidth: 1,
+                                    borderColor: colors.red[500],
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: "700",
+                                      color: colors.red[600],
+                                    }}
+                                  >
+                                    ❌ 0/{sq.points || 1} pkt — Brak odpowiedzi
+                                  </Text>
+                                </View>
+                              )}
+                            {submitted && sq.sampleAnswer && (
+                              <View
+                                style={{
+                                  marginTop: 8,
+                                  backgroundColor: colors.brand[500] + "10",
+                                  borderRadius: 12,
+                                  padding: 12,
+                                  borderLeftWidth: 3,
+                                  borderLeftColor: colors.brand[500],
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: "700",
+                                    color: colors.brand[600],
+                                    textTransform: "uppercase",
+                                    letterSpacing: 1,
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  Wzorcowa odpowiedź:
+                                </Text>
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: theme.text,
+                                    lineHeight: 19,
+                                  }}
+                                >
+                                  {sq.sampleAnswer}
+                                </Text>
+                              </View>
+                            )}
+                          </>
+                        )}
+                        {sq.type === "MULTI_SELECT" && sq.options && (
+                          <View style={{ gap: 6 }}>
+                            {sq.options.map((o: any) => {
+                              const sel = Array.isArray(ans[sq.id])
+                                ? ans[sq.id]
+                                : [];
+                              const isSelected = sel.includes(o.id);
+                              const isCorrectOpt = sq.correctAnswers?.includes(
+                                o.id,
+                              );
+                              return (
+                                <OptionCard
+                                  key={o.id}
+                                  id={o.id}
+                                  text={parseChemText(o.text)}
+                                  state={
+                                    !submitted
+                                      ? isSelected
+                                        ? "selected"
+                                        : "default"
+                                      : isCorrectOpt
+                                        ? "correct"
+                                        : isSelected
+                                          ? "wrong"
+                                          : "default"
+                                  }
+                                  onPress={() => {
+                                    if (submitted) return;
+                                    const prev = Array.isArray(ans[sq.id])
+                                      ? ans[sq.id]
+                                      : [];
+                                    set(
+                                      sq.id,
+                                      isSelected
+                                        ? prev.filter((x: string) => x !== o.id)
+                                        : [...prev, o.id],
+                                    );
+                                  }}
+                                  disabled={submitted}
+                                />
+                              );
+                            })}
+                          </View>
                         )}
                       </View>
                     ))}
@@ -2593,9 +3604,10 @@ export function QuizPlayScreen() {
                       unit?: string;
                       tolerance?: number;
                       expectedValue?: number;
-                      acceptedValues?: any[];
                     }
                   | undefined;
+                const useMathEditor = !!content.showSteps;
+
                 return (
                   <View style={{ gap: 16 }}>
                     {/* Dane */}
@@ -2658,7 +3670,7 @@ export function QuizPlayScreen() {
                     {formula && (
                       <View
                         style={{
-                          backgroundColor: "#f3e8ff",
+                          backgroundColor: isDark ? "#5b21b615" : "#f3e8ff",
                           borderRadius: 14,
                           padding: 14,
                           alignItems: "center",
@@ -2668,7 +3680,7 @@ export function QuizPlayScreen() {
                           style={{
                             fontSize: 10,
                             fontWeight: "700",
-                            color: "#7c3aed",
+                            color: isDark ? "#c4b5fd" : "#7c3aed",
                             textTransform: "uppercase",
                             letterSpacing: 1,
                             marginBottom: 4,
@@ -2680,7 +3692,7 @@ export function QuizPlayScreen() {
                           style={{
                             fontSize: 18,
                             fontWeight: "700",
-                            color: "#5b21b6",
+                            color: isDark ? "#c4b5fd" : "#5b21b6",
                             fontFamily: "JetBrainsMono_400Regular",
                           }}
                         >
@@ -2689,45 +3701,54 @@ export function QuizPlayScreen() {
                       </View>
                     )}
 
-                    {/* Pole odpowiedzi */}
-                    <View>
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color: theme.text,
-                          marginBottom: 6,
-                        }}
-                      >
-                        Twoja odpowiedź{answer?.unit ? ` (${answer.unit})` : ""}
-                        :
-                      </Text>
-                      <TextInput
+                    {/* Pole odpowiedzi — MathEditor lub prosty input */}
+                    {useMathEditor ? (
+                      <MathEditor
                         value={openAnswer}
-                        onChangeText={setOpenAnswer}
-                        editable={!submitted}
-                        placeholder="Wpisz wynik..."
-                        placeholderTextColor={theme.textTertiary}
-                        keyboardType="numeric"
-                        style={{
-                          backgroundColor: theme.inputBg,
-                          borderWidth: 2,
-                          borderColor: submitted
-                            ? result?.isCorrect
-                              ? colors.brand[500]
-                              : colors.red[500]
-                            : theme.border,
-                          borderRadius: 14,
-                          paddingHorizontal: 16,
-                          paddingVertical: 14,
-                          fontSize: 18,
-                          fontWeight: "700",
-                          fontFamily: "JetBrainsMono_400Regular",
-                          color: theme.text,
-                          textAlign: "center",
-                        }}
+                        onChange={setOpenAnswer}
+                        placeholder="Zapisz obliczenia i wynik..."
+                        taskType="math_short_calc"
                       />
-                    </View>
+                    ) : (
+                      <View>
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: "600",
+                            color: theme.text,
+                            marginBottom: 6,
+                          }}
+                        >
+                          Twoja odpowiedź
+                          {answer?.unit ? ` (${answer.unit})` : ""}:
+                        </Text>
+                        <TextInput
+                          value={openAnswer}
+                          onChangeText={setOpenAnswer}
+                          editable={!submitted}
+                          placeholder="Wpisz wynik..."
+                          placeholderTextColor={theme.textTertiary}
+                          keyboardType="numeric"
+                          style={{
+                            backgroundColor: theme.inputBg,
+                            borderWidth: 2,
+                            borderColor: submitted
+                              ? result?.isCorrect
+                                ? colors.brand[500]
+                                : colors.red[500]
+                              : theme.border,
+                            borderRadius: 14,
+                            paddingHorizontal: 16,
+                            paddingVertical: 14,
+                            fontSize: 18,
+                            fontWeight: "700",
+                            fontFamily: "JetBrainsMono_400Regular",
+                            color: theme.text,
+                            textAlign: "center",
+                          }}
+                        />
+                      </View>
+                    )}
 
                     {/* Po submicie — poprawna odpowiedź */}
                     {submitted && answer && (
@@ -2802,6 +3823,18 @@ export function QuizPlayScreen() {
                         Maks. punktów: {content.maxPoints}
                       </Text>
                     )}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, color: theme.textTertiary }}>
+                        Każde pole oceniane osobno przez AI
+                      </Text>
+                    </View>
                     {content.fields.map((field: any) => {
                       const userVal = (ans[field.id] || "").trim();
                       const hasAnswer = userVal.length > 0;
@@ -2898,6 +3931,57 @@ export function QuizPlayScreen() {
                               </Text>
                             </View>
                           )}
+                          {submitted &&
+                            result?.aiGrading?.fields?.[field.id] && (
+                              <View
+                                style={{
+                                  marginTop: 8,
+                                  padding: 12,
+                                  borderRadius: 12,
+                                  borderWidth: 1,
+                                  borderColor:
+                                    result.aiGrading.fields[field.id].score >=
+                                    0.5
+                                      ? colors.brand[500]
+                                      : colors.red[500],
+                                  backgroundColor:
+                                    result.aiGrading.fields[field.id].score >=
+                                    0.5
+                                      ? colors.brand[500] + "10"
+                                      : colors.red[500] + "10",
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: "700",
+                                    color:
+                                      result.aiGrading.fields[field.id].score >=
+                                      0.5
+                                        ? colors.brand[600]
+                                        : colors.red[600],
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  {result.aiGrading.fields[field.id].score >=
+                                  0.5
+                                    ? "✅"
+                                    : "❌"}{" "}
+                                  {result.aiGrading.fields[field.id]
+                                    .pointsEarned ?? 0}
+                                  /{field.points || 1} pkt
+                                </Text>
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: theme.textSecondary,
+                                    lineHeight: 18,
+                                  }}
+                                >
+                                  {result.aiGrading.fields[field.id].feedback}
+                                </Text>
+                              </View>
+                            )}
                           {submitted && field.rubric && (
                             <Text
                               style={{
@@ -3002,7 +4086,7 @@ export function QuizPlayScreen() {
                 gap: 8,
               }}
             >
-              {/* Pomiń + Pokaż odpowiedź — kolumna */}
+              {/* Poprzednie + Pomiń (ikony) + Pokaż odpowiedź — kolumna */}
               <View
                 style={{
                   flexDirection: "column",
@@ -3010,84 +4094,167 @@ export function QuizPlayScreen() {
                   gap: 4,
                 }}
               >
+                <View
+                  style={{ flexDirection: "row", gap: 6, alignItems: "center" }}
+                >
+                  {currentIndex > 0 && (
+                    <TouchableOpacity
+                      onPress={handlePrevious}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: theme.inputBg,
+                      }}
+                    >
+                      <Ionicons
+                        name="play-back"
+                        size={16}
+                        color={theme.textTertiary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={handleSkip}
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: theme.inputBg,
+                    }}
+                  >
+                    <Ionicons
+                      name="play-forward"
+                      size={16}
+                      color={theme.textTertiary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
                 <TouchableOpacity
-                  onPress={handleSkip}
+                  onPress={() => {
+                    const correct = getCorrectAnswerLocal(
+                      question.type,
+                      content,
+                    );
+                    const revealData = {
+                      isCorrect: false,
+                      score: 0,
+                      xpEarned: 0,
+                      explanation:
+                        question.content?.explanation || content?.explanation,
+                      correctAnswer: correct,
+                      revealed: true,
+                    };
+                    setResult(revealData);
+                    setSubmitted(true);
+                    setResultsMap((prev) => ({
+                      ...prev,
+                      [question.id]: revealData,
+                    }));
+                  }}
                   style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 4,
-                    paddingVertical: 8,
+                    paddingVertical: 4,
                     paddingHorizontal: 4,
                   }}
                 >
-                  <Ionicons
-                    name="play-forward"
-                    size={16}
-                    color={theme.textTertiary}
-                  />
                   <Text
                     style={{
-                      fontSize: 13,
-                      fontFamily: "DMSans_500Medium",
-                      color: theme.textTertiary,
+                      fontSize: 12,
+                      fontWeight: "600",
+                      color: theme.textSecondary,
                     }}
                   >
-                    Pomiń
+                    Pokaż odpowiedź
                   </Text>
                 </TouchableOpacity>
-
-                {getResponse() === null && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      const correct = getCorrectAnswerLocal(
-                        question.type,
-                        content,
-                      );
-                      setResult({
-                        isCorrect: false,
-                        score: 0,
-                        xpEarned: 0,
-                        explanation:
-                          question.content?.explanation || content?.explanation,
-                        correctAnswer: correct,
-                        revealed: true,
-                      });
-                      setSubmitted(true);
-                    }}
-                    style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 4,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "600",
-                        color: theme.textSecondary,
-                      }}
-                    >
-                      Pokaż odpowiedź
-                    </Text>
-                  </TouchableOpacity>
-                )}
               </View>
-
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, alignItems: "center" }}>
                 <Button
                   title={loading ? "Sprawdzam..." : "Sprawdź odpowiedź"}
                   onPress={handleSubmit}
                   loading={loading}
                   disabled={getResponse() === null}
                 />
+                {loading &&
+                  [
+                    "OPEN",
+                    "ESSAY",
+                    "EXPERIMENT_DESIGN",
+                    "WIAZKA",
+                    "CLOZE",
+                    "FILL_IN",
+                    "TABLE_DATA",
+                    "GRAPH_INTERPRET",
+                    "DIAGRAM_LABEL",
+                    "CROSS_PUNNETT",
+                    "CALCULATION",
+                    "LISTENING",
+                  ].includes(question.type) && (
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: theme.textTertiary,
+                        marginTop: 6,
+                        textAlign: "center",
+                      }}
+                    >
+                      🤖 AI ocenia Twoją odpowiedź — zwykle 10-20 sekund...
+                    </Text>
+                  )}
               </View>
             </View>
           ) : (
-            <Button
-              title="Następne pytanie →"
-              onPress={handleNext}
-              size="lg"
-              icon={<Ionicons name="arrow-forward" size={18} color="#fff" />}
-            />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                width: "100%",
+              }}
+            >
+              {currentIndex > 0 && (
+                <TouchableOpacity
+                  onPress={handlePrevious}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                    paddingVertical: 12,
+                    paddingHorizontal: 8,
+                  }}
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={18}
+                    color={theme.textTertiary}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: theme.textTertiary,
+                      fontWeight: "500",
+                    }}
+                  >
+                    Wróć
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <View style={{ flex: 1 }}>
+                <Button
+                  title="Następne pytanie →"
+                  onPress={handleNext}
+                  size="lg"
+                  icon={
+                    <Ionicons name="arrow-forward" size={18} color="#fff" />
+                  }
+                />
+              </View>
+            </View>
           )}
         </View>
       )}
@@ -3902,6 +5069,34 @@ function SvgViewer({ svg, theme }: { svg: string; theme: any }) {
       ) : (
         <View style={{ height: baseH }}>{webview}</View>
       )}
+    </View>
+  );
+}
+
+function AiBadge({ label, isDark }: { label: string; isDark?: boolean }) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 3,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 99,
+        backgroundColor: isDark ? "#5b21b620" : "#f3e8ff",
+        borderWidth: 1,
+        borderColor: isDark ? "#5b21b640" : "#e9d5ff",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 9,
+          fontWeight: "700",
+          color: isDark ? "#c4b5fd" : "#7c3aed",
+        }}
+      >
+        🤖 Ocena AI {label}
+      </Text>
     </View>
   );
 }

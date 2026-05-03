@@ -2,28 +2,28 @@
 // Questions API — /api/questions/*
 // ============================================================================
 
-import { api } from './client';
+import { api } from "./client";
 
 export type QuestionType =
-  | 'CLOSED'
-  | 'MULTI_SELECT'
-  | 'OPEN'
-  | 'FILL_IN'
-  | 'ESSAY'
-  | 'MATCHING'
-  | 'ORDERING'
-  | 'TRUE_FALSE'
-  | 'ERROR_FIND'
-  | 'GRAPH_INTERPRET'
-  | 'TABLE_DATA'
-  | 'WIAZKA'
-  | 'PROOF_ORDER'
-  | 'CLOZE'
-  | 'LISTENING'
-  | 'DIAGRAM_LABEL'
-  | 'EXPERIMENT_DESIGN'
-  | 'CROSS_PUNNETT'
-  | 'CALCULATION';
+  | "CLOSED"
+  | "MULTI_SELECT"
+  | "OPEN"
+  | "FILL_IN"
+  | "ESSAY"
+  | "MATCHING"
+  | "ORDERING"
+  | "TRUE_FALSE"
+  | "ERROR_FIND"
+  | "GRAPH_INTERPRET"
+  | "TABLE_DATA"
+  | "WIAZKA"
+  | "PROOF_ORDER"
+  | "CLOZE"
+  | "LISTENING"
+  | "DIAGRAM_LABEL"
+  | "EXPERIMENT_DESIGN"
+  | "CROSS_PUNNETT"
+  | "CALCULATION";
 
 export interface Question {
   id: string;
@@ -41,7 +41,14 @@ export interface Question {
 }
 
 export interface FilterOptions {
-  topics: { id: string; name: string; slug: string; questionCount: number; depth: number; sortOrder: number }[];
+  topics: {
+    id: string;
+    name: string;
+    slug: string;
+    questionCount: number;
+    depth: number;
+    sortOrder: number;
+  }[];
   types: { type: string; count: number }[];
   difficulties: { difficulty: number; count: number }[];
   sources: { source: string; count: number }[];
@@ -67,11 +74,13 @@ export async function getQuestions(params: {
   limit?: number;
   offset?: number;
 }): Promise<QuestionsResponse> {
-  return api<QuestionsResponse>('/questions', { params: params as any });
+  return api<QuestionsResponse>("/questions", { params: params as any });
 }
 
-export async function getFilterOptions(subjectId: string): Promise<FilterOptions> {
-  return api<FilterOptions>('/questions/filter-options', {
+export async function getFilterOptions(
+  subjectId: string,
+): Promise<FilterOptions> {
+  return api<FilterOptions>("/questions/filter-options", {
     params: { subjectId },
   });
 }
@@ -85,7 +94,17 @@ export async function skipQuestion(
   sessionId?: string,
 ): Promise<{ ok: boolean }> {
   return api(`/questions/${id}/skip`, {
-    method: 'POST',
+    method: "POST",
     body: sessionId ? { sessionId } : undefined,
+  });
+}
+
+export async function trackView(
+  questionId: string,
+  sessionId?: string,
+): Promise<{ ok: boolean; viewCount: number }> {
+  return api(`/questions/${questionId}/view`, {
+    method: "POST",
+    body: { sessionId },
   });
 }

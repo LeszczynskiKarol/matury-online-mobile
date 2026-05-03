@@ -3,7 +3,15 @@
 // ============================================================================
 
 import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Image,
+} from "react-native";
+import { getProfile, type ProfileResponse } from "../../api/gamification";
 import { deleteAccount } from "../../api/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -23,8 +31,17 @@ import type { ProfileStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<ProfileStackParamList>;
 
+const TIER_COLORS: Record<string, { border: string; bg: string }> = {
+  BRONZE: { border: "#cd7f32", bg: "#cd7f32" },
+  SILVER: { border: "#c0c0c0", bg: "#c0c0c0" },
+  GOLD: { border: "#ffd700", bg: "#ffd700" },
+  PLATINUM: { border: "#b4e4ff", bg: "#b4e4ff" },
+  DIAMOND: { border: "#e879f9", bg: "#e879f9" },
+};
+
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const { colors: theme, isDark, toggle } = useTheme();
   const { user, isPremium, logout } = useAuth();
   const navigation = useNavigation<Nav>();
@@ -40,6 +57,12 @@ export function ProfileScreen() {
       { text: "Wyloguj", style: "destructive", onPress: logout },
     ]);
   };
+
+  useEffect(() => {
+    getProfile()
+      .then(setProfile)
+      .catch(() => {});
+  }, []);
 
   const statusLabel: Record<string, string> = {
     FREE: "Darmowe",
@@ -113,26 +136,275 @@ export function ProfileScreen() {
             alignItems: "center",
             justifyContent: "center",
             marginBottom: 12,
+            overflow: "hidden",
           }}
         >
-          <Text style={{ fontSize: 28, fontWeight: "700", color: "#fff" }}>
-            {(user?.name?.[0] || user?.email?.[0] || "M").toUpperCase()}
-          </Text>
+          {user?.avatarUrl ? (
+            <Image
+              source={{ uri: user.avatarUrl }}
+              style={{ width: 72, height: 72, borderRadius: 36 }}
+            />
+          ) : (
+            <Text style={{ fontSize: 28, fontWeight: "700", color: "#fff" }}>
+              {(user?.name?.[0] || user?.email?.[0] || "M").toUpperCase()}
+            </Text>
+          )}
         </View>
-        <Text style={{ fontSize: 20, fontWeight: "700", color: theme.text }}>
-          {user?.name || "Maturzysta"}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: theme.text }}>
+            {user?.name || "Maturzysta"}
+          </Text>
+          {profile?.title && (
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 12,
+                backgroundColor: profile.title.color + "20",
+                borderWidth: 1,
+                borderColor: profile.title.color + "35",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  color: profile.title.color,
+                }}
+              >
+                {profile.title.emoji} {profile.title.name}
+              </Text>
+            </View>
+          )}
+        </View>
         <Text
           style={{ fontSize: 14, color: theme.textSecondary, marginTop: 2 }}
         >
           {user?.email}
         </Text>
+
+        {profile?.labels && profile.labels.length > 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: 4,
+              marginTop: 10,
+              justifyContent: "center",
+            }}
+          >
+            {profile.labels.map((l) => (
+              <View
+                key={l.id}
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 16,
+                  backgroundColor: l.color + "15",
+                  borderWidth: 1,
+                  borderColor: l.color + "25",
+                }}
+              >
+                <Text
+                  style={{ fontSize: 10, fontWeight: "600", color: l.color }}
+                >
+                  {l.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {profile?.showcaseBadges && profile.showcaseBadges.length > 0 && (
+          <View style={{ flexDirection: "row", gap: 6, marginTop: 10 }}>
+            {profile.showcaseBadges.map((b) => (
+              <View
+                key={b.id}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  backgroundColor:
+                    (TIER_COLORS[b.tier]?.bg || "#6366f1") + "25",
+                  borderWidth: 1.5,
+                  borderColor: TIER_COLORS[b.tier]?.border || "#6366f1",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 18 }}>{b.icon}</Text>
+              </View>
+            ))}
+          </View>
+        )}
         <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
           <Badge variant="level" value={user?.globalLevel || 1} />
           <Badge variant="xp" value={`${user?.totalXp || 0} XP`} icon="⚡" />
           <Badge variant="streak" value={`${user?.currentStreak || 0}🔥`} />
         </View>
       </Card>
+      {/* Badges link */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate("Badges")}
+      >
+        <Card style={{ marginBottom: 12 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: radius.lg,
+                  backgroundColor: colors.yellow[500] + "1A",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 20 }}>🏅</Text>
+              </View>
+              <View>
+                <Text style={{ fontSize: 14, color: theme.textSecondary }}>
+                  Odznaki & Etykiety
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.text,
+                    marginTop: 1,
+                  }}
+                >
+                  {profile
+                    ? `${profile.showcaseBadges?.length || 0} wyróżnione`
+                    : "Zobacz odznaki"}
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={theme.textTertiary}
+            />
+          </View>
+        </Card>
+      </TouchableOpacity>
+      {/* Ranking link */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate("Ranking")}
+      >
+        <Card style={{ marginBottom: 12 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: radius.lg,
+                  backgroundColor: colors.brand[500] + "1A",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 20 }}>🏆</Text>
+              </View>
+              <View>
+                <Text style={{ fontSize: 14, color: theme.textSecondary }}>
+                  Ranking
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.text,
+                    marginTop: 1,
+                  }}
+                >
+                  Zobacz swoją pozycję
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={theme.textTertiary}
+            />
+          </View>
+        </Card>
+      </TouchableOpacity>
+      {/* Session History link */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() =>
+          navigation.getParent()?.navigate("HomeTab", {
+            screen: "SessionHistory",
+          })
+        }
+      >
+        <Card style={{ marginBottom: 12 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: radius.lg,
+                  backgroundColor: colors.navy[500] + "1A",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 20 }}>📋</Text>
+              </View>
+              <View>
+                <Text style={{ fontSize: 14, color: theme.textSecondary }}>
+                  Historia sesji
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.text,
+                    marginTop: 1,
+                  }}
+                >
+                  Przeglądaj szczegóły
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={theme.textTertiary}
+            />
+          </View>
+        </Card>
+      </TouchableOpacity>
 
       {/* Subscription card */}
       <TouchableOpacity

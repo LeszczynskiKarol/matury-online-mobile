@@ -55,7 +55,7 @@ const FEATURES = [
   { icon: "♾️", text: "Nieograniczone pytania" },
   { icon: "🎯", text: "Wybór tematów i lektur" },
   { icon: "🤖", text: "AI ocena wypracowań" },
-  { icon: "🔁", text: "Powtórki Spaced Repetition" },
+  //{ icon: "🔁", text: "Powtórki Spaced Repetition" },
   { icon: "📊", text: "Pełne statystyki i postępy" },
 ];
 
@@ -381,6 +381,17 @@ export function SubscriptionScreen() {
           </View>
         </Card>
       )}
+
+      <TouchableOpacity
+        onPress={() => navigation.navigate("AiCreditsHistory" as any)}
+        style={{ paddingVertical: 8 }}
+      >
+        <Text
+          style={{ fontSize: 13, fontWeight: "600", color: colors.brand[500] }}
+        >
+          Historia zużycia →
+        </Text>
+      </TouchableOpacity>
 
       {/* Pricing */}
       {(!isPremium ||
