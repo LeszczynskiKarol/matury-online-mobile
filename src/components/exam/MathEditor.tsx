@@ -22,6 +22,12 @@ interface MathEditorProps {
   placeholder?: string;
   taskType?: string;
   showExample?: boolean;
+  /**
+   * Plain mode dla humanistycznych zadań (wos/hist/polski/geo otwarte):
+   * ukrywa hint "Jak odpowiadać" + paletę symboli matematycznych.
+   * Zostawia sam textarea + word counter.
+   */
+  plain?: boolean;
 }
 
 // ── Unicode symbols (no LaTeX — directly readable) ───────────────────────
@@ -126,6 +132,7 @@ export function MathEditor({
   placeholder,
   taskType,
   showExample = true,
+  plain = false,
 }: MathEditorProps) {
   const { colors: theme, isDark } = useTheme();
   const [showSymbols, setShowSymbols] = useState(false);
@@ -160,9 +167,11 @@ export function MathEditor({
   return (
     <View>
       {/* Example */}
-      {showExample && <MathEditorExample taskType={taskType} />}
+      {!plain && showExample && <MathEditorExample taskType={taskType} />}
 
-      {/* Symbol toggle */}
+      {/* Symbol toggle (hidden in plain mode) */}
+      {!plain && (
+      <>
       <View
         style={{
           flexDirection: "row",
@@ -347,6 +356,8 @@ export function MathEditor({
             </View>
           ))}
         </View>
+      )}
+      </>
       )}
 
       {/* Single text input */}

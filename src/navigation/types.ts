@@ -23,6 +23,7 @@ export type MainTabParamList = {
 export type HomeStackParamList = {
   Dashboard: undefined;
   SessionHistory: undefined;
+  ListeningHub: undefined;
 };
 
 export type SubjectsStackParamList = {

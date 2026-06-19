@@ -19,6 +19,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { getDashboard, type DashboardData } from "../../api/sessions";
 import { getSubjects, type Subject } from "../../api/subjects";
+import { getActiveExam, type ActiveExamData } from "../../api/exams";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -37,17 +38,25 @@ export function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [activeExam, setActiveExam] = useState<ActiveExamData | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [dashboardData, subjectsData, profileData] = await Promise.all([
-        getDashboard().catch(() => null),
-        getSubjects().catch(() => []),
-        getProfile().catch(() => null),
-      ]);
+      const [dashboardData, subjectsData, profileData, activeExamData] =
+        await Promise.all([
+          getDashboard().catch(() => null),
+          getSubjects().catch(() => []),
+          getProfile().catch(() => null),
+          getActiveExam().catch(() => null),
+        ]);
       setData(dashboardData);
       setSubjects(subjectsData.filter((s) => s.isActive));
       setProfile(profileData);
+      setActiveExam(
+        activeExamData && (activeExamData.active || activeExamData.expired)
+          ? activeExamData
+          : null,
+      );
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
@@ -354,6 +363,260 @@ export function DashboardScreen() {
               size={22}
               color={theme.textSecondary}
             />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ═══ ACTIVE EXAM RESUME — duży amber banner ═══ */}
+      {activeExam?.active && !activeExam.expired && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() =>
+            navigation.navigate("ExamTab", {
+              screen: "ExamPlay",
+              params: { examId: activeExam.examId!, subjectId: "" },
+            })
+          }
+          style={{
+            marginBottom: 16,
+            padding: 16,
+            borderRadius: 20,
+            backgroundColor: isDark ? "#78350f30" : "#fef3c7",
+            borderWidth: 2,
+            borderColor: "#f59e0b",
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: 6,
+            }}
+          >
+            <View
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: "#ef4444",
+              }}
+            />
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: "800",
+                color: "#dc2626",
+                letterSpacing: 0.5,
+              }}
+            >
+              EGZAMIN W TOKU
+            </Text>
+          </View>
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "800",
+              color: isDark ? "#fbbf24" : "#92400e",
+              marginBottom: 4,
+            }}
+          >
+            {activeExam.examTitle}
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: isDark ? "#fcd34d" : "#78350f",
+              marginBottom: 8,
+            }}
+          >
+            ⏱ {Math.floor((activeExam.remainingMinutes || 0) / 60)}h{" "}
+            {(activeExam.remainingMinutes || 0) % 60}min •{" "}
+            {activeExam.answeredCount || 0} odpowiedzi
+          </Text>
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: "800",
+              color: "#d97706",
+            }}
+          >
+            Kontynuuj egzamin →
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {activeExam?.expired && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() =>
+            navigation.navigate("ExamTab", {
+              screen: "ExamResults",
+              params: { attemptId: activeExam.attemptId! },
+            })
+          }
+          style={{
+            marginBottom: 16,
+            padding: 16,
+            borderRadius: 20,
+            backgroundColor: isDark ? "#5b21b620" : "#f5f3ff",
+            borderWidth: 1,
+            borderColor: isDark ? "#7c3aed40" : "#ddd6fe",
+          }}
+        >
+          <Text style={{ fontSize: 26, marginBottom: 4 }}>⏰</Text>
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "800",
+              color: isDark ? "#c4b5fd" : "#5b21b6",
+            }}
+          >
+            Czas egzaminu minął
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: isDark ? "#a78bfa" : "#6d28d9",
+              marginTop: 4,
+            }}
+          >
+            Zobacz wyniki →
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* ═══ 3 HERO TILES — Egzamin / Listening / Quiz ═══ */}
+      <View style={{ gap: 10, marginBottom: 20 }}>
+        {/* Egzamin Live — pełnoekranowy */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate("ExamTab")}
+          style={{
+            padding: 18,
+            borderRadius: 22,
+            backgroundColor: colors.brand[500],
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 16,
+            shadowColor: colors.brand[500],
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 12,
+            elevation: 6,
+          }}
+        >
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 16,
+              backgroundColor: "rgba(255,255,255,0.2)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ fontSize: 28 }}>📝</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "800",
+                color: "#fff",
+                marginBottom: 2,
+              }}
+            >
+              Egzamin Live
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: "rgba(255,255,255,0.85)",
+              }}
+            >
+              Pełny symulator matury z timerem
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color="#fff" />
+        </TouchableOpacity>
+
+        {/* Listening + Quiz w 2 kolumnach */}
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate("ListeningHub")}
+            style={{
+              flex: 1,
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: isDark ? "#0c1e3e" : "#eff6ff",
+              borderWidth: 1,
+              borderColor: isDark ? "#1e40af40" : "#bfdbfe",
+              alignItems: "flex-start",
+              minHeight: 130,
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ fontSize: 32 }}>🎧</Text>
+            <View>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "800",
+                  color: isDark ? "#93c5fd" : "#1e40af",
+                }}
+              >
+                Listening
+              </Text>
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: isDark ? "#60a5fa" : "#3b82f6",
+                  marginTop: 2,
+                }}
+              >
+                EN / DE z AI audio
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate("SubjectsTab")}
+            style={{
+              flex: 1,
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: isDark ? "#14532d20" : "#ecfdf5",
+              borderWidth: 1,
+              borderColor: isDark ? "#16653440" : "#a7f3d0",
+              alignItems: "flex-start",
+              minHeight: 130,
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ fontSize: 32 }}>🎯</Text>
+            <View>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "800",
+                  color: isDark ? "#86efac" : "#15803d",
+                }}
+              >
+                Quiz
+              </Text>
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: isDark ? "#4ade80" : "#16a34a",
+                  marginTop: 2,
+                }}
+              >
+                Pytania per przedmiot
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
       </View>

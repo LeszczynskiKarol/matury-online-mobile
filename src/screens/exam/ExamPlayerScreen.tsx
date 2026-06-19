@@ -28,6 +28,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { MathEditor } from "../../components/exam/MathEditor";
+import {
+  isGermanTaskType,
+  GermanTaskRenderer,
+} from "../../components/exam/NiemieckiTaskRenderers";
+import {
+  isTier2TaskType,
+  Tier2TaskRenderer,
+} from "../../components/exam/Tier2TaskRenderers";
+import { MaterialRenderer } from "../../components/exam/MaterialRenderer";
+import { SvgViewer } from "../../components/exam/SvgViewer";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { OptionCard } from "../../components/quiz/OptionCard";
@@ -810,56 +820,17 @@ export function ExamPlayerScreen() {
         {showMaterials &&
           currentPart &&
           (currentTask.materialIds || []).map((matId: string) => {
-            const mat = currentPart.materials.find((m: any) => m.id === matId);
+            const mat = currentPart.materials?.find(
+              (m: any) => m.id === matId,
+            );
             if (!mat) return null;
             return (
-              <View
+              <MaterialRenderer
                 key={mat.id}
-                style={{
-                  padding: 16,
-                  borderRadius: 16,
-                  backgroundColor: isDark ? "#92400e10" : "#fffbeb",
-                  borderWidth: 1,
-                  borderColor: isDark ? "#92400e30" : "#fde68a",
-                  marginBottom: 12,
-                }}
-              >
-                {mat.author && (
-                  <Text style={{ fontSize: 11, color: theme.textTertiary }}>
-                    {mat.author}
-                  </Text>
-                )}
-                {mat.title && (
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "700",
-                      fontStyle: "italic",
-                      color: theme.text,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {mat.title}
-                  </Text>
-                )}
-                <Text
-                  style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
-                >
-                  {mat.content}
-                </Text>
-                {mat.footnotes?.map((fn: string, i: number) => (
-                  <Text
-                    key={i}
-                    style={{
-                      fontSize: 10,
-                      color: theme.textTertiary,
-                      marginTop: 6,
-                    }}
-                  >
-                    {i + 1}. {fn}
-                  </Text>
-                ))}
-              </View>
+                mat={mat}
+                theme={theme}
+                isDark={isDark}
+              />
             );
           })}
 
@@ -1091,9 +1062,246 @@ function ExamTaskInput({
     </View>
   ) : null;
 
+  // Raw SVG (figury geometryczne, content.svg lub content.graphSvg)
+  const svgString: string | null =
+    typeof content.svg === "string" && content.svg.trim().length > 0
+      ? content.svg
+      : typeof content.graphSvg === "string" && content.graphSvg.trim().length > 0
+        ? content.graphSvg
+        : null;
+  const svgElement = svgString ? (
+    <SvgViewer svg={svgString} theme={theme} />
+  ) : null;
+
+  // ── Tier 2 specjalistyczne renderery — przed prefix mapperem,
+  //    żeby sequence/cross_punnett/scheme_fill/fill_choose/info_*/table_fill/
+  //    identify_persons NIE zostały zmapowane do generic textarea
+  if (isTier2TaskType(task.type)) {
+    return (
+      <View>
+        {svgElement}
+        {graphElement}
+        {tableElement}
+        <Tier2TaskRenderer
+          task={task}
+          value={value}
+          onChange={onChange}
+          theme={theme}
+          isDark={isDark}
+        />
+      </View>
+    );
+  }
+
+  // ── German/English PP+PR renderers (listening_*, reading_*, writing*, …)
+  if (isGermanTaskType(task.type)) {
+    const subAnswers =
+      typeof value === "object" && value && !Array.isArray(value) ? value : {};
+    return (
+      <View>
+        {svgElement}
+        {graphElement}
+        {tableElement}
+        <GermanTaskRenderer
+          task={task}
+          answers={subAnswers}
+          onAnswer={(qId, v) => onChange({ ...subAnswers, [qId]: v })}
+          theme={theme}
+          isDark={isDark}
+        />
+      </View>
+    );
+  }
+
+  // ── Prefix mapper — per-subject types (hist_*, bio_*, chem_*, phys_*,
+  //    geo_*, wos_*, info_*) → reuse existing generic case'y w switchu poniżej.
+  //    Compound (*_abcd_justified, *_abcd_justify) renderujemy specjalnie.
+  const SUBJECT_PREFIXES = /^(hist|bio|chem|phys|geo|wos|info)_/;
+  let effectiveType = task.type;
+  let isCompoundJustify = false;
+  // Humanistyczne (wos/hist/polski/geo) — bez palety LaTeX i hint'u
+  const isHumanistic =
+    /^(wos|hist|geo)_/.test(task.type) ||
+    task.type === "open_short" ||
+    task.type === "open_explain" ||
+    task.type === "open_compare" ||
+    task.type === "notatka" ||
+    task.type === "wypracowanie";
+  if (SUBJECT_PREFIXES.test(task.type)) {
+    const suffix = task.type.replace(SUBJECT_PREFIXES, "");
+    if (suffix === "abcd") effectiveType = "closed_abcd";
+    else if (suffix === "abcd_justified" || suffix === "abcd_justify") {
+      effectiveType = "closed_abcd";
+      isCompoundJustify = true;
+    } else if (suffix === "true_false") effectiveType = "math_true_false";
+    else if (suffix === "multi_select") effectiveType = "math_multi_select";
+    else if (suffix === "fill_blank" || suffix === "fill_value")
+      effectiveType = "math_fill_blank";
+    else if (suffix === "fill_table" || suffix === "table_fill")
+      effectiveType = "fill_table";
+    else if (suffix === "matching") effectiveType = "matching";
+    else if (suffix === "open_short") effectiveType = "open_short";
+    else if (
+      suffix === "open_explain" ||
+      suffix === "open_extended" ||
+      suffix === "open_compare" ||
+      suffix === "decide_justify" ||
+      suffix === "compare_sources" ||
+      suffix === "arguments" ||
+      suffix === "propose" ||
+      suffix === "explain" ||
+      suffix === "derivation" ||
+      suffix === "diagram" ||
+      suffix === "construction" ||
+      suffix === "experiment" ||
+      suffix === "problem" ||
+      suffix === "calculation" ||
+      suffix === "equation" ||
+      suffix === "interpret_visual" ||
+      suffix === "style_recognition" ||
+      suffix === "short_calc" ||
+      suffix === "extended_calc" ||
+      suffix === "fill_text" ||
+      suffix === "analysis" ||
+      suffix === "essay_5pt" ||
+      suffix === "essay_7pt" ||
+      suffix === "essay_10pt" ||
+      suffix === "essay_15pt" ||
+      suffix === "algorithm" ||
+      suffix === "programming" ||
+      suffix === "sql" ||
+      suffix === "spreadsheet" ||
+      suffix === "nuclear" ||
+      suffix === "electronic"
+    ) {
+      effectiveType = "open_explain";
+    }
+  }
+
+  // Compound: MCQ + textarea justification
+  if (isCompoundJustify) {
+    const compound =
+      typeof value === "object" && value && !Array.isArray(value)
+        ? value
+        : { choice: null, justification: "" };
+    const opts = content.options || [];
+    return (
+      <View>
+        {svgElement}
+        {graphElement}
+        {tableElement}
+        <View style={{ gap: 8, marginBottom: 16 }}>
+          {opts.map((o: any) => (
+            <OptionCard
+              key={o.id}
+              id={o.id}
+              text={parseChemText(o.text)}
+              state={compound.choice === o.id ? "selected" : "default"}
+              onPress={() =>
+                onChange({
+                  ...compound,
+                  choice: compound.choice === o.id ? null : o.id,
+                })
+              }
+              disabled={false}
+            />
+          ))}
+        </View>
+        <Text
+          style={{
+            fontSize: 12,
+            fontWeight: "700",
+            color: theme.textSecondary,
+            marginBottom: 6,
+          }}
+        >
+          Uzasadnienie:
+        </Text>
+        <MathEditor
+          value={compound.justification || ""}
+          onChange={(text) => onChange({ ...compound, justification: text })}
+          placeholder="Uzasadnij wybór..."
+          taskType="math_short_calc"
+        />
+      </View>
+    );
+  }
+
+  // ── phys_fill_value — backend wystawia {prefix, suffix, correctValue}
+  //    (NIE {blanks[]}). Render: prefix tekst + TextInput + suffix (jednostka).
+  if (
+    task.type === "phys_fill_value" &&
+    (content.prefix !== undefined ||
+      content.suffix !== undefined ||
+      content.correctValue !== undefined)
+  ) {
+    return (
+      <View>
+        {svgElement}
+        {graphElement}
+        {tableElement}
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 8,
+            padding: 12,
+            borderRadius: 12,
+            backgroundColor: theme.card,
+            borderWidth: 1,
+            borderColor: theme.borderLight,
+          }}
+        >
+          {content.prefix ? (
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                color: theme.text,
+              }}
+            >
+              {parseChemText(String(content.prefix))}
+            </Text>
+          ) : null}
+          <TextInput
+            value={typeof value === "string" ? value : ""}
+            onChangeText={onChange}
+            placeholder={content.hint || "wartość"}
+            placeholderTextColor={theme.textTertiary}
+            keyboardType="numbers-and-punctuation"
+            autoCorrect={false}
+            style={{
+              minWidth: 120,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderBottomWidth: 2,
+              borderBottomColor: colors.brand[500],
+              fontSize: 16,
+              fontWeight: "700",
+              color: theme.text,
+              textAlign: "center",
+            }}
+          />
+          {content.suffix ? (
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                color: theme.text,
+              }}
+            >
+              {parseChemText(String(content.suffix))}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
+
   // Wrap task-specific input with table/graph above it
   const taskInput = (() => {
-    switch (task.type) {
+    switch (effectiveType) {
       // ── OPEN / NOTATKA / WYPRACOWANIE ────────────────────────────────
       case "open_short":
       case "open_explain":
@@ -1104,6 +1312,7 @@ function ExamTaskInput({
             onChange={onChange}
             placeholder="Napisz odpowiedź..."
             taskType="math_short_calc"
+            plain={isHumanistic}
           />
         );
 
@@ -1147,6 +1356,7 @@ function ExamTaskInput({
               onChange={onChange}
               placeholder="Notatka syntetyzująca (60-90 słów)..."
               taskType="math_short_calc"
+              plain
             />
             <WordCounter
               text={typeof value === "string" ? value : ""}
@@ -1226,6 +1436,7 @@ function ExamTaskInput({
               onChange={(text) => onChange({ ...cur, text })}
               placeholder="Napisz wypracowanie (min. 300 słów)..."
               taskType="math_extended_calc"
+              plain
             />
             <WordCounter text={cur.text || ""} min={300} theme={theme} />
           </View>
@@ -1596,7 +1807,7 @@ function ExamTaskInput({
 
       case "math_two_part":
       case "math_multi_select": {
-        if (task.type === "math_multi_select") {
+        if (effectiveType === "math_multi_select") {
           const opts = content.options || [];
           const sel = Array.isArray(value) ? value : [];
           return (
@@ -1670,14 +1881,16 @@ function ExamTaskInput({
             onChange={onChange}
             placeholder="Napisz odpowiedź..."
             taskType="math_short_calc"
+            plain={isHumanistic}
           />
         );
     }
   })();
 
-  // Render: graph/table first, then task input
+  // Render: svg/graph/table first, then task input
   return (
     <View>
+      {svgElement}
       {graphElement}
       {tableElement}
       {taskInput}

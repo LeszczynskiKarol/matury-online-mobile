@@ -82,29 +82,53 @@ export function ExamSelectorScreen() {
             setActiveExam({ ...active, expired: true } as any);
           }
 
-          // Load subjects
-          const subs = await api<any[]>("/subjects");
+          // Subjects + order równolegle
+          const [subs, orderRes] = await Promise.all([
+            api<any[]>("/subjects"),
+            api<{ order: string[] }>("/exams/subjects-order").catch(() => ({
+              order: [] as string[],
+            })),
+          ]);
           if (cancelled) return;
-          const infos: SubjectExamInfo[] = [];
-          for (const sub of subs) {
-            try {
-              const avail = await getAvailableExams(sub.id);
-              if (avail.available) {
-                infos.push({
-                  subjectId: sub.id,
-                  subjectName: sub.name,
-                  subjectIcon: sub.icon || "📝",
-                  subjectSlug: sub.slug,
-                  level: "PODSTAWOWY",
-                  unseenCount: avail.unseenCount,
-                  completedCount: avail.completedCount,
-                  timeMinutes: avail.timeMinutes,
-                  maxPoints: avail.maxPoints,
-                });
-              }
-            } catch {}
-          }
-          if (!cancelled) setExamInfos(infos);
+
+          // Wszystkie kombinacje przedmiot × poziom równolegle
+          const checks = subs.flatMap((sub: any) =>
+            (["PODSTAWOWY", "ROZSZERZONY"] as const).map((level) =>
+              getAvailableExams(sub.id, level)
+                .then((avail) =>
+                  avail.available
+                    ? ({
+                        subjectId: sub.id,
+                        subjectName: sub.name,
+                        subjectIcon: sub.icon || "📝",
+                        subjectSlug: sub.slug,
+                        level,
+                        unseenCount: avail.unseenCount,
+                        completedCount: avail.completedCount,
+                        timeMinutes: avail.timeMinutes,
+                        maxPoints: avail.maxPoints,
+                      } as SubjectExamInfo)
+                    : null,
+                )
+                .catch(() => null),
+            ),
+          );
+
+          const results = await Promise.all(checks);
+          if (cancelled) return;
+
+          const order = orderRes.order || [];
+          const sorted = (results.filter(Boolean) as SubjectExamInfo[]).sort(
+            (a, b) => {
+              const iA = order.indexOf(a.subjectSlug);
+              const iB = order.indexOf(b.subjectSlug);
+              const subA = iA === -1 ? 99 : iA;
+              const subB = iB === -1 ? 99 : iB;
+              if (subA !== subB) return subA - subB;
+              return a.level === "PODSTAWOWY" ? -1 : 1;
+            },
+          );
+          setExamInfos(sorted);
         } catch (err: any) {
           console.error(err);
         } finally {
@@ -122,8 +146,22 @@ export function ExamSelectorScreen() {
     setLoadingExams(true);
     try {
       const data = await getAvailableExams(info.subjectId, info.level);
-      setExamList(data.exams || []);
+      // Weź pierwszy niewidziany, fallback na pierwszy z listy (jak desktop)
+      const exam =
+        (data.exams || []).find((e: any) => !(e as any).completed) ||
+        data.exams?.[0];
+
+      if (exam) {
+        navigation.navigate("ExamPlay", {
+          examId: exam.id,
+          subjectId: info.subjectId,
+        });
+        return;
+      }
+
+      // Brak arkuszy — pokaż komunikat "AI generuje"
       setSelectedSubject(info);
+      setExamList([]);
     } catch (err: any) {
       Alert.alert("Błąd", err.message);
     } finally {
@@ -381,16 +419,50 @@ export function ExamSelectorScreen() {
                     }}
                   >
                     <Text style={{ fontSize: 28 }}>{info.subjectIcon}</Text>
-                    <View>
-                      <Text
+                    <View style={{ flex: 1 }}>
+                      <View
                         style={{
-                          fontSize: 16,
-                          fontWeight: "700",
-                          color: theme.text,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: 6,
                         }}
                       >
-                        {info.subjectName}
-                      </Text>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "700",
+                            color: theme.text,
+                          }}
+                        >
+                          {info.subjectName}
+                        </Text>
+                        <View
+                          style={{
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 999,
+                            backgroundColor:
+                              info.level === "ROZSZERZONY"
+                                ? "#f3e8ff"
+                                : "#e0f2fe",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 9,
+                              fontWeight: "800",
+                              color:
+                                info.level === "ROZSZERZONY"
+                                  ? "#9333ea"
+                                  : "#0284c7",
+                              letterSpacing: 0.3,
+                            }}
+                          >
+                            {info.level}
+                          </Text>
+                        </View>
+                      </View>
                       <Text
                         style={{ fontSize: 12, color: theme.textSecondary }}
                       >

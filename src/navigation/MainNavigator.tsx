@@ -27,6 +27,7 @@ import type {
 
 import { DashboardScreen } from "../screens/home/DashboardScreen";
 import { SessionHistoryScreen } from "../screens/home/SessionHistoryScreen";
+import { ListeningHubScreen } from "../screens/home/ListeningHubScreen";
 import { SubjectsScreen } from "../screens/subjects/SubjectsScreen";
 import { SubjectDetailScreen } from "../screens/subjects/SubjectDetailScreen";
 import { QuizSetupScreen } from "../screens/quiz/QuizSetupScreen";
@@ -50,6 +51,10 @@ function HomeStackNav() {
       <HomeStack.Screen
         name="SessionHistory"
         component={SessionHistoryScreen}
+      />
+      <HomeStack.Screen
+        name="ListeningHub"
+        component={ListeningHubScreen}
       />
     </HomeStack.Navigator>
   );
