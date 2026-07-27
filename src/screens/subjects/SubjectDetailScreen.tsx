@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 import { subjectsApi } from "../../api";
 import type { Topic } from "../../api/subjects";
 import { createSession } from "../../api/sessions";
@@ -22,6 +23,7 @@ import { spacing, radius } from "../../theme";
 export function SubjectDetailScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme } = useTheme();
+  const { isPremium } = useAuth();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
@@ -47,6 +49,13 @@ export function SubjectDetailScreen() {
 
   const startQuizDirect = async (topicId?: string) => {
     if (!subjectId) return;
+    // Nauka wymaga Premium — ta ścieżka omijała bramkę z QuizSetupScreen
+    // i wpuszczała darmowe konta prosto do QuizPlay. Backend też już odrzuca
+    // (403 PREMIUM_REQUIRED), tu prowadzimy usera na ekran subskrypcji.
+    if (!isPremium) {
+      navigation.navigate("ProfileTab", { screen: "Subscription" });
+      return;
+    }
     setStartingTopicId(topicId || "__all__");
     try {
       const session = await createSession({
@@ -70,6 +79,10 @@ export function SubjectDetailScreen() {
         },
       });
     } catch (err: any) {
+      if (err?.code === "PREMIUM_REQUIRED") {
+        navigation.navigate("ProfileTab", { screen: "Subscription" });
+        return;
+      }
       Alert.alert("Błąd", err.message || "Nie udało się utworzyć sesji");
     } finally {
       setStartingTopicId(null);
