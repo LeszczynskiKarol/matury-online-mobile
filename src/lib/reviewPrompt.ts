@@ -9,7 +9,6 @@
 // ekranu wyników.
 // ============================================================================
 
-import * as StoreReview from "expo-store-review";
 import * as SecureStore from "expo-secure-store";
 
 const KEY = "mo_review_prompt_last";
@@ -29,6 +28,10 @@ export async function maybeAskForReview(percentage: number): Promise<void> {
       return;
     }
 
+    // Lazy import: statyczny wywalał się na buildach bez natywnego modułu
+    // (requireNativeModule rzuca przy załadowaniu bundla, zanim dojdzie do
+    // try/catch wywołania).
+    const StoreReview = await import("expo-store-review");
     if (!(await StoreReview.hasAction())) return;
 
     askedThisSession = true;
