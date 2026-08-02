@@ -25,6 +25,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { parseChemText } from "../../utils/chemText";
 import { getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
+import { maybeAskForReview } from "../../lib/reviewPrompt";
 import type { ExamStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
@@ -124,6 +125,13 @@ export function ExamResultsScreen() {
       if (poll) clearInterval(poll);
     };
   }, [attemptId]);
+
+  // In-app review: moment maksymalnej satysfakcji — dobrze zdany egzamin.
+  // Cała logika progu/throttlingu w maybeAskForReview (lib/reviewPrompt).
+  useEffect(() => {
+    const pct = data?.grading?.percentage;
+    if (typeof pct === "number") maybeAskForReview(pct);
+  }, [data]);
 
   // ── Loading ────────────────────────────────────────────────────────
   if (loading) {
