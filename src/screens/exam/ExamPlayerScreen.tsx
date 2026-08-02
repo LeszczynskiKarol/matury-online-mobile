@@ -20,6 +20,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  AppState,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -37,6 +38,7 @@ import {
   Tier2TaskRenderer,
 } from "../../components/exam/Tier2TaskRenderers";
 import { MaterialRenderer } from "../../components/exam/MaterialRenderer";
+import { normalizeEnglishContent } from "../../utils/normalizeEnglishContent";
 import { SvgViewer } from "../../components/exam/SvgViewer";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -79,9 +81,18 @@ export function ExamPlayerScreen() {
 
   const examStartedAtRef = useRef(0);
   const totalTimeMsRef = useRef(0);
-  const sessionStartRef = useRef(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Zapis stanu: refy trzymają aktualne answers/currentTaskId, żeby interval
+  // autosave'u NIE miał ich w zależnościach efektu — wcześniej każda
+  // odpowiedź robiła clearInterval+setInterval i licznik 30 s nigdy nie
+  // dobiegał końca u aktywnie odpowiadającego ucznia (realna utrata
+  // odpowiedzi; ten sam bug naprawiono na webie w b9e81a7).
+  const answersRef = useRef<Record<string, any>>({});
+  const currentTaskIdRef = useRef<string>("");
+  const dataRef = useRef<ExamStartData | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   // ── Load exam ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -97,7 +108,6 @@ export function ExamPlayerScreen() {
         setCurrentTaskId(examData.currentTaskId || allTasks[0]?.id || "");
 
         examStartedAtRef.current = new Date(examData.startedAt).getTime();
-        sessionStartRef.current = Date.now();
         totalTimeMsRef.current = examData.exam.timeMinutes * 60 * 1000;
         setRemainingMs(
           Math.max(
@@ -134,20 +144,59 @@ export function ExamPlayerScreen() {
     }
   }, [remainingMs, phase]);
 
-  // ── Autosave ───────────────────────────────────────────────────────
+  // Refy synchronizowane przy każdym renderze — saveNow zawsze widzi świeży stan
+  answersRef.current = answers;
+  currentTaskIdRef.current = currentTaskId;
+  dataRef.current = data;
+
+  // ── Zapis odpowiedzi ───────────────────────────────────────────────
+  const saveNow = useCallback(() => {
+    const d = dataRef.current;
+    if (!d) return;
+    saveExamAnswers(d.attemptId, {
+      answers: answersRef.current,
+      currentTaskId: currentTaskIdRef.current || undefined,
+      // Czas trwania: wall-clock od startu PODEJŚCIA (nie od otwarcia
+      // ekranu) — inaczej każde wznowienie zerowało czas w statystykach.
+      timeSpentMs: Date.now() - examStartedAtRef.current,
+    })
+      .then(() => {
+        setLastSavedAt(new Date());
+        setSaveFailed(false);
+      })
+      .catch(() => setSaveFailed(true));
+  }, []);
+
+  // ── Autosave every 30s ─────────────────────────────────────────────
+  // Zależności celowo BEZ answers/currentTaskId (są w refach) — interval
+  // musi tykać niezależnie od odpowiadania.
   useEffect(() => {
     if (phase !== "exam" || !data) return;
-    autosaveRef.current = setInterval(() => {
-      saveExamAnswers(data.attemptId, {
-        answers,
-        currentTaskId,
-        timeSpentMs: Date.now() - sessionStartRef.current,
-      }).catch(() => {});
-    }, 30000);
+    autosaveRef.current = setInterval(() => saveNow(), 30000);
     return () => {
       if (autosaveRef.current) clearInterval(autosaveRef.current);
     };
-  }, [phase, data, answers, currentTaskId]);
+  }, [phase, data, saveNow]);
+
+  // ── Zapis przy zejściu w tło ───────────────────────────────────────
+  // Android zamraża timery JS w tle, a system może ubić proces — moment
+  // przejścia w background to ostatnia szansa na zapis (mobilny odpowiednik
+  // visibilitychange/pagehide z weba).
+  useEffect(() => {
+    if (phase !== "exam" || !data) return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "background" || state === "inactive") saveNow();
+    });
+    return () => sub.remove();
+  }, [phase, data, saveNow]);
+
+  // ── Zapis przy wyjściu z ekranu (back / gest / nawigacja) ──────────
+  useEffect(() => {
+    const unsub = navigation.addListener("beforeRemove", () => {
+      if (dataRef.current) saveNow();
+    });
+    return unsub;
+  }, [navigation, saveNow]);
 
   // ── Derived ────────────────────────────────────────────────────────
   const allTasks = useMemo(
@@ -182,12 +231,17 @@ export function ExamPlayerScreen() {
     setAnswers((prev) => ({ ...prev, [taskId]: value }));
   }, []);
 
-  const goToTask = useCallback((id: string) => {
-    setCurrentTaskId(id);
-    setShowNav(false);
-    setShowMaterials(false);
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  }, []);
+  const goToTask = useCallback(
+    (id: string) => {
+      setCurrentTaskId(id);
+      setShowNav(false);
+      setShowMaterials(false);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      // Nawigacja między zadaniami = naturalny checkpoint zapisu
+      saveNow();
+    },
+    [saveNow],
+  );
 
   const goNext = useCallback(() => {
     if (currentIndex < allTasks.length - 1)
@@ -208,7 +262,7 @@ export function ExamPlayerScreen() {
       try {
         const res = await submitExam(data.attemptId, {
           answers,
-          timeSpentMs: Date.now() - sessionStartRef.current,
+          timeSpentMs: Date.now() - examStartedAtRef.current,
           timeLeftMs: remainingMs,
           skipAiGrading: skipAi,
         });
@@ -717,6 +771,20 @@ export function ExamPlayerScreen() {
             <Text style={{ fontSize: 10, color: theme.textTertiary }}>
               {answeredCount} odpowiedzi
             </Text>
+            {/* Status autosave — uczeń musi widzieć, że praca jest zapisana */}
+            {saveFailed ? (
+              <Text style={{ fontSize: 9, color: "#ef4444", fontWeight: "700" }}>
+                ⚠ zapis nieudany
+              </Text>
+            ) : lastSavedAt ? (
+              <Text style={{ fontSize: 9, color: theme.textTertiary }}>
+                ✓ zapisano{" "}
+                {lastSavedAt.toLocaleTimeString("pl", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Text>
+            ) : null}
           </View>
 
           {/* Nav + Submit */}
@@ -1097,13 +1165,20 @@ function ExamTaskInput({
   if (isGermanTaskType(task.type)) {
     const subAnswers =
       typeof value === "object" && value && !Array.isArray(value) ? value : {};
+    // Normalizacja zdryfowanych kształtów contentu angielskiego (port z weba
+    // — bez niej część zadań EN renderowała się jako pusta). Typy _de trafiają
+    // w default normalizera i wracają nietknięte.
+    const normalizedTask = {
+      ...task,
+      content: normalizeEnglishContent(task.type, task.content),
+    };
     return (
       <View>
         {svgElement}
         {graphElement}
         {tableElement}
         <GermanTaskRenderer
-          task={task}
+          task={normalizedTask}
           answers={subAnswers}
           onAnswer={(qId, v) => onChange({ ...subAnswers, [qId]: v })}
           theme={theme}

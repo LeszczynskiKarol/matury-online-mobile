@@ -2,7 +2,7 @@
   "expo": {
     "name": "Matury Online",
     "slug": "matury-online",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -12,7 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0a0a1f"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "pl.matury-online.app",
@@ -23,20 +25,22 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0a0a1f"
+        "backgroundColor": "#2F9E87"
       },
       "package": "pl.matury_online.app",
       "permissions": [],
-      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
-      "versionCode": 3,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "versionCode": 5,
       "softwareKeyboardLayoutMode": "pan"
     },
-
     "plugins": [
       "expo-font",
       "expo-secure-store",
       "expo-asset",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "eas": {
