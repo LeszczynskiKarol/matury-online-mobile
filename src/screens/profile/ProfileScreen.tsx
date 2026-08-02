@@ -352,11 +352,7 @@ export function ProfileScreen() {
       {/* Session History link */}
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() =>
-          navigation.getParent()?.navigate("HomeTab", {
-            screen: "SessionHistory",
-          })
-        }
+        onPress={() => navigation.navigate("SessionHistory")}
       >
         <Card style={{ marginBottom: 12 }}>
           <View

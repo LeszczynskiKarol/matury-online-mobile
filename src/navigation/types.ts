@@ -56,6 +56,7 @@ export type ProfileStackParamList = {
   Badges: undefined;
   Ranking: undefined;
   AiCreditsHistory: undefined;
+  SessionHistory: undefined;
 };
 
 // ── Root ──────────────────────────────────────────────────────────────────

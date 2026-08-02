@@ -150,6 +150,14 @@ function ProfileStackNav() {
         name="AiCreditsHistory"
         component={AiCreditsHistoryScreen}
       />
+      {/* Historia sesji lokalnie w stacku Profilu — wcześniejszy skok
+          getParent().navigate("HomeTab", …) gubił kontekst powrotu: back
+          lądował na Starcie, a kolejny back zamykał apkę (wyglądało jak
+          crash). */}
+      <ProfileStack.Screen
+        name="SessionHistory"
+        component={SessionHistoryScreen}
+      />
     </ProfileStack.Navigator>
   );
 }
