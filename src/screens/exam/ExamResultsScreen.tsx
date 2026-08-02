@@ -26,6 +26,7 @@ import { Button } from "../../components/ui/Button";
 import { parseChemText } from "../../utils/chemText";
 import { getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
 import { maybeAskForReview } from "../../lib/reviewPrompt";
+import { askForPushPermissionOnce } from "../../lib/pushNotifications";
 import type { ExamStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
@@ -128,7 +129,11 @@ export function ExamResultsScreen() {
 
   // In-app review: moment maksymalnej satysfakcji — dobrze zdany egzamin.
   // Cała logika progu/throttlingu w maybeAskForReview (lib/reviewPrompt).
+  // Push: pierwszy ukończony egzamin to też właściwy moment na jednorazową
+  // prośbę o zgodę na powiadomienia (kontekst > cold start).
   useEffect(() => {
+    if (!data) return;
+    askForPushPermissionOnce();
     const pct = data?.grading?.percentage;
     if (typeof pct === "number") maybeAskForReview(pct);
   }, [data]);

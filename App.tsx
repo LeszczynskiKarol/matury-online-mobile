@@ -22,6 +22,8 @@ import * as Linking from "expo-linking";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { navigationRef } from "./src/navigation/navigationRef";
+import { setupNotificationHandlers } from "./src/lib/pushNotifications";
 import { colors } from "./src/theme/colors";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -169,7 +171,10 @@ function AppInner() {
       keyboardVerticalOffset={0}
     >
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      <NavigationContainer theme={isDark ? navDarkTheme : navLightTheme}>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={isDark ? navDarkTheme : navLightTheme}
+      >
         <RootNavigator />
       </NavigationContainer>
       <GamificationToasts />
@@ -183,6 +188,9 @@ export default function App() {
   useEffect(() => {
     setReady(true);
     SplashScreen.hideAsync().catch(() => {});
+    // Handler foreground + routing tapów w powiadomienia push
+    const cleanup = setupNotificationHandlers();
+    return cleanup;
   }, []);
 
   if (!ready) return null;

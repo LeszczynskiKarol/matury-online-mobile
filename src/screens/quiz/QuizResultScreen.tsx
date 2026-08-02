@@ -2,7 +2,7 @@
 // Quiz Result Screen — session complete
 // ============================================================================
 
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -13,8 +13,15 @@ import { Card } from "../../components/ui/Card";
 import { ProgressBar } from "../../components/common/ProgressBar";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
+import { askForPushPermissionOnce } from "../../lib/pushNotifications";
 
 export function QuizResultScreen() {
+  // Pierwszy ukończony quiz = dobry moment na jednorazową prośbę o zgodę
+  // na powiadomienia (kontekst zamiast cold-startu).
+  useEffect(() => {
+    askForPushPermissionOnce();
+  }, []);
+
   const insets = useSafeAreaInsets();
   const { colors: theme } = useTheme();
   const navigation = useNavigation<any>();

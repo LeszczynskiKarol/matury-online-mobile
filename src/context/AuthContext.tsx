@@ -11,6 +11,10 @@ import React, {
 } from "react";
 import { authApi } from "../api";
 import { getToken, clearToken } from "../api/client";
+import {
+  syncPushRegistration,
+  unregisterPush,
+} from "../lib/pushNotifications";
 import type { User } from "../api/auth";
 
 interface AuthContextValue {
@@ -58,6 +62,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // Cichy sync tokenu push przy każdym zalogowanym stanie — odświeża
+  // lastSeenAt na backendzie; o zgodę pyta osobno askForPushPermissionOnce
+  // (ekrany wyników), nie tutaj.
+  useEffect(() => {
+    if (user) syncPushRegistration();
+  }, [!!user]);
+
   const isPremium =
     user?.subscriptionStatus === "ACTIVE" ||
     (user?.subscriptionStatus === "ONE_TIME" &&
@@ -99,6 +110,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Odepnij token push PRZED wylogowaniem — endpoint wymaga auth
+    await unregisterPush();
     await authApi.logout();
     setUser(null);
   }, []);

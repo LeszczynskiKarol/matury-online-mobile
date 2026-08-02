@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "430715275599",
+    "project_id": "matury-online",
+    "storage_bucket": "matury-online.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:430715275599:android:d49c1803f721a3a9235d3a",
+        "android_client_info": {
+          "package_name": "pl.matury_online.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "430715275599-8f9okfiv4fv5tbcdtcu1gjgk40q9h0st.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFQK9keIGc0vqZ9OtGiJXVxzR57klzLwI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "430715275599-8f9okfiv4fv5tbcdtcu1gjgk40q9h0st.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
