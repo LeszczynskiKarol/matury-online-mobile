@@ -2,7 +2,7 @@
 // ListeningQuestion — React Native component for audio-based questions
 // ============================================================================
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,10 @@ import {
   TextInput,
   ActivityIndicator,
 } from "react-native";
-import { Audio } from "expo-av";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { OptionCard } from "./OptionCard";
+import { useListeningPlayer } from "../../hooks/useListeningPlayer";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -381,7 +381,7 @@ export function ListeningQuestion({
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// AUDIO PLAYER (expo-av)
+// AUDIO PLAYER (expo-audio)
 // ══════════════════════════════════════════════════════════════════════════
 
 function AudioPlayer({
@@ -396,104 +396,38 @@ function AudioPlayer({
   disabled: boolean;
 }) {
   const { colors: theme, isDark } = useTheme();
-  const soundRef = useRef<Audio.Sound | null>(null);
   const barWidthRef = useRef(0);
-  const [playCount, setPlayCount] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(durationMs ? durationMs / 1000 : 0);
-  const [loading, setLoading] = useState(false);
+  const {
+    playCount,
+    playsLeft,
+    canStart,
+    loaded,
+    isPlaying,
+    loading,
+    error,
+    positionMs,
+    durationMs: liveDurationMs,
+    progress,
+    handlePlay,
+    handleStop,
+    seekToFraction,
+  } = useListeningPlayer({
+    src,
+    maxPlays,
+    initialDurationMs: durationMs,
+    disabled,
+  });
 
-  // Nowy odsłuch (od zera) zużywa limit; pauza/wznowienie/przewijanie — nie
-  const canStart = playCount < maxPlays && !disabled;
-  const playsLeft = maxPlays - playCount;
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      soundRef.current?.unloadAsync().catch(() => {});
-    };
-  }, []);
-
-  const unloadSound = useCallback(async () => {
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync().catch(() => {});
-      soundRef.current = null;
-    }
-    setLoaded(false);
-    setIsPlaying(false);
-  }, []);
-
-  const handlePlay = useCallback(async () => {
-    if (loading || disabled) return;
-
-    // Pauza / wznowienie w ramach bieżącego odsłuchu
-    if (soundRef.current && loaded) {
-      if (isPlaying) {
-        await soundRef.current.pauseAsync().catch(() => {});
-      } else {
-        await soundRef.current.playAsync().catch(() => {});
-      }
-      return;
-    }
-
-    if (!canStart || !src) return;
-    setLoading(true);
-    try {
-      await unloadSound();
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: src },
-        { shouldPlay: true, positionMillis: 0 },
-        (status) => {
-          if (!status.isLoaded) return;
-          setCurrentTime(status.positionMillis / 1000);
-          setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
-          setProgress(
-            status.durationMillis
-              ? (status.positionMillis / status.durationMillis) * 100
-              : 0,
-          );
-          setIsPlaying(status.isPlaying);
-          if (status.didJustFinish) {
-            setProgress(100);
-            unloadSound();
-          }
-        },
-      );
-      soundRef.current = sound;
-      setLoaded(true);
-      setPlayCount((c) => c + 1);
-      setIsPlaying(true);
-    } catch (err) {
-      console.error("Audio play error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [canStart, src, loading, loaded, isPlaying, disabled, unloadSound]);
-
-  const handleStop = useCallback(async () => {
-    if (!soundRef.current || !loaded) return;
-    await soundRef.current.stopAsync().catch(() => {});
-    await unloadSound();
-    setProgress(0);
-    setCurrentTime(0);
-  }, [loaded, unloadSound]);
+  const currentTime = positionMs / 1000;
+  const duration = liveDurationMs / 1000;
 
   const handleSeek = useCallback(
-    async (x: number) => {
-      const sound = soundRef.current;
+    (x: number) => {
       const w = barWidthRef.current;
-      if (!sound || !loaded || !w || duration <= 0 || disabled) return;
-      const frac = Math.min(1, Math.max(0, x / w));
-      await sound
-        .setPositionAsync(Math.round(frac * duration * 1000))
-        .catch(() => {});
+      if (!w) return;
+      seekToFraction(x / w);
     },
-    [loaded, duration, disabled],
+    [seekToFraction],
   );
 
   const formatTime = (s: number) => {
@@ -716,6 +650,29 @@ function AudioPlayer({
           </View>
         </View>
       </View>
+
+      {/* Błąd odtwarzania — limit nie został zużyty */}
+      {error && (
+        <View
+          style={{
+            marginTop: 10,
+            padding: 8,
+            borderRadius: 10,
+            backgroundColor: colors.red[500] + "15",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 11,
+              color: colors.red[500],
+              textAlign: "center",
+              fontWeight: "500",
+            }}
+          >
+            {error}
+          </Text>
+        </View>
+      )}
 
       {/* Warnings */}
       {playCount === maxPlays - 1 && !isPlaying && playCount > 0 && (

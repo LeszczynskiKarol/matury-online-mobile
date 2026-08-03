@@ -12,8 +12,8 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { Audio } from "expo-av";
 import { colors } from "../../theme/colors";
+import { useListeningPlayer } from "../../hooks/useListeningPlayer";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -105,104 +105,34 @@ function normalizeOptions(opts: unknown): Array<[string, string]> {
 
 function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: boolean }) {
   const audioUrl = task.content?.audioUrl;
-  const soundRef = useRef<Audio.Sound | null>(null);
   const barWidthRef = useRef(0);
-  const [playCount, setPlayCount] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentMs, setCurrentMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(
-    task.content?.audioDurationMs || 0,
-  );
-  const [loading, setLoading] = useState(false);
   const maxPlays = 2;
-  const playsLeft = Math.max(0, maxPlays - playCount);
-  // Nowy odsłuch (od zera) zużywa limit; pauza/wznowienie/przewijanie — nie
+  const {
+    playsLeft,
+    loaded,
+    isPlaying,
+    loading,
+    error,
+    positionMs: currentMs,
+    durationMs,
+    progress,
+    handlePlay,
+    handleStop,
+    seekToFraction,
+  } = useListeningPlayer({
+    src: audioUrl || null,
+    maxPlays,
+    initialDurationMs: task.content?.audioDurationMs || 0,
+  });
   const canStart = playsLeft > 0 && !!audioUrl;
 
-  useEffect(() => {
-    return () => {
-      soundRef.current?.unloadAsync().catch(() => {});
-    };
-  }, []);
-
-  const unloadSound = useCallback(async () => {
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync().catch(() => {});
-      soundRef.current = null;
-    }
-    setLoaded(false);
-    setIsPlaying(false);
-  }, []);
-
-  const handlePlay = useCallback(async () => {
-    if (loading) return;
-
-    // Pauza / wznowienie w ramach bieżącego odsłuchu
-    if (soundRef.current && loaded) {
-      if (isPlaying) {
-        await soundRef.current.pauseAsync().catch(() => {});
-      } else {
-        await soundRef.current.playAsync().catch(() => {});
-      }
-      return;
-    }
-
-    if (!canStart || !audioUrl) return;
-    setLoading(true);
-    try {
-      await unloadSound();
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUrl },
-        { shouldPlay: true, positionMillis: 0 },
-        (status) => {
-          if (!status.isLoaded) return;
-          setCurrentMs(status.positionMillis);
-          setDurationMs(status.durationMillis || 0);
-          setProgress(
-            status.durationMillis
-              ? (status.positionMillis / status.durationMillis) * 100
-              : 0,
-          );
-          setIsPlaying(status.isPlaying);
-          if (status.didJustFinish) {
-            setProgress(100);
-            unloadSound();
-          }
-        },
-      );
-      soundRef.current = sound;
-      setLoaded(true);
-      setPlayCount((c) => c + 1);
-      setIsPlaying(true);
-    } catch (err) {
-      console.error("Audio play error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [canStart, audioUrl, loading, loaded, isPlaying, unloadSound]);
-
-  const handleStop = useCallback(async () => {
-    if (!soundRef.current || !loaded) return;
-    await soundRef.current.stopAsync().catch(() => {});
-    await unloadSound();
-    setProgress(0);
-    setCurrentMs(0);
-  }, [loaded, unloadSound]);
-
   const handleSeek = useCallback(
-    async (x: number) => {
-      const sound = soundRef.current;
+    (x: number) => {
       const w = barWidthRef.current;
-      if (!sound || !loaded || !w || durationMs <= 0) return;
-      const frac = Math.min(1, Math.max(0, x / w));
-      await sound
-        .setPositionAsync(Math.round(frac * durationMs))
-        .catch(() => {});
+      if (!w) return;
+      seekToFraction(x / w);
     },
-    [loaded, durationMs],
+    [seekToFraction],
   );
 
   const fmt = (ms: number) => {
@@ -412,6 +342,29 @@ function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: b
           </View>
         </View>
       </View>
+
+      {/* Błąd odtwarzania — limit nie został zużyty */}
+      {error && (
+        <View
+          style={{
+            marginTop: 10,
+            padding: 8,
+            borderRadius: 10,
+            backgroundColor: colors.red[500] + "15",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 11,
+              color: colors.red[500],
+              textAlign: "center",
+              fontWeight: "500",
+            }}
+          >
+            {error}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
