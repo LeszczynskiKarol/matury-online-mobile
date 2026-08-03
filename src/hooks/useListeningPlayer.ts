@@ -33,6 +33,10 @@ export function useListeningPlayer({
   // Czy bieżący odsłuch został policzony (playback realnie wystartował)
   const countedRef = useRef(false);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Synchroniczna blokada re-entrancy: stan Reacta (loading/loaded) jest
+  // nieświeży przy szybkich wielokrotnych tapnięciach i pozwalał stworzyć
+  // dwa playery naraz (nakładające się głosy)
+  const busyRef = useRef(false);
 
   const [playCount, setPlayCount] = useState(0);
   const [loaded, setLoaded] = useState(false); // odsłuch w toku (player istnieje)
@@ -84,11 +88,12 @@ export function useListeningPlayer({
   }, [destroyPlayer]);
 
   const handlePlay = useCallback(async () => {
-    if (loading || disabled) return;
+    if (disabled || busyRef.current) return;
 
-    // Pauza / wznowienie w ramach bieżącego odsłuchu
+    // Pauza / wznowienie w ramach bieżącego odsłuchu — decyduje ref
+    // (synchroniczna prawda), nie stan `loaded` z ostatniego renderu
     const existing = playerRef.current;
-    if (existing && loaded) {
+    if (existing) {
       try {
         if (existing.playing) existing.pause();
         else existing.play();
@@ -97,6 +102,7 @@ export function useListeningPlayer({
     }
 
     if (!canStart || !src) return;
+    busyRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -143,9 +149,10 @@ export function useListeningPlayer({
       setError("Nie udało się odtworzyć nagrania. Spróbuj ponownie.");
       console.error("Audio play error:", err);
     } finally {
+      busyRef.current = false;
       setLoading(false);
     }
-  }, [canStart, src, loading, loaded, disabled, destroyPlayer, armWatchdog]);
+  }, [canStart, src, disabled, destroyPlayer, armWatchdog]);
 
   const handleStop = useCallback(() => {
     if (!playerRef.current || !loaded) return;
