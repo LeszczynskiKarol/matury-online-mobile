@@ -106,7 +106,9 @@ function normalizeOptions(opts: unknown): Array<[string, string]> {
 function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: boolean }) {
   const audioUrl = task.content?.audioUrl;
   const soundRef = useRef<Audio.Sound | null>(null);
+  const barWidthRef = useRef(0);
   const [playCount, setPlayCount] = useState(0);
+  const [loaded, setLoaded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentMs, setCurrentMs] = useState(0);
@@ -116,7 +118,8 @@ function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: b
   const [loading, setLoading] = useState(false);
   const maxPlays = 2;
   const playsLeft = Math.max(0, maxPlays - playCount);
-  const canPlay = playsLeft > 0 && !!audioUrl;
+  // Nowy odsłuch (od zera) zużywa limit; pauza/wznowienie/przewijanie — nie
+  const canStart = playsLeft > 0 && !!audioUrl;
 
   useEffect(() => {
     return () => {
@@ -124,14 +127,32 @@ function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: b
     };
   }, []);
 
+  const unloadSound = useCallback(async () => {
+    if (soundRef.current) {
+      await soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    }
+    setLoaded(false);
+    setIsPlaying(false);
+  }, []);
+
   const handlePlay = useCallback(async () => {
-    if (!canPlay || !audioUrl || loading || isPlaying) return;
+    if (loading) return;
+
+    // Pauza / wznowienie w ramach bieżącego odsłuchu
+    if (soundRef.current && loaded) {
+      if (isPlaying) {
+        await soundRef.current.pauseAsync().catch(() => {});
+      } else {
+        await soundRef.current.playAsync().catch(() => {});
+      }
+      return;
+    }
+
+    if (!canStart || !audioUrl) return;
     setLoading(true);
     try {
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
+      await unloadSound();
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUrl },
@@ -147,12 +168,13 @@ function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: b
           );
           setIsPlaying(status.isPlaying);
           if (status.didJustFinish) {
-            setIsPlaying(false);
             setProgress(100);
+            unloadSound();
           }
         },
       );
       soundRef.current = sound;
+      setLoaded(true);
       setPlayCount((c) => c + 1);
       setIsPlaying(true);
     } catch (err) {
@@ -160,7 +182,28 @@ function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: b
     } finally {
       setLoading(false);
     }
-  }, [canPlay, audioUrl, loading, isPlaying]);
+  }, [canStart, audioUrl, loading, loaded, isPlaying, unloadSound]);
+
+  const handleStop = useCallback(async () => {
+    if (!soundRef.current || !loaded) return;
+    await soundRef.current.stopAsync().catch(() => {});
+    await unloadSound();
+    setProgress(0);
+    setCurrentMs(0);
+  }, [loaded, unloadSound]);
+
+  const handleSeek = useCallback(
+    async (x: number) => {
+      const sound = soundRef.current;
+      const w = barWidthRef.current;
+      if (!sound || !loaded || !w || durationMs <= 0) return;
+      const frac = Math.min(1, Math.max(0, x / w));
+      await sound
+        .setPositionAsync(Math.round(frac * durationMs))
+        .catch(() => {});
+    },
+    [loaded, durationMs],
+  );
 
   const fmt = (ms: number) => {
     const s = Math.floor(ms / 1000);
@@ -239,14 +282,14 @@ function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: b
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <TouchableOpacity
           onPress={handlePlay}
-          disabled={!canPlay || isPlaying || loading}
+          disabled={loading || (!loaded && !canStart)}
           style={{
             width: 48,
             height: 48,
             borderRadius: 14,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: canPlay && !isPlaying ? "#2563eb" : "#94a3b8",
+            backgroundColor: loaded || canStart ? "#2563eb" : "#94a3b8",
           }}
         >
           {loading ? (
@@ -287,24 +330,59 @@ function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: b
           )}
         </TouchableOpacity>
 
-        <View style={{ flex: 1 }}>
-          {/* Progress */}
-          <View
+        {/* Stop — widoczny gdy nagranie jest załadowane */}
+        {loaded && (
+          <TouchableOpacity
+            onPress={handleStop}
             style={{
-              height: 6,
-              borderRadius: 3,
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              alignItems: "center",
+              justifyContent: "center",
               backgroundColor: isDark ? "#1e3a8a40" : "#dbeafe",
-              overflow: "hidden",
             }}
           >
             <View
               style={{
-                height: "100%",
-                width: `${progress}%`,
-                backgroundColor: "#2563eb",
+                width: 13,
+                height: 13,
                 borderRadius: 3,
+                backgroundColor: "#2563eb",
               }}
             />
+          </TouchableOpacity>
+        )}
+
+        <View style={{ flex: 1 }}>
+          {/* Progress — dotknij/przeciągnij, aby przewinąć */}
+          <View
+            onLayout={(e) => {
+              barWidthRef.current = e.nativeEvent.layout.width;
+            }}
+            onStartShouldSetResponder={() => loaded}
+            onMoveShouldSetResponder={() => loaded}
+            onResponderGrant={(e) => handleSeek(e.nativeEvent.locationX)}
+            onResponderMove={(e) => handleSeek(e.nativeEvent.locationX)}
+            style={{ paddingVertical: 10, marginVertical: -10 }}
+          >
+            <View
+              style={{
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: isDark ? "#1e3a8a40" : "#dbeafe",
+                overflow: "hidden",
+              }}
+            >
+              <View
+                style={{
+                  height: "100%",
+                  width: `${progress}%`,
+                  backgroundColor: "#2563eb",
+                  borderRadius: 3,
+                }}
+              />
+            </View>
           </View>
           <View
             style={{

@@ -17,6 +17,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  GoogleSignin,
+  isErrorWithCode,
+  statusCodes,
+} from "@react-native-google-signin/google-signin";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/ui/Button";
@@ -28,11 +33,17 @@ import type { AuthStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<AuthStackParamList>;
 
+// Idempotentne — LoginScreen też configure'uje; tu powtórka na wypadek,
+// gdyby user wszedł głębokim linkiem prosto na rejestrację.
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+});
+
 export function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme } = useTheme();
   const navigation = useNavigation<Nav>();
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -40,7 +51,38 @@ export function RegisterScreen() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // ── Google Sign-In — identyczny flow jak na LoginScreen i webie:
+  // backend /api/auth/google sam tworzy konto, jeśli nie istnieje ─────────
+  const handleGoogleRegister = async () => {
+    setGoogleLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (response.type !== "success") return; // anulowane przez użytkownika
+      const idToken = response.data.idToken;
+      if (!idToken) {
+        Alert.alert("Błąd", "Google nie zwróciło tokenu logowania");
+        return;
+      }
+      await loginWithGoogle(idToken);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        Alert.alert("Błąd", err.message);
+      } else if (
+        isErrorWithCode(err) &&
+        err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE
+      ) {
+        Alert.alert("Błąd", "Google Play Services niedostępne na tym urządzeniu");
+      } else {
+        Alert.alert("Błąd", "Rejestracja przez Google nie powiodła się");
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleRegister = async () => {
     const errs: Record<string, string> = {};
@@ -270,6 +312,40 @@ export function RegisterScreen() {
             onPress={handleRegister}
             loading={loading}
             style={{ marginTop: 8 }}
+          />
+
+          {/* Divider „lub" + Google — 1:1 z LoginScreen i wersją web */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              marginVertical: 8,
+            }}
+          >
+            <View
+              style={{ flex: 1, height: 1, backgroundColor: theme.border }}
+            />
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: "DMSans_400Regular",
+                color: theme.textTertiary,
+              }}
+            >
+              lub
+            </Text>
+            <View
+              style={{ flex: 1, height: 1, backgroundColor: theme.border }}
+            />
+          </View>
+
+          <Button
+            title="Kontynuuj z Google"
+            onPress={handleGoogleRegister}
+            variant="outline"
+            loading={googleLoading}
+            icon={<Ionicons name="logo-google" size={18} color={theme.text} />}
           />
         </View>
 

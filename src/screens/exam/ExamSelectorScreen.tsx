@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
+import { PremiumGate } from "../../components/common/PremiumGate";
 import { colors } from "../../theme/colors";
 import { api } from "../../api/client";
 import {
@@ -184,43 +185,10 @@ export function ExamSelectorScreen() {
     );
   }
 
-  // Premium gate
+  // Premium gate — wcześniej bez ŻADNEGO CTA (ślepa uliczka); teraz wspólny
+  // konwersyjny ekran z przejściem do subskrypcji
   if (isPremium === false) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: theme.background,
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 32,
-        }}
-      >
-        <Text style={{ fontSize: 48, marginBottom: 16 }}>🔒</Text>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "700",
-            color: theme.text,
-            textAlign: "center",
-            marginBottom: 8,
-          }}
-        >
-          Egzamin Live — tylko Premium
-        </Text>
-        <Text
-          style={{
-            fontSize: 14,
-            color: theme.textSecondary,
-            textAlign: "center",
-            lineHeight: 21,
-            marginBottom: 24,
-          }}
-        >
-          Pełne symulacje maturalne z timerem, oceną AI i feedbackiem CKE.
-        </Text>
-      </View>
-    );
+    return <PremiumGate mode="exam" />;
   }
 
   return (

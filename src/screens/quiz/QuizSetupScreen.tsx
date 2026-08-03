@@ -15,6 +15,7 @@ import {
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
+import { PremiumGate } from "../../components/common/PremiumGate";
 import { useAuth } from "../../context/AuthContext";
 import { subjectsApi } from "../../api";
 import { createSession } from "../../api/sessions";
@@ -445,50 +446,7 @@ export function QuizSetupScreen() {
     subjectDetail?.topics?.filter((t: any) => t.questionCount > 0) || [];
 
   if (!isPremium) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: theme.background,
-          alignItems: "center",
-          justifyContent: "center",
-          paddingHorizontal: spacing[6],
-        }}
-      >
-        <Text style={{ fontSize: 48, marginBottom: 16 }}>🔒</Text>
-        <Text
-          style={{
-            fontSize: 22,
-            fontWeight: "700",
-            color: theme.text,
-            textAlign: "center",
-            marginBottom: 8,
-          }}
-        >
-          Quiz wymaga Premium
-        </Text>
-        <Text
-          style={{
-            fontSize: 14,
-            color: theme.textSecondary,
-            textAlign: "center",
-            lineHeight: 22,
-            marginBottom: 24,
-          }}
-        >
-          Wykup subskrypcję, aby uzyskać dostęp do quizów.
-        </Text>
-        <Button
-          title="Zobacz plany Premium"
-          onPress={() =>
-            navigation
-              .getParent()
-              ?.navigate("ProfileTab", { screen: "Subscription" })
-          }
-          icon={<Ionicons name="diamond" size={16} color="#fff" />}
-        />
-      </View>
-    );
+    return <PremiumGate mode="quiz" />;
   }
 
   const handleStart = async () => {

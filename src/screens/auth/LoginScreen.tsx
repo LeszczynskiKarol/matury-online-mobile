@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -17,8 +17,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
-import * as Google from "expo-auth-session/providers/google";
-import * as WebBrowser from "expo-web-browser";
+import {
+  GoogleSignin,
+  isErrorWithCode,
+  statusCodes,
+} from "@react-native-google-signin/google-signin";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/ui/Button";
@@ -28,8 +31,10 @@ import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/types";
 
-// Wymagane żeby zamknąć przeglądarkę po OAuth redirect
-WebBrowser.maybeCompleteAuthSession();
+// Natywne logowanie Google — idToken z audience = web client ID (weryfikowany przez backend)
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+});
 
 type Nav = NativeStackNavigationProp<AuthStackParamList>;
 
@@ -45,30 +50,27 @@ export function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ── Google Auth Session ────────────────────────────────────────────────
-  const [googleRequest, googleResponse, promptGoogleAsync] =
-    Google.useIdTokenAuthRequest({
-      clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    });
-
-  useEffect(() => {
-    if (googleResponse?.type === "success") {
-      const idToken = googleResponse.params.id_token;
-      handleGoogleLogin(idToken);
-    } else if (googleResponse?.type === "error") {
-      Alert.alert("Błąd", "Logowanie przez Google nie powiodło się");
-    }
-  }, [googleResponse]);
-
-  const handleGoogleLogin = async (idToken: string) => {
+  // ── Google Sign-In (natywne) ───────────────────────────────────────────
+  const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (response.type !== "success") return; // anulowane przez użytkownika
+      const idToken = response.data.idToken;
+      if (!idToken) {
+        Alert.alert("Błąd", "Google nie zwróciło tokenu logowania");
+        return;
+      }
       await loginWithGoogle(idToken);
     } catch (err) {
       if (err instanceof ApiError) {
         Alert.alert("Błąd", err.message);
+      } else if (
+        isErrorWithCode(err) &&
+        err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE
+      ) {
+        Alert.alert("Błąd", "Google Play Services niedostępne na tym urządzeniu");
       } else {
         Alert.alert("Błąd", "Logowanie przez Google nie powiodło się");
       }
@@ -243,13 +245,11 @@ export function LoginScreen() {
             />
           </View>
 
-          {/* Google button — teraz działa */}
           <Button
             title="Kontynuuj z Google"
-            onPress={() => promptGoogleAsync()}
+            onPress={handleGoogleLogin}
             variant="outline"
             loading={googleLoading}
-            disabled={!googleRequest}
             icon={<Ionicons name="logo-google" size={18} color={theme.text} />}
           />
         </View>

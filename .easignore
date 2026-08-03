@@ -1,0 +1,15 @@
+.git
+node_modules
+.expo
+android/build
+android/app/build
+android/.gradle
+android/app/.cxx
+android/.kotlin
+android/local.properties
+.env
+*.apk
+*.aab
+_devscreen.png
+tablet7_screen1.jpg
+tablet7_screen1.png

@@ -397,14 +397,17 @@ function AudioPlayer({
 }) {
   const { colors: theme, isDark } = useTheme();
   const soundRef = useRef<Audio.Sound | null>(null);
+  const barWidthRef = useRef(0);
   const [playCount, setPlayCount] = useState(0);
+  const [loaded, setLoaded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(durationMs ? durationMs / 1000 : 0);
   const [loading, setLoading] = useState(false);
 
-  const canPlay = playCount < maxPlays && !disabled;
+  // Nowy odsłuch (od zera) zużywa limit; pauza/wznowienie/przewijanie — nie
+  const canStart = playCount < maxPlays && !disabled;
   const playsLeft = maxPlays - playCount;
 
   // Cleanup on unmount
@@ -414,16 +417,32 @@ function AudioPlayer({
     };
   }, []);
 
+  const unloadSound = useCallback(async () => {
+    if (soundRef.current) {
+      await soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    }
+    setLoaded(false);
+    setIsPlaying(false);
+  }, []);
+
   const handlePlay = useCallback(async () => {
-    if (!canPlay || !src || loading) return;
+    if (loading || disabled) return;
+
+    // Pauza / wznowienie w ramach bieżącego odsłuchu
+    if (soundRef.current && loaded) {
+      if (isPlaying) {
+        await soundRef.current.pauseAsync().catch(() => {});
+      } else {
+        await soundRef.current.playAsync().catch(() => {});
+      }
+      return;
+    }
+
+    if (!canStart || !src) return;
     setLoading(true);
     try {
-      // Unload previous if exists
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-
+      await unloadSound();
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
 
       const { sound } = await Audio.Sound.createAsync(
@@ -440,12 +459,13 @@ function AudioPlayer({
           );
           setIsPlaying(status.isPlaying);
           if (status.didJustFinish) {
-            setIsPlaying(false);
             setProgress(100);
+            unloadSound();
           }
         },
       );
       soundRef.current = sound;
+      setLoaded(true);
       setPlayCount((c) => c + 1);
       setIsPlaying(true);
     } catch (err) {
@@ -453,7 +473,28 @@ function AudioPlayer({
     } finally {
       setLoading(false);
     }
-  }, [canPlay, src, loading]);
+  }, [canStart, src, loading, loaded, isPlaying, disabled, unloadSound]);
+
+  const handleStop = useCallback(async () => {
+    if (!soundRef.current || !loaded) return;
+    await soundRef.current.stopAsync().catch(() => {});
+    await unloadSound();
+    setProgress(0);
+    setCurrentTime(0);
+  }, [loaded, unloadSound]);
+
+  const handleSeek = useCallback(
+    async (x: number) => {
+      const sound = soundRef.current;
+      const w = barWidthRef.current;
+      if (!sound || !loaded || !w || duration <= 0 || disabled) return;
+      const frac = Math.min(1, Math.max(0, x / w));
+      await sound
+        .setPositionAsync(Math.round(frac * duration * 1000))
+        .catch(() => {});
+    },
+    [loaded, duration, disabled],
+  );
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -494,10 +535,10 @@ function AudioPlayer({
       }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-        {/* Play button */}
+        {/* Play / Pause button */}
         <TouchableOpacity
           onPress={handlePlay}
-          disabled={!canPlay || isPlaying || loading}
+          disabled={loading || (!loaded && !canStart)}
           style={{
             width: 56,
             height: 56,
@@ -505,18 +546,16 @@ function AudioPlayer({
             alignItems: "center",
             justifyContent: "center",
             backgroundColor:
-              canPlay && !isPlaying
+              loaded || canStart
                 ? "#4f46e5"
-                : isPlaying
-                  ? "#4f46e5" + "33"
-                  : isDark
-                    ? "#27272a"
-                    : "#e2e8f0",
-            shadowColor: canPlay ? "#4f46e5" : "transparent",
+                : isDark
+                  ? "#27272a"
+                  : "#e2e8f0",
+            shadowColor: loaded || canStart ? "#4f46e5" : "transparent",
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.3,
             shadowRadius: 8,
-            elevation: canPlay ? 4 : 0,
+            elevation: loaded || canStart ? 4 : 0,
           }}
         >
           {loading ? (
@@ -528,7 +567,7 @@ function AudioPlayer({
                   width: 4,
                   height: 16,
                   borderRadius: 2,
-                  backgroundColor: "#4f46e5",
+                  backgroundColor: "#fff",
                 }}
               />
               <View
@@ -536,7 +575,7 @@ function AudioPlayer({
                   width: 4,
                   height: 16,
                   borderRadius: 2,
-                  backgroundColor: "#4f46e5",
+                  backgroundColor: "#fff",
                 }}
               />
             </View>
@@ -548,11 +587,12 @@ function AudioPlayer({
                 borderLeftWidth: 14,
                 borderTopWidth: 9,
                 borderBottomWidth: 9,
-                borderLeftColor: canPlay
-                  ? "#fff"
-                  : isDark
-                    ? "#71717a"
-                    : "#a1a1aa",
+                borderLeftColor:
+                  loaded || canStart
+                    ? "#fff"
+                    : isDark
+                      ? "#71717a"
+                      : "#a1a1aa",
                 borderTopColor: "transparent",
                 borderBottomColor: "transparent",
                 marginLeft: 3,
@@ -561,10 +601,41 @@ function AudioPlayer({
           )}
         </TouchableOpacity>
 
+        {/* Stop button — widoczny gdy nagranie jest załadowane */}
+        {loaded && (
+          <TouchableOpacity
+            onPress={handleStop}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 13,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: isDark ? "#27272a" : "#e2e8f0",
+            }}
+          >
+            <View
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 3,
+                backgroundColor: isDark ? "#f4f4f5" : "#334155",
+              }}
+            />
+          </TouchableOpacity>
+        )}
+
         {/* Waveform + time */}
         <View style={{ flex: 1 }}>
-          {/* Waveform bars */}
+          {/* Waveform bars — dotknij/przeciągnij, aby przewinąć */}
           <View
+            onLayout={(e) => {
+              barWidthRef.current = e.nativeEvent.layout.width;
+            }}
+            onStartShouldSetResponder={() => loaded && !disabled}
+            onMoveShouldSetResponder={() => loaded && !disabled}
+            onResponderGrant={(e) => handleSeek(e.nativeEvent.locationX)}
+            onResponderMove={(e) => handleSeek(e.nativeEvent.locationX)}
             style={{
               flexDirection: "row",
               alignItems: "center",
