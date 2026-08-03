@@ -5,3 +5,7 @@ package-lock.json
 .expo
 .expo/
 .envfcm-service-account.json
+
+# artefakty buildów — nigdy do repo
+*.apk
+*.aab
