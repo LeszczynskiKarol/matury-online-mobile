@@ -8,7 +8,7 @@ import * as SecureStore from "expo-secure-store";
 // PROD backend — ten sam co web app
 const API_BASE_URL = "https://www.matury-online.pl";
 // Lokalny backend do testów na emulatorze (wymaga `adb reverse tcp:3000 tcp:3000`):
-// const API_BASE_URL = "http://localhost:3000";
+// const API_BASE_URL = "http://localhost:3000"; // dev-only: wymaga adb reverse tcp:3000 tcp:3000
 
 const TOKEN_KEY = "matury_auth_token";
 
