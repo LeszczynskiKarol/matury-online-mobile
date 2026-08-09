@@ -15,6 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { Button } from "../ui/Button";
 import { api } from "../../api/client";
+import { logIntent } from "../../api/premium";
+import { TrialOfferCard } from "./TrialOfferCard";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 
@@ -241,6 +243,10 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const [diagnosis, setDiagnosis] = useState<DiagnosisSummary | null>(null);
 
   useEffect(() => {
+    // Log odbicia od paywalla — ta sama tabela co na webie, więc lejek w
+    // panelu admina obejmuje oba klienty (tryb ma prefiks `mobile:`).
+    logIntent("GATE_VIEW", mode);
+
     api<{ diagnoses: DiagnosisSummary[] }>("/diagnosis/mine")
       .then((d) => {
         const worst = [...(d?.diagnoses ?? [])]
@@ -357,11 +363,12 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
 
         <Button
           title="Przejdź na Premium — 49 zł/mies."
-          onPress={() =>
+          onPress={() => {
+            logIntent("GATE_CLICK", mode);
             navigation.getParent()?.navigate("ProfileTab", {
               screen: "Subscription",
-            })
-          }
+            });
+          }}
           icon={<Ionicons name="diamond" size={16} color="#fff" />}
         />
         <Text
@@ -374,6 +381,9 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         >
           Anuluj w każdej chwili · Bezpieczna płatność Stripe · Dostęp od razu
         </Text>
+
+        {/* Oferta próbna POD ceną — kto jest gotów kupić, kupuje wyżej. */}
+        <TrialOfferCard trigger={`gate:${mode}`} />
       </View>
     </ScrollView>
   );

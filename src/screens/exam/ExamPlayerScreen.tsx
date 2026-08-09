@@ -50,6 +50,10 @@ import {
   submitExam,
   type ExamStartData,
 } from "../../api/exams";
+import {
+  AdminCopyBar,
+  AdminCopyButton,
+} from "../../components/common/AdminCopyButton";
 import type { ExamStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
@@ -77,7 +81,11 @@ export function ExamPlayerScreen() {
   const [confirmModal, setConfirmModal] = useState(false);
   const [timeUpModal, setTimeUpModal] = useState(false);
   const [showNav, setShowNav] = useState(false);
-  const [showMaterials, setShowMaterials] = useState(false);
+  // Materiały (teksty źródłowe, mapy, wykresy) domyślnie ROZWINIĘTE — tak jak
+  // w wersji webowej. Zwinięte na starcie zmuszały do klikania „Pokaż teksty"
+  // przy każdym zadaniu z osobna, a bez materiału większości poleceń nie da
+  // się nawet przeczytać ze zrozumieniem.
+  const [showMaterials, setShowMaterials] = useState(true);
 
   const examStartedAtRef = useRef(0);
   const totalTimeMsRef = useRef(0);
@@ -235,7 +243,8 @@ export function ExamPlayerScreen() {
     (id: string) => {
       setCurrentTaskId(id);
       setShowNav(false);
-      setShowMaterials(false);
+      // Świadomie NIE zwijamy materiałów przy zmianie zadania — kolejne
+      // polecenia zwykle dotyczą tego samego tekstu źródłowego.
       scrollRef.current?.scrollTo({ y: 0, animated: true });
       // Nawigacja między zadaniami = naturalny checkpoint zapisu
       saveNow();
@@ -904,6 +913,15 @@ export function ExamPlayerScreen() {
 
         {/* Task card */}
         <Card style={{ marginBottom: 20 }}>
+          {/* Narzędzia admina — niewidoczne dla ucznia. Kopiują dokładnie to,
+              co renderuje ekran, więc zgłoszenie „to zadanie jest zepsute"
+              da się odtworzyć bez szukania rekordu w bazie po opisie. */}
+          <AdminCopyBar>
+            <AdminCopyButton value={currentTask} label="⧉ JSON zadania" />
+            <AdminCopyButton value={examId} label="⧉ ID egzaminu" />
+            <AdminCopyButton value={currentTask.id} label="⧉ ID zadania" />
+          </AdminCopyBar>
+
           {/* Header */}
           <View
             style={{

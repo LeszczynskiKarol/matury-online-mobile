@@ -51,6 +51,10 @@ import { Card } from "../../components/ui/Card";
 import { parseChemText } from "../../utils/chemText";
 import { MathEditor } from "../../components/exam/MathEditor";
 import { spacing } from "../../theme";
+import {
+  AdminCopyBar,
+  AdminCopyButton,
+} from "../../components/common/AdminCopyButton";
 import type { QuizStackParamList } from "../../navigation/types";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -836,6 +840,12 @@ export function QuizPlayScreen() {
         {/* ── Question content ─────────────────────────────────────────── */}
         {!loadingMore && !listeningLoading && question && (
           <>
+            {/* Narzędzia admina — niewidoczne dla ucznia */}
+            <AdminCopyBar>
+              <AdminCopyButton value={question} label="⧉ JSON pytania" />
+              <AdminCopyButton value={question.id} label="⧉ ID pytania" />
+            </AdminCopyBar>
+
             {/* Metadata */}
             <View
               style={{

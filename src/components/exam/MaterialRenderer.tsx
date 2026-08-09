@@ -250,7 +250,10 @@ function ChartMaterial({ mat, theme, isDark }: MaterialProps) {
 // ── Tabela (tableData) ─────────────────────────────────────────────────────
 
 function TableMaterial({ mat, theme, isDark }: MaterialProps) {
-  const td = mat.tableData || {};
+  // Generator zapisuje tabele materiałów w mat.table ({headers, rows});
+  // starsze materiały WoS/historia używają mat.tableData. Bez fallbacku
+  // materiał typu "table" renderował się jako pusta ramka.
+  const td = mat.tableData || mat.table || {};
   const headers: string[] = Array.isArray(td.headers) ? td.headers : [];
   const rows: string[][] = Array.isArray(td.rows) ? td.rows : [];
 
@@ -336,6 +339,214 @@ function TableMaterial({ mat, theme, isDark }: MaterialProps) {
         >
           {td.caption}
         </Text>
+      )}
+    </View>
+  );
+}
+
+// ── Mapa Europy (europeMapData) i diagram władzy (govDiagramData) ─────────
+// Oba typy leciały wcześniej w tekstowy fallback, więc na telefonie z całego
+// materiału zostawał jednozdaniowy opis — a zadania odwołują się wprost do
+// jego treści („na podstawie mapy…", „na podstawie diagramu…").
+//
+// Nie odtwarzamy SVG z wersji webowej. Web i tak renderuje mapę Europy jako
+// skategoryzowaną LISTĘ państw, a nie realną mapę; diagram sprowadzamy do
+// listy organów i relacji między nimi. Na ekranie telefonu lista jest
+// czytelniejsza od ściśniętego schematu, a do odpowiedzi na te polecenia
+// potrzebne są dokładnie te dane: kto w której grupie i kto kogo powołuje.
+
+const NAZWY_PANSTW: Record<string, string> = {
+  AUT: "Austria", AT: "Austria", BEL: "Belgia", BE: "Belgia",
+  BGR: "Bułgaria", BG: "Bułgaria", BIH: "Bośnia i Hercegowina", BA: "Bośnia i Hercegowina",
+  BLR: "Białoruś", BY: "Białoruś", CHE: "Szwajcaria", CH: "Szwajcaria",
+  CYP: "Cypr", CY: "Cypr", CZE: "Czechy", CZ: "Czechy",
+  DEU: "Niemcy", DE: "Niemcy", DNK: "Dania", DK: "Dania",
+  ESP: "Hiszpania", ES: "Hiszpania", EST: "Estonia", EE: "Estonia",
+  FIN: "Finlandia", FI: "Finlandia", FRA: "Francja", FR: "Francja",
+  GBR: "Wielka Brytania", UK: "Wielka Brytania", GB: "Wielka Brytania",
+  GRC: "Grecja", GR: "Grecja", HRV: "Chorwacja", HR: "Chorwacja",
+  HUN: "Węgry", HU: "Węgry", IRL: "Irlandia", IE: "Irlandia",
+  ISL: "Islandia", IS: "Islandia", ITA: "Włochy", IT: "Włochy",
+  LTU: "Litwa", LT: "Litwa", LUX: "Luksemburg", LU: "Luksemburg",
+  LVA: "Łotwa", LV: "Łotwa", MDA: "Mołdawia", MD: "Mołdawia",
+  MKD: "Macedonia Północna", MK: "Macedonia Północna", MLT: "Malta", MT: "Malta",
+  MNE: "Czarnogóra", ME: "Czarnogóra", NLD: "Holandia", NL: "Holandia",
+  NOR: "Norwegia", NO: "Norwegia", POL: "Polska", PL: "Polska",
+  PRT: "Portugalia", PT: "Portugalia", ROU: "Rumunia", RO: "Rumunia",
+  RUS: "Rosja", RU: "Rosja", SRB: "Serbia", RS: "Serbia",
+  SVK: "Słowacja", SK: "Słowacja", SVN: "Słowenia", SI: "Słowenia",
+  SWE: "Szwecja", SE: "Szwecja", TUR: "Turcja", TR: "Turcja",
+  UKR: "Ukraina", UA: "Ukraina", ALB: "Albania", AL: "Albania",
+};
+
+// Te same nazwy kolorów co w wersji webowej — dane w bazie trzymają „blue",
+// „yellow" itd., a nie wartości heksadecymalne.
+const KOLORY: Record<string, string> = {
+  blue: "#3b82f6", red: "#ef4444", green: "#22c55e", yellow: "#fbbf24",
+  gray: "#94a3b8", purple: "#a855f7", orange: "#f97316", navy: "#1e3a8a",
+  emerald: "#10b981", pink: "#ec4899", cyan: "#06b6d4", lime: "#84cc16",
+  amber: "#f59e0b",
+};
+
+const barwa = (c?: string, fallback = "#cbd5e1") =>
+  !c ? fallback : c.startsWith("#") || c.startsWith("rgb") ? c : KOLORY[c] || fallback;
+
+function MapEuropeMaterial({ mat, theme, isDark }: MaterialProps) {
+  const md = mat.europeMapData || {};
+  const countries: Record<string, any> = md.countries || {};
+  const legend: any[] = Array.isArray(md.legend) ? md.legend : [];
+  if (Object.keys(countries).length === 0) return null;
+
+  type Wpis = { nazwa: string; since?: string | null };
+  const grupy: { color: string; label: string; items: Wpis[] }[] = legend.map(
+    (l: any) => ({ color: l.color, label: l.label, items: [] }),
+  );
+  const inne: Wpis[] = [];
+
+  for (const [kod, c] of Object.entries(countries)) {
+    const wpis: Wpis = {
+      nazwa: NAZWY_PANSTW[kod.toUpperCase()] || kod,
+      since: (c as any)?.since,
+    };
+    const g = grupy.find((x) => x.color === (c as any)?.color);
+    (g ? g.items : inne).push(wpis);
+  }
+  const sortuj = (a: Wpis, b: Wpis) => a.nazwa.localeCompare(b.nazwa, "pl");
+  grupy.forEach((g) => g.items.sort(sortuj));
+  inne.sort(sortuj);
+
+  const Grupa = ({ color, label, items }: { color?: string; label: string; items: Wpis[] }) =>
+    items.length === 0 ? null : (
+      <View style={{ marginBottom: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 5 }}>
+          {color && (
+            <View
+              style={{
+                width: 12, height: 12, borderRadius: 3,
+                backgroundColor: barwa(color),
+                borderWidth: 1, borderColor: theme.border,
+              }}
+            />
+          )}
+          <Text style={{ fontSize: 12, fontWeight: "800", color: theme.text, flex: 1 }}>
+            {label} ({items.length})
+          </Text>
+        </View>
+        <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 19 }}>
+          {items
+            .map((i) => (i.since ? `${i.nazwa} (od ${i.since})` : i.nazwa))
+            .join(" · ")}
+        </Text>
+      </View>
+    );
+
+  return (
+    <View>
+      {grupy.map((g, i) => (
+        <Grupa key={i} color={g.color} label={g.label} items={g.items} />
+      ))}
+      <Grupa label="Pozostałe państwa" items={inne} />
+    </View>
+  );
+}
+
+function GovDiagramMaterial({ mat, theme, isDark }: MaterialProps) {
+  const gd = mat.govDiagramData || {};
+  const nodes: any[] = Array.isArray(gd.nodes) ? gd.nodes : [];
+  const edges: any[] = Array.isArray(gd.edges) ? gd.edges : [];
+  if (nodes.length === 0) return null;
+
+  const etykieta = (id: string) =>
+    nodes.find((n) => n.id === id)?.label || id;
+
+  // Grupowanie po `type` odwzorowuje piony władzy z wersji webowej; przy
+  // braku typów lecimy jedną listą, zamiast zgadywać układ.
+  const NAZWY_PIONOW: Record<string, string> = {
+    people: "Naród",
+    legislative: "Władza ustawodawcza",
+    head_of_state: "Głowa państwa",
+    executive: "Władza wykonawcza",
+    judicial: "Władza sądownicza",
+    supervisory: "Organy nadzoru",
+    control: "Organy kontroli",
+    local: "Samorząd",
+    default: "Pozostałe organy",
+  };
+  const kolejnosc = [
+    "people", "legislative", "head_of_state", "executive",
+    "judicial", "supervisory", "control", "local", "default",
+  ];
+  const wgTypu: Record<string, any[]> = {};
+  for (const n of nodes) {
+    const t = n.type || "default";
+    (wgTypu[t] ||= []).push(n);
+  }
+  const maTypy = nodes.some((n) => n.type);
+
+  return (
+    <View>
+      {/* Organy */}
+      {maTypy ? (
+        kolejnosc
+          .filter((t) => wgTypu[t]?.length)
+          .map((t) => (
+            <View key={t} style={{ marginBottom: 10 }}>
+              <Text
+                style={{
+                  fontSize: 11, fontWeight: "800",
+                  color: theme.textTertiary, marginBottom: 4,
+                  textTransform: "uppercase",
+                }}
+              >
+                {NAZWY_PIONOW[t] || t}
+              </Text>
+              <Text style={{ fontSize: 13, color: theme.text, lineHeight: 20 }}>
+                {wgTypu[t].map((n) => n.label).join(" · ")}
+              </Text>
+            </View>
+          ))
+      ) : (
+        <Text style={{ fontSize: 13, color: theme.text, lineHeight: 20, marginBottom: 10 }}>
+          {nodes.map((n) => n.label).join(" · ")}
+        </Text>
+      )}
+
+      {/* Relacje — to z nich wynikają odpowiedzi na polecenia typu
+          „kto kogo powołuje" */}
+      {edges.length > 0 && (
+        <View
+          style={{
+            marginTop: 6,
+            paddingTop: 10,
+            borderTopWidth: 1,
+            borderTopColor: theme.border,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 11, fontWeight: "800",
+              color: theme.textTertiary, marginBottom: 6,
+              textTransform: "uppercase",
+            }}
+          >
+            Zależności
+          </Text>
+          {edges.map((e, i) => (
+            <Text
+              key={i}
+              style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 20 }}
+            >
+              <Text style={{ fontWeight: "700", color: theme.text }}>
+                {etykieta(e.from)}
+              </Text>
+              {" → "}
+              <Text style={{ fontWeight: "700", color: theme.text }}>
+                {etykieta(e.to)}
+              </Text>
+              {e.label ? `  ·  ${e.label}` : ""}
+            </Text>
+          ))}
+        </View>
       )}
     </View>
   );
@@ -1082,9 +1293,14 @@ export function MaterialRenderer({ mat, theme, isDark }: MaterialProps) {
     !isKlimatogram &&
     (type === "chart" || type === "experiment_chart" || !!chartDatasource);
   const isTable =
-    type === "table" || (type === "statistics_table" && !!mat.tableData);
+    type === "table" ||
+    (type === "statistics_table" && !!mat.tableData) ||
+    // materiały innych typów (np. "text") ze strukturalną tabelą w mat.table
+    !!(mat.table && Array.isArray(mat.table.headers));
   const isMapPoland = type === "map_poland" || !!mat.polandMapData;
   const isGenealogy = type === "genealogy" || !!mat.genealogyData;
+  const isMapEurope = type === "map_europe" || !!mat.europeMapData;
+  const isGovDiagram = type === "gov_diagram" || !!mat.govDiagramData;
 
   return (
     <View
@@ -1146,6 +1362,12 @@ export function MaterialRenderer({ mat, theme, isDark }: MaterialProps) {
       {isGenealogy && (
         <GenealogyMaterial mat={mat} theme={theme} isDark={isDark} />
       )}
+      {isMapEurope && (
+        <MapEuropeMaterial mat={mat} theme={theme} isDark={isDark} />
+      )}
+      {isGovDiagram && (
+        <GovDiagramMaterial mat={mat} theme={theme} isDark={isDark} />
+      )}
       {isImage && <ImageMaterial mat={mat} theme={theme} isDark={isDark} />}
       {isTextSource && (
         <TextSourceMaterial mat={mat} theme={theme} isDark={isDark} />
@@ -1160,6 +1382,8 @@ export function MaterialRenderer({ mat, theme, isDark }: MaterialProps) {
         !isTable &&
         !isMapPoland &&
         !isGenealogy &&
+        !isMapEurope &&
+        !isGovDiagram &&
         !isImage &&
         !isTextSource &&
         mat.content && (
@@ -1177,7 +1401,9 @@ export function MaterialRenderer({ mat, theme, isDark }: MaterialProps) {
         isChart ||
         isTable ||
         isMapPoland ||
-        isGenealogy) &&
+        isGenealogy ||
+        isMapEurope ||
+        isGovDiagram) &&
         mat.content &&
         // dla data_file content jest opisem nad plikiem — już pokazaliśmy
         !isDataFile && (

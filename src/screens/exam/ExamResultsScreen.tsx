@@ -24,12 +24,76 @@ import { spacing } from "../../theme";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { parseChemText } from "../../utils/chemText";
+import { MaterialRenderer } from "../../components/exam/MaterialRenderer";
 import { getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
+import { api } from "../../api/client";
+import { getPracticeLinks, type PracticeLinks } from "../../api/premium";
 import { maybeAskForReview } from "../../lib/reviewPrompt";
 import { askForPushPermissionOnce } from "../../lib/pushNotifications";
 import type { ExamStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
+
+// ── Framing wyniku: dystans w PUNKTACH, nie w procentach ────────────────────
+// „Masz 43%" nic uczniowi nie mówi. „Do progu brakuje Ci 5 pkt" mówi wszystko.
+// Progi: 30% to próg zdawalności CKE, 65% i 85% to poziomy, na których wynik
+// zaczyna się liczyć w rekrutacji. Identyczne z wersją webową.
+const PASS_PERCENT = 30;
+const RECRUIT_PERCENT = 65;
+const TOP_PERCENT = 85;
+
+function pointsTo(target: number, totalScore: number, maxScore: number) {
+  return Math.max(0, Math.ceil((maxScore * target) / 100) - totalScore);
+}
+
+function getOutcomeFraming(
+  percentage: number,
+  totalScore: number,
+  maxScore: number,
+) {
+  const toPass = pointsTo(PASS_PERCENT, totalScore, maxScore);
+  const toRecruit = pointsTo(RECRUIT_PERCENT, totalScore, maxScore);
+  const toTop = pointsTo(TOP_PERCENT, totalScore, maxScore);
+  const passMargin = totalScore - Math.ceil((maxScore * PASS_PERCENT) / 100);
+
+  if (percentage < PASS_PERCENT) {
+    return {
+      distance: `Do progu zdawalności brakuje Ci ${toPass} pkt.`,
+      upsellTitle: `Brakuje Ci ${toPass} pkt do zdania`,
+      upsellBody:
+        "Tego nie nadrobi jeden arkusz. W Premium masz pytania dokładnie z działów, w których straciłeś punkty, i kolejne arkusze, żeby sprawdzić, czy różnica znika.",
+    };
+  }
+  if (percentage < 50) {
+    return {
+      distance: `Zdane, ale zapas nad progiem to tylko ${passMargin} pkt. Do wyniku liczącego się w rekrutacji brakuje ${toRecruit} pkt.`,
+      upsellTitle: "Zdane — ale bez zapasu",
+      upsellBody: `Przy takim marginesie o wyniku decyduje jeden gorszy dzień. W Premium dobijesz te ${toRecruit} pkt, ćwicząc dokładnie to, co dziś kosztowało Cię najwięcej.`,
+    };
+  }
+  if (percentage < RECRUIT_PERCENT) {
+    return {
+      distance: `Zdane pewnie. Do wyniku, który liczy się w rekrutacji (${RECRUIT_PERCENT}%), brakuje ${toRecruit} pkt.`,
+      upsellTitle: `Do progu rekrutacyjnego brakuje ${toRecruit} pkt`,
+      upsellBody:
+        "Na tym poziomie nie chodzi już o zdanie, tylko o kierunek studiów. W Premium ćwiczysz słabsze obszary i sprawdzasz postęp na kolejnych arkuszach.",
+    };
+  }
+  if (percentage < TOP_PERCENT) {
+    return {
+      distance: `Mocny wynik. Do bardzo dobrego (${TOP_PERCENT}%) brakuje ${toTop} pkt.`,
+      upsellTitle: `Do bardzo dobrego wyniku brakuje ${toTop} pkt`,
+      upsellBody:
+        "Masz bazę, której większość dopiero szuka. Te ostatnie punkty schodzą najwolniej — z regularnych powtórek i kolejnych arkuszy.",
+    };
+  }
+  return {
+    distance: "Wynik na poziomie najlepszych — rzecz w tym, żeby go utrzymać.",
+    upsellTitle: "Ten poziom trzeba utrzymać do maja",
+    upsellBody:
+      "Forma bez treningu spada, a do matury zostało sporo czasu. W Premium masz kolejne arkusze i powtórki, żeby ten wynik był Twoim minimum, nie rekordem.",
+  };
+}
 
 function getScoreTier(pct: number, isDark: boolean) {
   if (pct >= 85)
@@ -88,7 +152,25 @@ export function ExamResultsScreen() {
   const [showNav, setShowNav] = useState(false);
   const [showRetryModal, setShowRetryModal] = useState(false);
   const [retryLoading, setRetryLoading] = useState(false);
-  const [showMaterials, setShowMaterials] = useState(false);
+  // Jak w graczu egzaminu i w wersji webowej: materiał widoczny od razu.
+  const [showMaterials, setShowMaterials] = useState(true);
+  // Powtórka arkusza = kolejne ocenianie AI, więc jest wyłącznie dla Premium.
+  // Konto z ofertą próbną widzi w tym miejscu upsell zamiast przycisku —
+  // inaczej „rozwiąż od nowa" byłoby pętlą przepalającą darmową pulę kredytów.
+  const [isPremium, setIsPremium] = useState<boolean | null>(null);
+  const [practice, setPractice] = useState<PracticeLinks | null>(null);
+
+  useEffect(() => {
+    api<{ isPremium: boolean }>("/stripe/status")
+      .then((d) => setIsPremium(d?.isPremium ?? false))
+      .catch(() => setIsPremium(false));
+    // Most z rekomendacji AI do banku pytań — osobny strzał, bo wyniki są
+    // pollingowane w trakcie oceniania i nie ma powodu liczyć tego za każdym
+    // odpytaniem.
+    getPracticeLinks(attemptId)
+      .then(setPractice)
+      .catch(() => {});
+  }, [attemptId]);
 
   // Fetch with polling
   useEffect(() => {
@@ -327,11 +409,15 @@ export function ExamResultsScreen() {
     : allTasks.findIndex((t: any) => t.id === currentTaskId);
   const currentGrading = currentTask ? gradingMap.get(currentTask.id) : null;
   const tier = getScoreTier(grading.percentage, isDark);
+  const framing = getOutcomeFraming(
+    grading.percentage,
+    grading.totalScore,
+    grading.maxScore,
+  );
 
   const goToTask = (id: string) => {
     setCurrentTaskId(id);
     setShowNav(false);
-    setShowMaterials(false);
   };
   const goNext = () => {
     if (isSummary) goToTask(allTasks[0].id);
@@ -678,6 +764,19 @@ export function ExamResultsScreen() {
               >
                 {feedback.predictedMatura}
               </Text>
+              {/* Dystans w punktach — dla wszystkich, bez sprzedaży.
+                  To jest najużyteczniejsza liczba na całym ekranie. */}
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: theme.textSecondary,
+                  textAlign: "center",
+                  marginTop: 10,
+                  lineHeight: 19,
+                }}
+              >
+                {framing.distance}
+              </Text>
             </View>
 
             {/* Motivational */}
@@ -938,40 +1037,125 @@ export function ExamResultsScreen() {
                 >
                   {rec.description}
                 </Text>
+                {/* Most do banku pytań. Pokazujemy TYLKO gdy dopasowanie
+                    trafiło w konkretny dział i coś w nim jest — „0 pytań"
+                    albo losowy dział niszczyłyby wiarygodność rady. */}
+                {(() => {
+                  const link = practice?.links?.[i];
+                  if (!link?.topicId || link.questionCount === 0) return null;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (isPremium) {
+                          navigation.getParent()?.navigate("QuizTab", {
+                            screen: "QuizSetup",
+                            params: { topicId: link.topicId! },
+                          });
+                        } else {
+                          navigation.getParent()?.navigate("ProfileTab", {
+                            screen: "Subscription",
+                          });
+                        }
+                      }}
+                      style={{ marginTop: 10 }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "700",
+                          color: colors.brand[500],
+                        }}
+                      >
+                        {isPremium
+                          ? `Ćwicz ten dział — ${link.questionCount} pytań z „${link.topicName}" →`
+                          : `W Premium: ${link.questionCount} pytań z działu „${link.topicName}" →`}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })()}
               </Card>
             ))}
 
-            {/* Retry button */}
-            <TouchableOpacity
-              onPress={() => setShowRetryModal(true)}
-              style={{
-                alignItems: "center",
-                marginTop: 24,
-                paddingVertical: 14,
-                paddingHorizontal: 24,
-                borderRadius: 16,
-                backgroundColor: theme.inputBg,
-              }}
-            >
-              <Text
+            {/* Powtórka arkusza — tylko Premium (patrz komentarz przy stanie) */}
+            {isPremium === false ? (
+              <View
                 style={{
-                  fontSize: 13,
-                  fontWeight: "600",
-                  color: theme.textSecondary,
+                  marginTop: 24,
+                  padding: 18,
+                  borderRadius: 18,
+                  backgroundColor: colors.brand[500] + "14",
+                  borderWidth: 1,
+                  borderColor: colors.brand[500] + "55",
                 }}
               >
-                🔄 Rozwiąż ponownie od zera
-              </Text>
-              <Text
+                <Text
+                  style={{ fontSize: 15, fontWeight: "800", color: theme.text }}
+                >
+                  {framing.upsellTitle}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.textSecondary,
+                    lineHeight: 18,
+                    marginTop: 6,
+                    marginBottom: 14,
+                  }}
+                >
+                  {framing.upsellBody}
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.getParent()?.navigate("ProfileTab", {
+                      screen: "Subscription",
+                    })
+                  }
+                  style={{
+                    backgroundColor: colors.brand[500],
+                    paddingVertical: 12,
+                    borderRadius: 14,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}
+                  >
+                    Odblokuj wszystkie arkusze →
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : isPremium ? (
+              <TouchableOpacity
+                onPress={() => setShowRetryModal(true)}
                 style={{
-                  fontSize: 10,
-                  color: theme.textTertiary,
-                  marginTop: 4,
+                  alignItems: "center",
+                  marginTop: 24,
+                  paddingVertical: 14,
+                  paddingHorizontal: 24,
+                  borderRadius: 16,
+                  backgroundColor: theme.inputBg,
                 }}
               >
-                Obecne wyniki zostaną zastąpione.
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: "600",
+                    color: theme.textSecondary,
+                  }}
+                >
+                  🔄 Rozwiąż ponownie od zera
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: theme.textTertiary,
+                    marginTop: 4,
+                  }}
+                >
+                  Obecne wyniki zostaną zastąpione.
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
 
@@ -1022,41 +1206,16 @@ export function ExamResultsScreen() {
                   (m: any) => m.id === matId,
                 );
                 if (!mat) return null;
+                // Pełny renderer materiałów (ten sam co w playerze) — ręczna
+                // karta pokazywała tylko tytuł+tekst, gubiąc tabele
+                // (mat.table/tableData), SVG i wykresy.
                 return (
-                  <View
+                  <MaterialRenderer
                     key={mat.id}
-                    style={{
-                      padding: 14,
-                      borderRadius: 14,
-                      backgroundColor: isDark ? "#92400e10" : "#fffbeb",
-                      borderWidth: 1,
-                      borderColor: isDark ? "#92400e30" : "#fde68a",
-                      marginBottom: 10,
-                    }}
-                  >
-                    {mat.title && (
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "700",
-                          fontStyle: "italic",
-                          color: theme.text,
-                          marginBottom: 6,
-                        }}
-                      >
-                        {mat.title}
-                      </Text>
-                    )}
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: theme.text,
-                        lineHeight: 19,
-                      }}
-                    >
-                      {mat.content}
-                    </Text>
-                  </View>
+                    mat={mat}
+                    theme={theme}
+                    isDark={isDark}
+                  />
                 );
               })}
 

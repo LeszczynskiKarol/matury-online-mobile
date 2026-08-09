@@ -24,6 +24,8 @@ import {
   type ExamInfo,
   type SubjectExamAvailability,
 } from "../../api/exams";
+import { getTrialStatus, type TrialStatus } from "../../api/premium";
+import { radius } from "../../theme";
 import type { ExamStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
@@ -53,6 +55,7 @@ export function ExamSelectorScreen() {
     useState<SubjectExamInfo | null>(null);
   const [examList, setExamList] = useState<ExamInfo[]>([]);
   const [loadingExams, setLoadingExams] = useState(false);
+  const [trial, setTrial] = useState<TrialStatus | null>(null);
 
   // Check premium + active exam + subjects
   useFocusEffect(
@@ -63,10 +66,20 @@ export function ExamSelectorScreen() {
 
       (async () => {
         try {
-          const status = await api<{ isPremium: boolean }>("/stripe/status");
+          const [status, trialStatus] = await Promise.all([
+            api<{ isPremium: boolean }>("/stripe/status"),
+            getTrialStatus().catch(() => null),
+          ]);
           if (cancelled) return;
           setIsPremium(status.isPremium);
-          if (!status.isPremium) {
+          setTrial(trialStatus);
+
+          // Oferta próbna daje dostęp do katalogu i JEDNEGO arkusza. Gdy
+          // arkusz jest już przypięty (examId), katalog w ogóle się nie
+          // renderuje — więc nie ma po co go pobierać.
+          const trialAccess =
+            !!trialStatus && (trialStatus.active || !!trialStatus.examId);
+          if (!status.isPremium && (!trialAccess || trialStatus!.examId)) {
             setLoading(false);
             return;
           }
@@ -185,9 +198,152 @@ export function ExamSelectorScreen() {
     );
   }
 
+  // Arkusz z oferty próbnej już przypięty — pokazujemy WYŁĄCZNIE jego.
+  // Katalog pozostałych arkuszy byłby listą rzeczy, których nie da się
+  // otworzyć (backend odbija je 403), a user i tak nie wiedziałby, który
+  // wybrał.
+  if (isPremium === false && trial?.examId) {
+    const done =
+      trial.attemptStatus === "COMPLETED" || trial.attemptStatus === "GRADING";
+    return (
+      <ScrollView
+        style={{ flex: 1, backgroundColor: theme.background }}
+        contentContainerStyle={{
+          paddingTop: insets.top + 16,
+          paddingHorizontal: 20,
+          paddingBottom: 100,
+        }}
+      >
+        <Text style={{ fontSize: 26, fontWeight: "800", color: theme.text }}>
+          Twój darmowy arkusz
+        </Text>
+        <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 18 }}>
+          W ramach oferty masz jeden arkusz — ten poniżej.
+        </Text>
+
+        <View
+          style={{
+            backgroundColor: theme.card,
+            borderRadius: radius["2xl"],
+            borderWidth: 2,
+            borderColor: colors.brand[500] + "66",
+            padding: 18,
+          }}
+        >
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+            <View
+              style={{
+                backgroundColor: colors.brand[500],
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ fontSize: 10, fontWeight: "800", color: "#fff" }}>
+                DARMOWY
+              </Text>
+            </View>
+            {done && (
+              <View
+                style={{
+                  backgroundColor: colors.navy[500],
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 999,
+                }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: "800", color: "#fff" }}>
+                  ODDANY
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text }}>
+            {trial.exam?.title ?? "Arkusz maturalny"}
+          </Text>
+          {trial.exam && (
+            <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 2 }}>
+              {trial.exam.subjectName} · poziom {trial.exam.level.toLowerCase()} ·{" "}
+              {trial.exam.timeMinutes} min · {trial.exam.maxPoints} pkt
+            </Text>
+          )}
+
+          <TouchableOpacity
+            onPress={() => {
+              if (done && trial.examAttemptId) {
+                navigation.navigate("ExamResults", {
+                  attemptId: trial.examAttemptId,
+                });
+              } else {
+                navigation.navigate("ExamPlay", {
+                  examId: trial.examId!,
+                  subjectId: "",
+                });
+              }
+            }}
+            style={{
+              backgroundColor: colors.brand[500],
+              paddingVertical: 13,
+              borderRadius: radius.xl,
+              alignItems: "center",
+              marginTop: 16,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
+              {done ? "Zobacz wynik i feedback AI →" : "Wróć do arkusza →"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View
+          style={{
+            backgroundColor: theme.backgroundSecondary,
+            borderRadius: radius["2xl"],
+            borderWidth: 1,
+            borderColor: theme.border,
+            padding: 16,
+            marginTop: 18,
+            alignItems: "center",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 13,
+              color: theme.textSecondary,
+              textAlign: "center",
+              marginBottom: 12,
+            }}
+          >
+            Pozostałe arkusze — ze wszystkich przedmiotów, bez limitu podejść —
+            odblokujesz w Premium.
+          </Text>
+          <TouchableOpacity
+            onPress={() =>
+              navigation.getParent()?.navigate("ProfileTab", {
+                screen: "Subscription",
+              })
+            }
+            style={{
+              backgroundColor: colors.brand[500],
+              paddingVertical: 11,
+              paddingHorizontal: 22,
+              borderRadius: radius.xl,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
+              Zobacz Premium →
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
+
   // Premium gate — wcześniej bez ŻADNEGO CTA (ślepa uliczka); teraz wspólny
-  // konwersyjny ekran z przejściem do subskrypcji
-  if (isPremium === false) {
+  // konwersyjny ekran z przejściem do subskrypcji. Konto z ważną ofertą
+  // przechodzi dalej, do katalogu.
+  if (isPremium === false && !trial?.active) {
     return <PremiumGate mode="exam" />;
   }
 
@@ -221,6 +377,33 @@ export function ExamSelectorScreen() {
       >
         Pełny symulator matury. Timer, arkusz, feedback AI.
       </Text>
+
+      {/* Oferta ważna, arkusz jeszcze nie wybrany. Ostrzeżenie jest istotne:
+          wybór jest JEDNORAZOWY, a bez tej informacji uczeń klika w pierwszy
+          z brzegu i orientuje się dopiero, gdy nie może otworzyć drugiego. */}
+      {isPremium === false && trial?.active && !trial.examId && (
+        <View
+          style={{
+            padding: 14,
+            borderRadius: radius["2xl"],
+            backgroundColor: colors.brand[500] + "14",
+            borderWidth: 1,
+            borderColor: colors.brand[500] + "55",
+            marginBottom: 18,
+          }}
+        >
+          <Text
+            style={{ fontSize: 14, fontWeight: "800", color: theme.text, marginBottom: 4 }}
+          >
+            🎁 Masz odblokowany 1 darmowy arkusz
+          </Text>
+          <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 18 }}>
+            Wybierz dowolny arkusz poniżej — <Text style={{ fontWeight: "800" }}>to wybór
+            na raz</Text>, więc weź przedmiot, na którym najbardziej Ci zależy. Masz też{" "}
+            {trial.credits} kredytów AI na ocenę zadań otwartych.
+          </Text>
+        </View>
+      )}
 
       {/* Active exam */}
       {activeExam?.active && !activeExam.expired && (

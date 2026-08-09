@@ -11,6 +11,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   Image,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -24,6 +25,8 @@ import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/common/ProgressBar";
+import { TrialOfferCard } from "../../components/common/TrialOfferCard";
+import { FreePanel } from "../../components/common/FreePanel";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 
@@ -172,6 +175,17 @@ export function DashboardScreen() {
               Wszystkie przedmioty, nieograniczone pytania, AI ocena wypracowań
               i więcej
             </Text>
+            {/* Odpowiednik webowego landingu „darmowy arkusz": w apce nie ma
+                strony przed logowaniem, więc pierwszym ekranem świeżego konta
+                jest ten dashboard — i to tutaj musi stać oferta.
+                NAD ceną, bo ten user nie widział jeszcze ani jednego zadania:
+                pokazanie mu najpierw kwoty to proszenie o pieniądze na wiarę.
+                W trybach wywoływanych blokadą w trakcie nauki (PremiumGate)
+                kolejność jest odwrotna. */}
+            <View style={{ alignSelf: "stretch", marginBottom: 4 }}>
+              <TrialOfferCard trigger="dashboard" placement="above" />
+            </View>
+
             <Button
               title="Przejdź na Premium — od 49 zł/mies."
               onPress={() =>
@@ -181,6 +195,11 @@ export function DashboardScreen() {
             />
           </View>
         </Card>
+
+        {/* Darmowy panel — co konto FREE faktycznie MOŻE zrobić, ze stanem.
+            Stoi zaraz pod ofertą, a nad wyszarzonymi przedmiotami: najpierw
+            to, co dostępne, dopiero potem to, co zablokowane. */}
+        <FreePanel />
 
         {/* Greyed-out subjects */}
         <Text
@@ -353,10 +372,28 @@ export function DashboardScreen() {
           </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Badge
-            variant="streak"
-            value={`${data?.user.currentStreak || 0}🔥`}
-          />
+          {/* Sam płomyk z liczbą nic nie znaczył — użytkownicy nie wiedzieli,
+              czy to punkty, poziom, czy powiadomienia. Licznik zostaje (seria
+              to najmocniejszy mechanizm powracalności), ale po dotknięciu
+              tłumaczy, czym jest i jak ją utrzymać. */}
+          <TouchableOpacity
+            onPress={() => {
+              const streak = data?.user.currentStreak || 0;
+              Alert.alert(
+                "Seria nauki 🔥",
+                streak > 0
+                  ? `Twoja seria: ${streak} ${streak === 1 ? "dzień" : "dni"} z rzędu.\n\nSeria to liczba kolejnych dni, w których rozwiązałeś choć jedno pytanie. Rośnie o 1 każdego dnia nauki i wraca do zera, jeśli opuścisz dzień.\n\nWystarczy jedno pytanie dziennie, żeby ją utrzymać.`
+                  : "Seria to liczba kolejnych dni, w których rozwiązałeś choć jedno pytanie.\n\nRozwiąż dziś jedno pytanie, a licznik ruszy. Opuszczony dzień zeruje serię — i o to właśnie chodzi: regularność robi wynik na maturze bardziej niż zrywy.",
+                [{ text: "Jasne" }],
+              );
+            }}
+            accessibilityLabel="Seria nauki — dotknij, aby dowiedzieć się więcej"
+          >
+            <Badge
+              variant="streak"
+              value={`${data?.user.currentStreak || 0}🔥`}
+            />
+          </TouchableOpacity>
           <TouchableOpacity onPress={toggle}>
             <Ionicons
               name={isDark ? "sunny-outline" : "moon-outline"}
@@ -488,42 +525,32 @@ export function DashboardScreen() {
 
       {/* ═══ 3 HERO TILES — Egzamin / Listening / Quiz ═══ */}
       <View style={{ gap: 10, marginBottom: 20 }}>
-        {/* Egzamin Live — pełnoekranowy */}
+        {/* Egzamin Live — pełna szerokość, ale ta sama „waga" wizualna co
+            pozostałe tryby. Wcześniej był jedynym kaflem na pełnym kolorze
+            marki, z cieniem — przez co czytał się jak JEDYNY przycisk na
+            ekranie, a quiz i słuchanie wyglądały jak dodatek. Pierwszeństwo
+            daje mu teraz pozycja i szerokość, nie krzyk koloru. */}
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => navigation.navigate("ExamTab")}
           style={{
-            padding: 18,
-            borderRadius: 22,
-            backgroundColor: colors.brand[500],
+            padding: 16,
+            borderRadius: 20,
+            backgroundColor: isDark ? "#2e106533" : "#f5f3ff",
+            borderWidth: 1,
+            borderColor: isDark ? "#6d28d940" : "#ddd6fe",
             flexDirection: "row",
             alignItems: "center",
-            gap: 16,
-            shadowColor: colors.brand[500],
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 12,
-            elevation: 6,
+            gap: 14,
           }}
         >
-          <View
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 16,
-              backgroundColor: "rgba(255,255,255,0.2)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ fontSize: 28 }}>📝</Text>
-          </View>
+          <Text style={{ fontSize: 32 }}>📝</Text>
           <View style={{ flex: 1 }}>
             <Text
               style={{
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: "800",
-                color: "#fff",
+                color: isDark ? "#c4b5fd" : "#5b21b6",
                 marginBottom: 2,
               }}
             >
@@ -531,14 +558,18 @@ export function DashboardScreen() {
             </Text>
             <Text
               style={{
-                fontSize: 12,
-                color: "rgba(255,255,255,0.85)",
+                fontSize: 11,
+                color: isDark ? "#a78bfa" : "#7c3aed",
               }}
             >
               Pełny symulator matury z timerem
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={22} color="#fff" />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={isDark ? "#a78bfa" : "#7c3aed"}
+          />
         </TouchableOpacity>
 
         {/* Listening + Quiz w 2 kolumnach */}
