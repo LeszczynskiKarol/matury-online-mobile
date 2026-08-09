@@ -4,7 +4,17 @@ node_modules/
 package-lock.json
 .expo
 .expo/
-.envfcm-service-account.json
+
+# sekrety — NIGDY do repo
+# (brak znaku nowej linii skleił kiedyś te dwa wpisy w jeden bezużyteczny
+#  wzorzec `.envfcm-service-account.json` i oba pliki wpadły do commita)
+.env
+.env.*
+!env.example
+fcm-service-account.json
+*-service-account.json
+# UWAGA: android/app/google-services.json to config KLIENTA (nie sekret),
+# jest śledzony i potrzebny do builda — nie dodawać go tutaj.
 
 # artefakty buildów — nigdy do repo
 *.apk
