@@ -8,6 +8,9 @@ android/app/.cxx
 android/.kotlin
 android/local.properties
 .env
+# Klucz serwerowy Firebase Admin — apka go nie używa (FCM v1 konfiguruje się
+# przez `eas credentials`), więc nie ma powodu wysyłać go na builder.
+fcm-service-account.json
 *.apk
 *.aab
 _devscreen.png
