@@ -5,6 +5,7 @@
 // ============================================================================
 
 import React, { useState, useEffect } from "react";
+import { cleanInstructionForDisplay } from "../../utils/examInstruction";
 import {
   View,
   Text,
@@ -1296,7 +1297,7 @@ export function ExamResultsScreen() {
                   marginBottom: 16,
                 }}
               >
-                {parseChemText(currentTask.instruction)}
+                {parseChemText(cleanInstructionForDisplay(currentTask))}
               </Text>
 
               {/* User answer */}

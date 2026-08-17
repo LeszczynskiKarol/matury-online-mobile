@@ -43,6 +43,7 @@ import { SvgViewer } from "../../components/exam/SvgViewer";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { OptionCard } from "../../components/quiz/OptionCard";
+import { cleanInstructionForDisplay } from "../../utils/examInstruction";
 import { parseChemText } from "../../utils/chemText";
 import {
   startExam,
@@ -980,7 +981,7 @@ export function ExamPlayerScreen() {
               marginBottom: 20,
             }}
           >
-            {parseChemText(currentTask.instruction)}
+            {parseChemText(cleanInstructionForDisplay(currentTask))}
           </Text>
 
           {/* ═══ TASK INPUT RENDERERS ═══ */}
@@ -1617,6 +1618,67 @@ function ExamTaskInput({
       // ── CLOSED_ABCD ─────────────────────────────────────────────────
       case "closed_abcd": {
         const opts = content.options || [];
+        // Compound (geo/bio/hist/wos): "A albo B" + uzasadnienie "1/2/3",
+        // odpowiedź to string "A2" — parytet z webowym renderAbcd.
+        const leftOptions = content.leftOptions;
+        const rightOptions = content.rightOptions;
+        if (
+          Array.isArray(leftOptions) &&
+          Array.isArray(rightOptions) &&
+          leftOptions.length > 0
+        ) {
+          const selected = typeof value === "string" ? value : "";
+          const leftPart = selected.charAt(0) || "";
+          const rightPart = selected.slice(1) || "";
+          const setCompound = (l: string, r: string) =>
+            onChange(l || r ? l + r : null);
+          const labelStyle = {
+            fontSize: 12,
+            fontWeight: "700" as const,
+            color: theme.textSecondary,
+            marginBottom: 6,
+            textTransform: "uppercase" as const,
+            letterSpacing: 0.5,
+          };
+          return (
+            <View style={{ gap: 16 }}>
+              <View>
+                <Text style={labelStyle}>Wybierz odpowiedź:</Text>
+                <View style={{ gap: 8 }}>
+                  {leftOptions.map((o: any) => (
+                    <OptionCard
+                      key={o.id}
+                      id={o.id}
+                      text={parseChemText(o.text)}
+                      state={leftPart === o.id ? "selected" : "default"}
+                      onPress={() =>
+                        setCompound(leftPart === o.id ? "" : o.id, rightPart)
+                      }
+                      disabled={false}
+                    />
+                  ))}
+                </View>
+              </View>
+              <View>
+                <Text style={labelStyle}>oraz uzasadnienie:</Text>
+                <View style={{ gap: 8 }}>
+                  {rightOptions.map((o: any) => (
+                    <OptionCard
+                      key={o.id}
+                      id={o.id}
+                      text={parseChemText(o.text)}
+                      state={rightPart === o.id ? "selected" : "default"}
+                      onPress={() =>
+                        setCompound(leftPart, rightPart === o.id ? "" : o.id)
+                      }
+                      disabled={false}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+          );
+        }
         return (
           <View style={{ gap: 8 }}>
             {opts.map((o: any) => (
