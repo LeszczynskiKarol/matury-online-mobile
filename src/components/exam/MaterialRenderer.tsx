@@ -1246,8 +1246,106 @@ const TEXT_SOURCE_TYPES = new Set([
   "treaty",
 ]);
 
-export function MaterialRenderer({ mat, theme, isDark }: MaterialProps) {
-  if (!mat) return null;
+// Generator bywa, że zawija ładunek materiału w dodatkową warstwę:
+//   content: { table: {...} }             zamiast  table: {...},  content: "…"
+//   content: { experimentChartData: {…} }  zamiast experimentChartData: {…}
+// Bez rozpakowania tabela/wykres w ogóle się nie rysowały, a `parseChemText`
+// dostawał obiekt i wywracał ekran. Lustro `normalizeMaterials()` z backendu
+// (exam-sanitize.ts) — admin dostaje content NIEsanityzowany, więc guard
+// musi być też po stronie klienta.
+const LIFTABLE_MATERIAL_KEYS = [
+  "table",
+  "tableData",
+  "experimentChartData",
+  "chartData",
+  "diagramData",
+  "klimatogramData",
+  "svg",
+  "imageUrl",
+  "mapEmbed",
+  "schema",
+  "fileContent",
+];
+
+// Format „szeroki" wykresu ({type, categories, series, data}) → kanoniczny
+// ({chartType, datasets}). Mobile go nie wywala (czyta `datasets` defensywnie),
+// ale bez konwersji rysowałby PUSTY wykres. Lustro normalizeChart() z backendu.
+function normalizeChart(chart: any): void {
+  if (!chart || typeof chart !== "object") return;
+  if (Array.isArray(chart.datasets)) return;
+  if (!Array.isArray(chart.data) || !Array.isArray(chart.series)) return;
+  const rows = chart.data.filter((r: any) => r && typeof r === "object");
+  chart.datasets = chart.series
+    .filter((se: any) => se && typeof se.name === "string")
+    .map((se: any) => ({
+      name: se.name,
+      color: se.color,
+      data: rows
+        .filter((r: any) => typeof r[se.name] === "number")
+        .map((r: any) => ({ x: r.category ?? r.x ?? r.label, y: r[se.name] })),
+    }));
+  if (chart.chartType === undefined && typeof chart.type === "string") {
+    chart.chartType = chart.type === "line" ? "line" : "bar";
+  }
+}
+
+function normalizeMaterial(mat: any): any {
+  if (!mat || typeof mat !== "object") return mat;
+  const c = mat.content;
+  if (c == null || typeof c === "string") {
+    // Materiały wizualne z pipeline'u obrazów (historia: poster/photo/cartoon)
+    // niosą `description` + `imageQuery`, a `imageUrl` dostają dopiero z
+    // fetchera Wikimediów. Zanim go dostaną — albo gdy legalnego zdjęcia nie
+    // ma — mobile renderował PUSTĄ kartę, bo czyta wyłącznie `content`.
+    // Web pokazuje w tej sytuacji opis; wyrównujemy zachowanie.
+    if (!c || !String(c).trim()) {
+      // `description` mówi CZYM jest źródło, `imageHints.fallbackDescription`
+      // — JAK wygląda. Zadania typu „zinterpretuj dwa elementy graficzne"
+      // potrzebują tego drugiego, więc łączymy oba, gdy nie ma obrazu.
+      const parts = [
+        typeof mat.description === "string" ? mat.description.trim() : "",
+        typeof mat.text === "string" ? mat.text.trim() : "",
+        typeof mat.imageHints?.fallbackDescription === "string"
+          ? mat.imageHints.fallbackDescription.trim()
+          : "",
+      ].filter(Boolean);
+      const uniq = parts.filter(
+        (x, i) => !parts.some((y, j) => j !== i && j < i && y.includes(x)),
+      );
+      const fallback = uniq.join("\n\n");
+      if (fallback) return { ...mat, content: fallback };
+    }
+    return mat;
+  }
+
+  const out = { ...mat };
+  if (Array.isArray(c)) {
+    out.content = c.every((x: any) => typeof x === "string")
+      ? c.join("\n")
+      : "";
+    return out;
+  }
+  if (typeof c !== "object") {
+    out.content = String(c);
+    return out;
+  }
+  for (const k of LIFTABLE_MATERIAL_KEYS) {
+    if (out[k] === undefined && c[k] !== undefined) out[k] = c[k];
+  }
+  if (out.table === undefined && Array.isArray(c.headers) && Array.isArray(c.rows)) {
+    out.table = { headers: c.headers, rows: c.rows };
+  }
+  out.content =
+    typeof c.text === "string" ? c.text : typeof c.content === "string" ? c.content : "";
+  return out;
+}
+
+const CHART_FIELDS = ["experimentChartData", "chartData", "diagramData"];
+
+export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) {
+  if (!rawMat) return null;
+  const mat = normalizeMaterial(rawMat);
+  for (const f of CHART_FIELDS) normalizeChart(mat[f]);
   const type = mat.type || "text";
 
   // Aliasy chart datasource (różne nazwy w różnych przedmiotach)

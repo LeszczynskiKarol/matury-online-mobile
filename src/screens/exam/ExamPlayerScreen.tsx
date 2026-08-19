@@ -38,6 +38,7 @@ import {
   Tier2TaskRenderer,
 } from "../../components/exam/Tier2TaskRenderers";
 import { MaterialRenderer } from "../../components/exam/MaterialRenderer";
+import { SectionErrorBoundary } from "../../components/exam/SectionErrorBoundary";
 import { normalizeEnglishContent } from "../../utils/normalizeEnglishContent";
 import { SvgViewer } from "../../components/exam/SvgViewer";
 import { Button } from "../../components/ui/Button";
@@ -903,12 +904,14 @@ export function ExamPlayerScreen() {
             );
             if (!mat) return null;
             return (
-              <MaterialRenderer
+              <SectionErrorBoundary
                 key={mat.id}
-                mat={mat}
+                label={mat.title || "materiał"}
+                resetKey={`${currentTask.id}:${mat.id}`}
                 theme={theme}
-                isDark={isDark}
-              />
+              >
+                <MaterialRenderer mat={mat} theme={theme} isDark={isDark} />
+              </SectionErrorBoundary>
             );
           })}
 
@@ -972,26 +975,32 @@ export function ExamPlayerScreen() {
           </View>
 
           {/* Instruction */}
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "600",
-              color: theme.text,
-              lineHeight: 24,
-              marginBottom: 20,
-            }}
-          >
-            {parseChemText(cleanInstructionForDisplay(currentTask))}
-          </Text>
-
-          {/* ═══ TASK INPUT RENDERERS ═══ */}
-          <ExamTaskInput
-            task={currentTask}
-            value={answers[currentTask.id]}
-            onChange={(v: any) => setAnswer(currentTask.id, v)}
+          <SectionErrorBoundary
+            label="treść zadania"
+            resetKey={currentTask.id}
             theme={theme}
-            isDark={isDark}
-          />
+          >
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "600",
+                color: theme.text,
+                lineHeight: 24,
+                marginBottom: 20,
+              }}
+            >
+              {parseChemText(cleanInstructionForDisplay(currentTask))}
+            </Text>
+
+            {/* ═══ TASK INPUT RENDERERS ═══ */}
+            <ExamTaskInput
+              task={currentTask}
+              value={answers[currentTask.id]}
+              onChange={(v: any) => setAnswer(currentTask.id, v)}
+              theme={theme}
+              isDark={isDark}
+            />
+          </SectionErrorBoundary>
         </Card>
       </ScrollView>
 

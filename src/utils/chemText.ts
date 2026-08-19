@@ -231,6 +231,20 @@ const MATH_SYMBOLS: [RegExp, string][] = [
 // ── Main parser ─────────────────────────────────────────────────────────
 
 export function parseChemText(text: string): string {
+  // Generator potrafi wstawić w pole tekstowe obiekt zamiast stringa
+  // (np. material.content = { table: {...} } — geografia PR #11, 2026-08).
+  // `!text` tego nie łapie, bo obiekt jest truthy, i `.replace` rzucał
+  // TypeError, który leciał do AppErrorBoundary i wyrzucał ucznia
+  // z egzaminu. Ta funkcja jest wołana z 36 miejsc — guard należy tutaj.
+  if (typeof text !== "string") {
+    if (text == null) return "";
+    if (Array.isArray(text)) {
+      return (text as unknown[]).every((x) => typeof x === "string")
+        ? (text as unknown as string[]).join("\n")
+        : "";
+    }
+    return "";
+  }
   if (!text) return "";
 
   let result = text;
