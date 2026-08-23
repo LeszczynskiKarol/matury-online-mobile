@@ -25,6 +25,7 @@ import { spacing } from "../../theme";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { parseChemText } from "../../utils/chemText";
+import { CodeAwareText } from "../../components/common/CodeAwareText";
 import { MaterialRenderer } from "../../components/exam/MaterialRenderer";
 import { getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
 import { api } from "../../api/client";
@@ -1571,11 +1572,11 @@ export function ExamResultsScreen() {
                   >
                     📝 WZORCOWA ODPOWIEDŹ
                   </Text>
-                  <Text
+                  <CodeAwareText
+                    text={currentGrading.modelAnswer}
                     style={{ fontSize: 12, color: theme.text, lineHeight: 19 }}
-                  >
-                    {parseChemText(currentGrading.modelAnswer)}
-                  </Text>
+                    isDark={isDark}
+                  />
                 </View>
               )}
             </Card>

@@ -46,6 +46,7 @@ import { Card } from "../../components/ui/Card";
 import { OptionCard } from "../../components/quiz/OptionCard";
 import { cleanInstructionForDisplay } from "../../utils/examInstruction";
 import { parseChemText } from "../../utils/chemText";
+import { CodeAwareText } from "../../components/common/CodeAwareText";
 import {
   startExam,
   saveExamAnswers,
@@ -980,17 +981,17 @@ export function ExamPlayerScreen() {
             resetKey={currentTask.id}
             theme={theme}
           >
-            <Text
+            <CodeAwareText
+              text={cleanInstructionForDisplay(currentTask)}
               style={{
                 fontSize: 16,
                 fontWeight: "600",
                 color: theme.text,
                 lineHeight: 24,
-                marginBottom: 20,
               }}
-            >
-              {parseChemText(cleanInstructionForDisplay(currentTask))}
-            </Text>
+              containerStyle={{ marginBottom: 20 }}
+              isDark={isDark}
+            />
 
             {/* ═══ TASK INPUT RENDERERS ═══ */}
             <ExamTaskInput

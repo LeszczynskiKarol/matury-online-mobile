@@ -30,6 +30,7 @@ import {
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { SvgViewer } from "../../components/exam/SvgViewer";
+import { MaterialRenderer } from "../../components/exam/MaterialRenderer";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MathGraph } from "../../components/quiz/MathGraph";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -50,6 +51,7 @@ import { ProgressBar } from "../../components/common/ProgressBar";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { parseChemText } from "../../utils/chemText";
+import { CodeAwareText } from "../../components/common/CodeAwareText";
 import { MathEditor } from "../../components/exam/MathEditor";
 import { spacing } from "../../theme";
 import {
@@ -1293,18 +1295,45 @@ export function QuizPlayScreen() {
                   </Text>
                 </View>
               )}
-            {/* Question text */}
+            {/* Materiał wizualny (mapa / klimatogram / svg / zdjęcie) — port
+                webowego QuestionVisual; reużywa egzaminacyjnego
+                MaterialRenderer, więc działa dla KAŻDEGO typu pytania. */}
+            {question.type !== "LISTENING" &&
+              !!(
+                content.mapEmbed ||
+                content.klimatogramData ||
+                content.svg ||
+                content.imageUrl
+              ) && (
+                <MaterialRenderer
+                  mat={{
+                    id: "question-material",
+                    type: "question",
+                    title: content.materialTitle,
+                    mapEmbed: content.mapEmbed,
+                    klimatogramData: content.klimatogramData,
+                    svg: content.svg,
+                    imageUrl: content.imageUrl,
+                  }}
+                  theme={theme}
+                  isDark={isDark}
+                />
+              )}
+            {/* Question text — CodeAwareText renderuje płoty ```lang jako
+                bloki kodu (informatyka), resztę przez parseChemText */}
             {question.type !== "LISTENING" && (
-              <Text
-                style={{
-                  fontSize: 17,
-                  fontWeight: "500",
-                  color: theme.text,
-                  lineHeight: 26,
-                  marginBottom: 24,
-                }}
-              >
-                {parseChemText(content.question || content.prompt || "")}
+              <>
+                <CodeAwareText
+                  text={content.question || content.prompt || ""}
+                  style={{
+                    fontSize: 17,
+                    fontWeight: "500",
+                    color: theme.text,
+                    lineHeight: 26,
+                  }}
+                  containerStyle={{ marginBottom: 24 }}
+                  isDark={isDark}
+                />
                 {/* Debug — raw question data when nothing renders */}
                 {!content.question &&
                   !content.prompt &&
@@ -1347,7 +1376,7 @@ export function QuizPlayScreen() {
                       </Text>
                     </View>
                   )}
-              </Text>
+              </>
             )}
 
             {/* ── Feedback (above answer options) ──────────────────────── */}
@@ -2279,7 +2308,7 @@ export function QuizPlayScreen() {
                               marginBottom: 6,
                             }}
                           >
-                            {pair.left}
+                            {parseChemText(pair.left)}
                           </Text>
                           <View
                             style={{
@@ -2349,7 +2378,7 @@ export function QuizPlayScreen() {
                                           : theme.textSecondary,
                                     }}
                                   >
-                                    {right}
+                                    {parseChemText(right)}
                                   </Text>
                                 </TouchableOpacity>
                               );
@@ -2363,7 +2392,7 @@ export function QuizPlayScreen() {
                                 marginTop: 4,
                               }}
                             >
-                              Poprawna: {pair.right}
+                              Poprawna: {parseChemText(pair.right)}
                             </Text>
                           )}
                         </View>
@@ -2397,7 +2426,7 @@ export function QuizPlayScreen() {
                           marginBottom: 12,
                         }}
                       >
-                        {content.instruction}
+                        {parseChemText(content.instruction)}
                       </Text>
                     )}
                     <View
@@ -2430,7 +2459,7 @@ export function QuizPlayScreen() {
                                   lineHeight: 28,
                                 }}
                               >
-                                {part}
+                                {parseChemText(part)}
                               </Text>
                             );
                           }
@@ -2627,7 +2656,7 @@ export function QuizPlayScreen() {
                               marginBottom: 4,
                             }}
                           >
-                            {sq.text}
+                            {parseChemText(sq.text)}
                           </Text>
                           {needsMathEditor && !submitted ? (
                             <MathEditor
@@ -2795,7 +2824,7 @@ export function QuizPlayScreen() {
                                   color: theme.text,
                                 }}
                               >
-                                {h}
+                                {parseChemText(h)}
                               </Text>
                             </View>
                           ))}
@@ -2824,7 +2853,7 @@ export function QuizPlayScreen() {
                                 <Text
                                   style={{ fontSize: 12, color: theme.text }}
                                 >
-                                  {cell}
+                                  {parseChemText(cell)}
                                 </Text>
                               </View>
                             ))}
@@ -2853,7 +2882,7 @@ export function QuizPlayScreen() {
                               marginBottom: 4,
                             }}
                           >
-                            {sq.text}
+                            {parseChemText(sq.text)}
                           </Text>
                           {needsMathEditor && !submitted ? (
                             <MathEditor
