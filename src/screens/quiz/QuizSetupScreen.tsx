@@ -442,8 +442,15 @@ export function QuizSetupScreen() {
   const categories = selectedSubject
     ? SUBJECT_CATEGORIES[selectedSubject.slug] || []
     : [];
+  // Temat „XIV. Rozumienie ze słuchu" dubluje kafel kategorii „Słuchanie" —
+  // zadania słuchowe mają tam swoje wejście (lustro webowego SessionSetup).
   const topics =
-    subjectDetail?.topics?.filter((t: any) => t.questionCount > 0) || [];
+    subjectDetail?.topics?.filter(
+      (t: any) =>
+        t.questionCount > 0 &&
+        t.slug !== "rozumienie-ze-sluchu" &&
+        !/rozumienie ze słuchu/i.test(t.name ?? ""),
+    ) || [];
 
   if (!isPremium) {
     return <PremiumGate mode="quiz" />;
