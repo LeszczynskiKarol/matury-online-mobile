@@ -1,24 +1,26 @@
 // ============================================================================
-// AdminExamList — pełna lista arkuszy, widoczna wyłącznie dla administratora
+// AdminExamList — pełna lista arkuszy z akcjami, wyłącznie dla administratora
 // src/components/exam/AdminExamList.tsx
 //
-// Widok ucznia celowo pokazuje tylko arkusze dostępne DLA NIEGO: bez
-// nieaktywnych, bez już rozwiązanych, przefiltrowane przez ofertę próbną.
-// Przy sprawdzaniu zgłoszenia („zadanie 4 w niemieckim PR jest zepsute")
-// oznacza to, że z poziomu apki nie da się wejść we wskazany arkusz.
+// Odpowiednik zakładki „Arkusze" z panelu na stronie. Powód istnienia: widok
+// ucznia pokazuje wyłącznie arkusze dostępne DLA NIEGO — aktywne, jeszcze nie
+// rozwiązane, przefiltrowane przez ofertę próbną. Przy sprawdzaniu zgłoszenia
+// („zadanie 4 w niemieckim PR jest zepsute") nie było stąd żadnej drogi do
+// wskazanego arkusza, bo zepsute arkusze zwykle są już zdezaktywowane.
 //
-// Ta lista pokazuje wszystko, co jest w bazie, z identyfikatorem do skopiowania
-// i wejściem wprost do arkusza — także nieaktywnego, bo właśnie takie trafiają
-// do poprawki. Odpowiednik zakładki „Arkusze" w panelu na stronie.
+// Te same akcje co na stronie: aktywacja, dorysowanie grafik, oznaczenie jako
+// sprawdzony, zerowanie własnych podejść, usunięcie i wejście w arkusz.
+// Widoczność pilnuje rola z konta (`user.role`), nie flaga w urządzeniu.
 // ============================================================================
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
+  Alert,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { useAuth } from "../../context/AuthContext";
@@ -33,7 +35,14 @@ interface AdminExam {
   level: string;
   isActive: boolean;
   status?: string;
-  subject?: { name?: string; slug?: string; icon?: string };
+  maxPoints?: number;
+  timeMinutes?: number;
+  attemptCount?: number;
+  avgScore?: number | null;
+  reviewedByAdmin?: boolean;
+  createdAt?: string;
+  generatedAt?: string | null;
+  subject?: { id?: string; name?: string; slug?: string; icon?: string };
   subjectId?: string;
 }
 
@@ -41,6 +50,9 @@ interface Props {
   /** Wejście w arkusz — ten sam ekran, co przy zwykłym starcie egzaminu. */
   onOpen: (examId: string) => void;
 }
+
+type LevelFilter = "all" | "PODSTAWOWY" | "ROZSZERZONY";
+type ActiveFilter = "all" | "active" | "inactive";
 
 export function AdminExamList({ onOpen }: Props) {
   const { user } = useAuth();
@@ -51,11 +63,14 @@ export function AdminExamList({ onOpen }: Props) {
   const [exams, setExams] = useState<AdminExam[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [level, setLevel] = useState<LevelFilter>("all");
+  const [activeOnly, setActiveOnly] = useState<ActiveFilter>("all");
+  const [subject, setSubject] = useState<string>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  // Lista bywa długa (kilkaset arkuszy), więc ładujemy ją dopiero przy
-  // rozwinięciu — ekran wyboru egzaminu otwiera się przy każdym wejściu
-  // w zakładkę i nie ma powodu ciągnąć jej za każdym razem.
+  // Lista bywa długa, a ekran wyboru egzaminu otwiera się przy każdym wejściu
+  // w zakładkę — dlatego ładujemy dopiero po rozwinięciu.
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -63,14 +78,39 @@ export function AdminExamList({ onOpen }: Props) {
       const res = await api<{ exams?: AdminExam[] } | AdminExam[]>(
         "/admin/exams?limit=300",
       );
-      const list = Array.isArray(res) ? res : (res?.exams ?? []);
-      setExams(list);
+      setExams(Array.isArray(res) ? res : (res?.exams ?? []));
     } catch (e: any) {
       setError(e?.message || "Nie udało się pobrać listy arkuszy.");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const subjects = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of exams) {
+      const name = e.subject?.name || e.subjectId;
+      if (name) map.set(name, e.subject?.icon || "📄");
+    }
+    return Array.from(map.entries());
+  }, [exams]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return exams.filter((e) => {
+      if (level !== "all" && e.level !== level) return false;
+      if (activeOnly === "active" && !e.isActive) return false;
+      if (activeOnly === "inactive" && e.isActive) return false;
+      if (subject !== "all" && (e.subject?.name || e.subjectId) !== subject)
+        return false;
+      if (!q) return true;
+      return (
+        e.title?.toLowerCase().includes(q) ||
+        e.subject?.name?.toLowerCase().includes(q) ||
+        e.id.toLowerCase().includes(q)
+      );
+    });
+  }, [exams, query, level, activeOnly, subject]);
 
   if (user?.role !== "ADMIN") return null;
 
@@ -80,20 +120,180 @@ export function AdminExamList({ onOpen }: Props) {
     if (next && exams.length === 0 && !loading) void load();
   };
 
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? exams.filter(
-        (e) =>
-          e.title?.toLowerCase().includes(q) ||
-          e.subject?.name?.toLowerCase().includes(q) ||
-          e.id.toLowerCase().includes(q),
-      )
-    : exams;
+  const patchLocal = (id: string, patch: Partial<AdminExam>) =>
+    setExams((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
 
   const copyId = async (id: string) => {
     await Clipboard.setStringAsync(id);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const run = async (
+    id: string,
+    label: string,
+    fn: () => Promise<void>,
+  ): Promise<void> => {
+    setBusy(id + label);
+    try {
+      await fn();
+    } catch (e: any) {
+      Alert.alert("Nie udało się", e?.message || "Spróbuj ponownie.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleActive = (e: AdminExam) =>
+    run(e.id, "active", async () => {
+      const res = await api<{ isActive?: boolean }>(`/admin/exams/${e.id}`, {
+        method: "PATCH",
+        body: { isActive: !e.isActive },
+      });
+      patchLocal(e.id, { isActive: res?.isActive ?? !e.isActive });
+    });
+
+  const toggleReviewed = (e: AdminExam) =>
+    run(e.id, "review", async () => {
+      await api(`/admin/exams/${e.id}/review`, { method: "POST" });
+      patchLocal(e.id, { reviewedByAdmin: !e.reviewedByAdmin });
+    });
+
+  const generateVisuals = (e: AdminExam) =>
+    run(e.id, "visuals", async () => {
+      await api(`/admin/exams/${e.id}/generate-visuals`, { method: "POST" });
+      Alert.alert("Gotowe", "Brakujące schematy zostały dorysowane.");
+    });
+
+  const resetMine = (e: AdminExam) =>
+    Alert.alert(
+      "Wyzerować Twoje podejścia?",
+      `Arkusz „${e.title}" pojawi się znów jako nierozwiązany. Dotyczy tylko Twojego konta.`,
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Wyzeruj",
+          style: "destructive",
+          onPress: () =>
+            void run(e.id, "reset", async () => {
+              await api(`/admin/exams/${e.id}/reset-my-attempts`, {
+                method: "POST",
+              });
+              patchLocal(e.id, { attemptCount: 0 });
+            }),
+        },
+      ],
+    );
+
+  const remove = (e: AdminExam) =>
+    Alert.alert(
+      "Usunąć arkusz?",
+      `„${e.title}" zniknie razem z podejściami uczniów. Tego nie da się cofnąć.`,
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Usuń",
+          style: "destructive",
+          onPress: () =>
+            void run(e.id, "delete", async () => {
+              await api(`/admin/exams/${e.id}`, { method: "DELETE" });
+              setExams((prev) => prev.filter((x) => x.id !== e.id));
+            }),
+        },
+      ],
+    );
+
+  const resetAllMine = () =>
+    Alert.alert(
+      "Wyzerować wszystkie Twoje podejścia?",
+      "Wszystkie arkusze ze wszystkich przedmiotów pojawią się znów jako dostępne.",
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Wyzeruj",
+          style: "destructive",
+          onPress: () =>
+            void run("all", "reset", async () => {
+              await api("/admin/exams/reset-all-my-attempts", {
+                method: "POST",
+              });
+              await load();
+            }),
+        },
+      ],
+    );
+
+  // ── drobne elementy UI ────────────────────────────────────────────────────
+  const Chip = ({
+    label,
+    active,
+    onPress,
+  }: {
+    label: string;
+    active: boolean;
+    onPress: () => void;
+  }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: active ? colors.brand[500] : theme.cardBorder,
+        backgroundColor: active ? colors.brand[500] + "1A" : "transparent",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 10,
+          fontWeight: "700",
+          color: active ? colors.brand[500] : theme.textTertiary,
+        }}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const Action = ({
+    label,
+    onPress,
+    tone = "neutral",
+    disabled,
+  }: {
+    label: string;
+    onPress: () => void;
+    tone?: "neutral" | "brand" | "warn" | "danger";
+    disabled?: boolean;
+  }) => {
+    const tint =
+      tone === "brand"
+        ? colors.brand[500]
+        : tone === "warn"
+          ? "#f59e0b"
+          : tone === "danger"
+            ? colors.red[500]
+            : theme.textSecondary;
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        style={{
+          paddingHorizontal: 9,
+          paddingVertical: 5,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: tint + "55",
+          backgroundColor: tint + "12",
+          opacity: disabled ? 0.4 : 1,
+        }}
+      >
+        <Text style={{ fontSize: 10, fontWeight: "700", color: tint }}>
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -119,8 +319,7 @@ export function AdminExamList({ onOpen }: Props) {
       >
         <Text style={{ fontSize: 14 }}>📄</Text>
         <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
-          Arkusze — wszystkie
-          {exams.length > 0 ? ` (${exams.length})` : ""}
+          Arkusze — wszystkie{exams.length > 0 ? ` (${exams.length})` : ""}
         </Text>
         <Text
           style={{
@@ -181,19 +380,111 @@ export function AdminExamList({ onOpen }: Props) {
                   paddingVertical: 8,
                   fontSize: 13,
                   color: theme.text,
-                  marginBottom: 10,
+                  marginBottom: 8,
                 }}
               />
 
-              {filtered.length === 0 && (
-                <Text style={{ fontSize: 12, color: theme.textTertiary }}>
-                  Nic nie pasuje do „{query}".
-                </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  marginBottom: 8,
+                }}
+              >
+                <Chip
+                  label="Wszystkie"
+                  active={level === "all" && activeOnly === "all"}
+                  onPress={() => {
+                    setLevel("all");
+                    setActiveOnly("all");
+                  }}
+                />
+                <Chip
+                  label="PP"
+                  active={level === "PODSTAWOWY"}
+                  onPress={() =>
+                    setLevel(level === "PODSTAWOWY" ? "all" : "PODSTAWOWY")
+                  }
+                />
+                <Chip
+                  label="PR"
+                  active={level === "ROZSZERZONY"}
+                  onPress={() =>
+                    setLevel(level === "ROZSZERZONY" ? "all" : "ROZSZERZONY")
+                  }
+                />
+                <Chip
+                  label="Aktywne"
+                  active={activeOnly === "active"}
+                  onPress={() =>
+                    setActiveOnly(activeOnly === "active" ? "all" : "active")
+                  }
+                />
+                <Chip
+                  label="Nieaktywne"
+                  active={activeOnly === "inactive"}
+                  onPress={() =>
+                    setActiveOnly(activeOnly === "inactive" ? "all" : "inactive")
+                  }
+                />
+              </View>
+
+              {subjects.length > 1 && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 6,
+                    marginBottom: 10,
+                  }}
+                >
+                  <Chip
+                    label="Wszystkie przedmioty"
+                    active={subject === "all"}
+                    onPress={() => setSubject("all")}
+                  />
+                  {subjects.map(([name, icon]) => (
+                    <Chip
+                      key={name}
+                      label={`${icon} ${name}`}
+                      active={subject === name}
+                      onPress={() =>
+                        setSubject(subject === name ? "all" : name)
+                      }
+                    />
+                  ))}
+                </View>
               )}
 
-              {filtered.slice(0, 60).map((exam) => (
+              <TouchableOpacity
+                onPress={resetAllMine}
+                style={{ alignSelf: "flex-start", marginBottom: 8 }}
+              >
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "700",
+                    color: "#8b5cf6",
+                  }}
+                >
+                  🔄 Wyzeruj wszystkie moje podejścia
+                </Text>
+              </TouchableOpacity>
+
+              <Text
+                style={{
+                  fontSize: 10,
+                  color: theme.textTertiary,
+                  marginBottom: 4,
+                }}
+              >
+                {filtered.length} z {exams.length}
+              </Text>
+
+              {filtered.slice(0, 60).map((e) => (
                 <View
-                  key={exam.id}
+                  key={e.id}
                   style={{
                     paddingVertical: 10,
                     borderTopWidth: 1,
@@ -212,7 +503,7 @@ export function AdminExamList({ onOpen }: Props) {
                         width: 7,
                         height: 7,
                         borderRadius: 4,
-                        backgroundColor: exam.isActive
+                        backgroundColor: e.isActive
                           ? "#10b981"
                           : theme.textTertiary,
                       }}
@@ -226,35 +517,50 @@ export function AdminExamList({ onOpen }: Props) {
                         color: theme.text,
                       }}
                     >
-                      {exam.title}
+                      {e.title}
                     </Text>
                     <Text style={{ fontSize: 10, color: theme.textTertiary }}>
-                      {exam.level === "ROZSZERZONY" ? "PR" : "PP"}
+                      {e.level === "ROZSZERZONY" ? "PR" : "PP"}
                     </Text>
                   </View>
+
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: theme.textTertiary,
+                      marginTop: 3,
+                    }}
+                  >
+                    {e.subject?.name || e.subjectId || "—"}
+                    {e.maxPoints ? ` · ${e.maxPoints} pkt` : ""}
+                    {e.timeMinutes ? ` · ${e.timeMinutes} min` : ""}
+                    {typeof e.attemptCount === "number"
+                      ? ` · ${e.attemptCount} podejść`
+                      : ""}
+                    {typeof e.avgScore === "number"
+                      ? ` · śr. ${Math.round(e.avgScore)}%`
+                      : ""}
+                  </Text>
 
                   <View
                     style={{
                       flexDirection: "row",
+                      flexWrap: "wrap",
                       alignItems: "center",
-                      gap: 8,
-                      marginTop: 6,
+                      gap: 6,
+                      marginTop: 8,
                     }}
                   >
-                    <Text style={{ fontSize: 10, color: theme.textTertiary }}>
-                      {exam.subject?.name || exam.subjectId || "—"}
-                    </Text>
-
                     <TouchableOpacity
-                      onPress={() => copyId(exam.id)}
+                      onPress={() => copyId(e.id)}
                       style={{
                         paddingHorizontal: 8,
-                        paddingVertical: 3,
+                        paddingVertical: 4,
                         borderRadius: 8,
                         borderWidth: 1,
                         borderStyle: "dashed",
                         borderColor:
-                          copiedId === exam.id ? "#10b981" : theme.cardBorder,
+                          copiedId === e.id ? "#10b981" : theme.cardBorder,
                       }}
                     >
                       <Text
@@ -262,37 +568,55 @@ export function AdminExamList({ onOpen }: Props) {
                           fontSize: 10,
                           fontWeight: "700",
                           color:
-                            copiedId === exam.id
-                              ? "#10b981"
-                              : theme.textTertiary,
+                            copiedId === e.id ? "#10b981" : theme.textTertiary,
                         }}
                       >
-                        {copiedId === exam.id
+                        {copiedId === e.id
                           ? "✓ ID skopiowane"
-                          : `⧉ …${exam.id.slice(-8)}`}
+                          : `⧉ …${e.id.slice(-8)}`}
                       </Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      onPress={() => onOpen(exam.id)}
-                      style={{
-                        marginLeft: "auto",
-                        paddingHorizontal: 10,
-                        paddingVertical: 4,
-                        borderRadius: 8,
-                        backgroundColor: colors.brand[500],
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          fontWeight: "800",
-                          color: "#fff",
-                        }}
-                      >
-                        Otwórz →
-                      </Text>
-                    </TouchableOpacity>
+                    <Action
+                      label="Otwórz →"
+                      tone="brand"
+                      onPress={() => onOpen(e.id)}
+                    />
+                    <Action
+                      label={
+                        busy === e.id + "active"
+                          ? "…"
+                          : e.isActive
+                            ? "Deaktywuj"
+                            : "Aktywuj"
+                      }
+                      tone="warn"
+                      disabled={busy === e.id + "active"}
+                      onPress={() => void toggleActive(e)}
+                    />
+                    <Action
+                      label={
+                        busy === e.id + "visuals" ? "Rysuję…" : "Grafiki"
+                      }
+                      disabled={busy === e.id + "visuals"}
+                      onPress={() => void generateVisuals(e)}
+                    />
+                    <Action
+                      label={e.reviewedByAdmin ? "✅ Sprawdzony" : "⬜ Sprawdź"}
+                      disabled={busy === e.id + "review"}
+                      onPress={() => void toggleReviewed(e)}
+                    />
+                    <Action
+                      label="🔄 Moje podejścia"
+                      disabled={busy === e.id + "reset"}
+                      onPress={() => resetMine(e)}
+                    />
+                    <Action
+                      label="Usuń"
+                      tone="danger"
+                      disabled={busy === e.id + "delete"}
+                      onPress={() => remove(e)}
+                    />
                   </View>
                 </View>
               ))}
@@ -305,7 +629,8 @@ export function AdminExamList({ onOpen }: Props) {
                     marginTop: 10,
                   }}
                 >
-                  Pokazane 60 z {filtered.length} — zawęź wyszukiwaniem.
+                  Pokazane 60 z {filtered.length} — zawęź filtrem lub
+                  wyszukiwaniem.
                 </Text>
               )}
             </>
