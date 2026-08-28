@@ -1223,10 +1223,15 @@ function TextSourceMaterial({ mat, theme, isDark }: MaterialProps) {
 
 // ── Main dispatcher ────────────────────────────────────────────────────────
 
-// Typy wizualne (historia) — wszystkie idą do ImageMaterial
+// Typy wizualne (historia + WOS) — wszystkie idą do ImageMaterial.
+// cartoon/poster/infographic brakowało: karykatury i plakaty z historii
+// spadały do widoku ogólnego, a WOS-owe w ogóle nie miały gdzie trafić.
 const IMAGE_TYPES = new Set([
   "image",
   "photo",
+  "cartoon",
+  "poster",
+  "infographic",
   "painting",
   "historical_map",
   "map", // generic
