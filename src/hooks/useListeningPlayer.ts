@@ -67,6 +67,25 @@ export function useListeningPlayer({
   // Cleanup przy odmontowaniu
   useEffect(() => destroyPlayer, [destroyPlayer]);
 
+  // Zmiana nagrania = przejście do innego zadania. Sam cleanup przy
+  // odmontowaniu tu nie wystarcza: przechodząc między zadaniami React
+  // REUŻYWA tego samego komponentu (zmienia się tylko `task`), więc nic się
+  // nie odmontowuje i nagranie z poprzedniego zadania grało dalej w tle.
+  // Licznik odsłuchów też startuje od zera, bo dotyczy konkretnego nagrania.
+  const prevSrcRef = useRef(src);
+  useEffect(() => {
+    if (prevSrcRef.current === src) return;
+    prevSrcRef.current = src;
+    destroyPlayer();
+    countedRef.current = false;
+    busyRef.current = false;
+    setPlayCount(0);
+    setLoading(false);
+    setError(null);
+    setPositionMs(0);
+    setDurationMs(initialDurationMs || 0);
+  }, [src, destroyPlayer, initialDurationMs]);
+
   const canStart = playCount < maxPlays && !disabled && !!src;
 
   const armWatchdog = useCallback(() => {

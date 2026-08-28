@@ -173,6 +173,38 @@ export function normalizeEnglishContent(type: string, raw: any): any {
           c.texts = splitLabeledTexts(c.passage);
         }
       }
+      // Wariant PP/PR z dwiema częściami: dopasowanie zdań do tekstów
+      // (matchingQuestions) i uzupełnianie polskiego streszczenia
+      // (fillQuestions). Renderer czyta wyłącznie `items` i rozpoznaje typ po
+      // obecności `options`, więc bez tego mapowania widok kończył się na
+      // ostatnim tekście — samo czytanie, bez czego odpowiadać.
+      if (
+        !c.items?.length &&
+        (Array.isArray(c.matchingQuestions) || Array.isArray(c.fillQuestions))
+      ) {
+        const options = (c.texts || []).map((t: any) => ({
+          id: String(t.id ?? ""),
+          text: t.title ? `${t.id} — ${t.title}` : String(t.id ?? ""),
+        }));
+        const matching = (c.matchingQuestions || []).map((m: any) => ({
+          id: String(m.id ?? ""),
+          type: "mcq",
+          question: m.statement ?? m.text ?? "",
+          options,
+        }));
+        const fill = (c.fillQuestions || []).map((f: any) => {
+          const before = String(f.contextBefore ?? "").trim();
+          const after = String(f.contextAfter ?? "").trim();
+          // Bez kontekstu zostaje samo „5.4." — uczeń nie wie, czego szukać.
+          const prompt = [before, "______", after].filter(Boolean).join(" ");
+          return {
+            id: String(f.id ?? ""),
+            type: "open",
+            question: prompt.trim(),
+          };
+        });
+        c.items = [...matching, ...fill];
+      }
       break;
     }
     case "open_cloze": {
