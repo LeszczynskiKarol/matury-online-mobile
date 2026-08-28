@@ -2354,7 +2354,18 @@ export function GermanTaskRenderer(props: RenderProps) {
 
   // Use of language
   if (t === "mini_dialogues") return <MiniDialogues {...props} />;
-  if (t === "both_sentences") return <BothSentences {...props} />;
+  if (t === "both_sentences") {
+    // Generator podpina pod ten typ także zwykłe luki jednozdaniowe (samo
+    // `text`, bez opcji). BothSentences rysuje wyłącznie pary zdań z
+    // wariantami do zaznaczenia, więc taki wariant zostawał bez pola.
+    const rows = [
+      ...(Array.isArray(props.task.content?.items) ? props.task.content.items : []),
+      ...(Array.isArray(props.task.content?.sentences) ? props.task.content.sentences : []),
+    ];
+    const hasChoices = rows.some((r: any) => r && (r.options || r.sentence1));
+    if (!hasChoices) return <Transformation {...props} />;
+    return <BothSentences {...props} />;
+  }
   if (t === "open_cloze" || t === "word_formation")
     return <OpenCloze {...props} />;
   // mcq_cloze to wybór wariantu, nie wpisywanie: OpenCloze renderuje same

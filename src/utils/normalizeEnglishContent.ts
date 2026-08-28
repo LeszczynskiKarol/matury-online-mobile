@@ -9,7 +9,13 @@
 // mobile nie). Idempotentna: kanoniczne kształty przechodzą bez zmian.
 // LUSTRA tej logiki: web AngielskiTaskRenderers.tsx + backend
 // angielski-exam-grading.ts — zmieniając jedno, zmień pozostałe.
-// Typy _de trafiają w `default` i wracają nietknięte.
+//
+// UWAGA (28.08.2026): ten plik ujednolica dane w DWIE strony. Web czyta
+// `text`/`gaps`/`originalSentence`, a renderery mobilne
+// (NiemieckiTaskRenderers.tsx) czytają `question`/`passage`/`blanks`/`prompt`.
+// Sam port z weba zostawiał angielskie zadania bez pytań i tekstów, bo te
+// przychodzą już w kształcie webowym. Typy `_de` wchodzą do tego samego
+// switcha (sufiks jest zdejmowany). Bramka: scripts/check-exam-shapes.ts.
 // ============================================================================
 
 // Rozbija tekst z markerami "4.1.\n…\n4.2.\n…" na akapity [{id,text}].
@@ -55,15 +61,46 @@ function labeledOption(o: any, i: number): { id: string; text: string } {
   return m ? { id: m[1], text: m[2].trim() } : { id: String(i), text: str };
 }
 
+/**
+ * Renderery szukają luk wzorcem `7.1. ____`. Generator zapisuje je też jako
+ * `[7.1] ____`, `(7.1) ____` albo `7.1 ____` — bez ujednolicenia luka
+ * jest w tekście, ale nie ma przy niej pola do wpisania.
+ */
+function canonGapMarkers(text: unknown): string {
+  if (typeof text !== "string") return "";
+  return text.replace(/[\[(]?(\d+(?:\.\d+)?)[\])]?\.?\s*(_{3,})/g, "$1. $2");
+}
+
 export function normalizeEnglishContent(type: string, raw: any): any {
   if (!raw || typeof raw !== "object") return raw;
   const c: any = { ...raw };
   // Warianty niemieckie mają DOKŁADNIE te same rozjazdy kształtu co angielskie,
   // a wpadały w `default` i wracały nietknięte — przez co zadania renderowały
   // się bez sekcji odpowiedzi (sam odtwarzacz, luki bez fragmentów).
-  switch (type.replace(/_de$/, "")) {
+  const key = type
+    .replace(/_de$/, "")
+    .replace(/^writing_(eng|de)_pr$/, "writing_pr")
+    .replace(/^writing_(eng|de)$/, "writing");
+  switch (key) {
     case "listening_mcq":
     case "listening_mcq_pr": {
+      // Wariant z texts[]: pytanie siedzi pod `text`, renderer czyta
+      // `question` — na ekranie zostawał sam numer „2.1" nad opcjami.
+      if (Array.isArray(c.texts)) {
+        c.texts = c.texts.map((tx: any, i: number) => ({
+          ...tx,
+          label:
+            tx.label ??
+            (tx.title ? tx.title : `Tekst ${String(tx.id ?? i + 1).replace(/^text/i, "")}`),
+          questions: Array.isArray(tx.questions)
+            ? tx.questions.map((q: any) => ({
+                ...q,
+                question: q.question ?? q.text ?? q.statement ?? "",
+                options: Array.isArray(q.options) ? q.options.map(labeledOption) : q.options,
+              }))
+            : tx.questions,
+        }));
+      }
       // Renderer czyta texts[].questions[]; generator bywa, że daje płaskie
       // items[] (wszystkie pytania do wszystkich nagrań naraz).
       const hasTexts =
@@ -88,8 +125,19 @@ export function normalizeEnglishContent(type: string, raw: any): any {
       c.questions = src.map((q: any) => ({
         ...q,
         text: q.text ?? q.question ?? "",
+        // renderer mobilny czyta `question`, web czyta `text` — trzymamy oba
+        question: q.question ?? q.text ?? q.statement ?? "",
+        options: Array.isArray(q.options) ? q.options.map(labeledOption) : q.options,
       }));
+      if (Array.isArray(c.items) && c.items.length)
+        c.items = c.items.map((q: any) => ({
+          ...q,
+          question: q.question ?? q.text ?? q.statement ?? "",
+          options: Array.isArray(q.options) ? q.options.map(labeledOption) : q.options,
+        }));
       c.text = c.text ?? c.passage ?? "";
+      c.passage = c.passage ?? c.text ?? "";
+      c.textTitle = c.textTitle ?? c.title;
       break;
     }
     case "reading_gapped_text":
@@ -106,7 +154,8 @@ export function normalizeEnglishContent(type: string, raw: any): any {
           )
         : src;
       c.sentences = c.fragments;
-      c.textWithGaps = c.textWithGaps ?? c.passage ?? "";
+      c.textWithGaps = canonGapMarkers(c.textWithGaps ?? c.passage ?? "");
+      c.passage = c.textWithGaps;
       break;
     }
     case "reading_paragraph_match": {
@@ -147,6 +196,25 @@ export function normalizeEnglishContent(type: string, raw: any): any {
         id: p.id,
         text: p.text ?? p.content ?? "",
       }));
+      // renderer ReadingHeadingMatch czyta `sections` (albo `texts`) — po
+      // samym `paragraphs` rysował nagłówki A–F i ani jednego akapitu
+      if (!Array.isArray(c.sections) || !c.sections.length) c.sections = c.paragraphs;
+      c.textTitle = c.textTitle ?? c.title;
+      break;
+    }
+    case "writing": {
+      // Bez `topics` renderer bierze brief z contentu i czyta scenario /
+      // bulletPoints / form / signOff — angielskie zadanie PP trzyma to pod
+      // situationPL / bulletPointsPL / startingSentence, więc pokazywała się
+      // sama forma („W blogu do kolegi") bez treści polecenia.
+      if (!Array.isArray(c.topics) || !c.topics.length) {
+        const start = c.startingSentence
+          ? "\n\nZacznij od: „" + c.startingSentence + "”"
+          : "";
+        c.scenario = c.scenario ?? (c.situationPL ? c.situationPL + start : c.topic);
+        c.bulletPoints = c.bulletPoints ?? c.bulletPointsPL ?? c.bullets ?? [];
+        c.wordCount = c.wordCount ?? c.wordLimit;
+      }
       break;
     }
     case "reading_two_texts": {
@@ -175,6 +243,7 @@ export function normalizeEnglishContent(type: string, raw: any): any {
       break;
     }
     case "mcq_cloze": {
+      c.passage = canonGapMarkers(c.passage ?? c.text ?? "");
       // Warianty odpowiedzi przychodzą jako "A. geschenkt" — bez rozbicia na
       // literę i treść renderer numerowałby je pozycyjnie (0,1,2), a klucz
       // odpowiedzi mówi "A".
@@ -192,6 +261,15 @@ export function normalizeEnglishContent(type: string, raw: any): any {
       // Renderer transformacji czyta `prompt`; tutaj treścią zadania są trzy
       // zdania, do których pasuje jeden wyraz — bez tego zostawał sam numer
       // i puste pole.
+      if (!Array.isArray(c.items) || !c.items.length) {
+        const simple = Array.isArray(c.simpleItems) && c.simpleItems.length
+          ? c.simpleItems
+          : Array.isArray(c.sentences) ? c.sentences : [];
+        c.items = simple.map((it: any) => ({
+          ...it,
+          prompt: it.prompt ?? it.sentence ?? it.text ?? "",
+        }));
+      }
       if (Array.isArray(c.items)) {
         c.items = c.items.map((it: any) => ({
           ...it,
@@ -200,20 +278,31 @@ export function normalizeEnglishContent(type: string, raw: any): any {
             (Array.isArray(it.sentences) ? it.sentences.join("\n") : ""),
         }));
       }
+      // renderery Transformation/BothSentences sklejaja items z sentences — po zbudowaniu items stare sentences dublowalyby wiersze (drugi raz puste)
+      c.sentences = [];
       break;
     }
     case "sentence_transform_pr":
     case "sentence_transform": {
       // Para zdań: wyjściowe + docelowe z luką. Renderer pokazuje `prompt`.
-      if (Array.isArray(c.items)) {
-        c.items = c.items.map((it: any) => ({
+      {
+        // wariant z samymi `sentences` (2 arkusze) — bez tego zostawal pusty
+        const src = Array.isArray(c.items) && c.items.length
+          ? c.items
+          : Array.isArray(c.sentences) ? c.sentences : [];
+        c.items = src.map((it: any) => ({
           ...it,
           prompt:
             it.prompt ??
-            [it.sourceSentence, it.targetSentence].filter(Boolean).join("\n"),
-          hint: it.hint ?? it.givenWords ?? "",
+            // wariant `sentences` ma `original`; pusty string ze sklejenia
+            // przeszedłby przez `??` w rendererze i zasłonił to pole
+            ([it.sourceSentence, it.targetSentence].filter(Boolean).join("\n") ||
+              (it.original ?? it.sentence ?? it.text ?? "")),
+          hint: it.hint ?? it.givenWords ?? it.keyword ?? "",
         }));
       }
+      // renderery Transformation/BothSentences sklejaja items z sentences — po zbudowaniu items stare sentences dublowalyby wiersze (drugi raz puste)
+      c.sentences = [];
       break;
     }
     case "reading_mixed": {
@@ -247,8 +336,12 @@ export function normalizeEnglishContent(type: string, raw: any): any {
       // ostatnim tekście — samo czytanie, bez czego odpowiadać.
       if (
         !c.items?.length &&
-        (Array.isArray(c.matchingQuestions) || Array.isArray(c.fillQuestions))
+        (Array.isArray(c.matchingQuestions) ||
+          Array.isArray(c.fillQuestions) ||
+          Array.isArray(c.fillGaps))
       ) {
+        // Notatka z lukami (EN: fillContext) idzie nad pytania jako passage.
+        if (!c.passage && typeof c.fillContext === "string") c.passage = c.fillContext;
         const options = (c.texts || []).map((t: any) => ({
           id: String(t.id ?? ""),
           text: t.title ? `${t.id} — ${t.title}` : String(t.id ?? ""),
@@ -259,11 +352,14 @@ export function normalizeEnglishContent(type: string, raw: any): any {
           question: m.statement ?? m.text ?? "",
           options,
         }));
-        const fill = (c.fillQuestions || []).map((f: any) => {
+        const fill = (c.fillQuestions || c.fillGaps || []).map((f: any) => {
           const before = String(f.contextBefore ?? "").trim();
           const after = String(f.contextAfter ?? "").trim();
           // Bez kontekstu zostaje samo „5.4." — uczeń nie wie, czego szukać.
-          const prompt = [before, "______", after].filter(Boolean).join(" ");
+          // Gdy kontekstu nie ma (EN fillGaps), luka jest w notatce wyżej.
+          const prompt = before || after
+            ? [before, "______", after].filter(Boolean).join(" ")
+            : "Luka " + f.id + (f.maxWords ? " (maks. " + f.maxWords + " wyr.)" : "");
           return {
             id: String(f.id ?? ""),
             type: "open",
@@ -275,7 +371,7 @@ export function normalizeEnglishContent(type: string, raw: any): any {
       break;
     }
     case "open_cloze": {
-      const src = c.gaps || c.blanks || [];
+      const src = c.gaps || c.blanks || c.items || [];
       c.gaps = src.map((g: any) => ({
         ...g,
         correctAnswers:
@@ -283,12 +379,50 @@ export function normalizeEnglishContent(type: string, raw: any): any {
           (g.correctAnswer != null ? [g.correctAnswer] : []),
       }));
       c.text = c.text ?? c.passage ?? "";
+      // renderer OpenCloze czyta `passage` i `blanks` — bez tego tekst z lukami
+      // w ogóle się nie pokazywał
+      c.passage = canonGapMarkers(c.passage ?? c.text ?? "");
+      c.blanks = Array.isArray(c.blanks) && c.blanks.length ? c.blanks : c.gaps;
+      break;
+    }
+    case "word_formation": {
+      // Uczeń musi widzieć wyraz bazowy przy każdej luce — renderer OpenCloze
+      // rysuje same pola, więc doklejamy go do markera luki w tekście.
+      const items = Array.isArray(c.items) ? c.items : [];
+      let passage = String(c.passage ?? c.text ?? "");
+      for (const it of items) {
+        const base = it.baseWord ?? it.hint ?? it.word;
+        if (!base || !it.id) continue;
+        const escaped = String(it.id).replace(/[.]/g, "\\.");
+        const re = new RegExp("(" + escaped + "\\.?\\s*_{3,})");
+        passage = passage.replace(re, "$1 (" + String(base).toUpperCase() + ")");
+      }
+      if (Array.isArray(c.wordBox) && c.wordBox.length)
+        passage = "Wyrazy: " + c.wordBox.join(", ") + "\n\n" + passage;
+      c.passage = passage;
+      c.blanks = Array.isArray(c.blanks) && c.blanks.length ? c.blanks : items;
+      break;
+    }
+    case "sentence_completion_pr": {
+      if (Array.isArray(c.items))
+        c.items = c.items.map((it: any) => ({
+          ...it,
+          prompt: it.prompt ?? it.sentence ?? it.gappedSentence ?? "",
+        }));
       break;
     }
     case "transformation": {
       const src = c.items || c.transformations || c.sentences || [];
       c.items = src.map((it: any) => ({
         ...it,
+        // renderer Transformation pokazuje `prompt` i `hint` — zdanie
+        // wyjściowe, zdanie z luką i słowo klucz siedzą w innych polach
+        prompt:
+          it.prompt ??
+          [it.originalSentence ?? it.original, it.gappedSentence ?? it.promptSentence]
+            .filter(Boolean)
+            .join("\n"),
+        hint: it.hint ?? it.keyword ?? it.givenWords ?? "",
         originalSentence: it.originalSentence ?? it.original ?? "",
         keyword: it.keyword ?? it.hint ?? "",
         gappedSentence: it.gappedSentence ?? it.promptSentence ?? "",
@@ -302,17 +436,25 @@ export function normalizeEnglishContent(type: string, raw: any): any {
               ? [it.expectedTransformation]
               : []),
       }));
+      // renderery Transformation/BothSentences sklejaja items z sentences — po zbudowaniu items stare sentences dublowalyby wiersze (drugi raz puste)
+      c.sentences = [];
       break;
     }
     case "both_sentences": {
       const src = c.items || c.pairs || c.sentences || [];
       c.items = src.map((it: any) => ({
         ...it,
+        // Wariant jednozdaniowy (samo `text` z luką, bez opcji) nie jest
+        // „oba zdania" — dispatcher kieruje go do renderera z polem
+        // tekstowym, który czyta `prompt`.
+        prompt: it.prompt ?? (it.sentence1 ? undefined : it.text ?? it.sentence),
         correctAnswers:
           it.correctAnswers ||
           it.acceptableAnswers ||
           (it.correctAnswer != null ? [it.correctAnswer] : []),
       }));
+      // renderery Transformation/BothSentences sklejaja items z sentences — po zbudowaniu items stare sentences dublowalyby wiersze (drugi raz puste)
+      c.sentences = [];
       break;
     }
     case "mini_dialogues": {
@@ -323,7 +465,15 @@ export function normalizeEnglishContent(type: string, raw: any): any {
         if (!context) {
           const setup = d.setup ? `${d.setup}\n` : "";
           const exchanges = d.exchanges || d.exchange;
-          if (Array.isArray(exchanges) && exchanges.length) {
+          if (typeof exchanges === "string" && exchanges.trim()) {
+            context = setup + exchanges;
+          } else if (Array.isArray(d.lines) && d.lines.length) {
+            context =
+              setup +
+              d.lines
+                .map((ln: any) => `${ln.speaker ?? ""}: ${ln.text ?? ln.line ?? ""}`)
+                .join("\n");
+          } else if (Array.isArray(exchanges) && exchanges.length) {
             context =
               setup +
               exchanges
