@@ -23,7 +23,7 @@ import {
   Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -98,9 +98,16 @@ export function SubscriptionScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchStatus();
-  }, []);
+  // useFocusEffect, nie useEffect: anulowanie i zmiana planu dzieją się w
+  // Sklepie Play, czyli POZA aplikacją. Po powrocie ekran musi pokazać stan
+  // z serwera, a nie ten sprzed wyjścia — inaczej user anuluje subskrypcję,
+  // wraca i widzi ją dalej jako aktywną.
+  useFocusEffect(
+    useCallback(() => {
+      void fetchStatus();
+      void refresh();
+    }, [fetchStatus, refresh]),
+  );
 
   // Po udanym zakupie BillingContext odświeża konto — status ekranu musi
   // pójść za tym, inaczej user widzi „Darmowy" mimo opłaconego Premium.
@@ -266,7 +273,17 @@ export function SubscriptionScreen() {
                 <Text
                   style={{ fontSize: 12, color: colors.red[500], marginTop: 2 }}
                 >
-                  Brak aktywnej subskrypcji
+                  {viaPlay
+                    ? "Subskrypcja z Google Play wygasła"
+                    : "Brak aktywnej subskrypcji"}
+                </Text>
+              )}
+              {isPremium && isCancelled && (
+                <Text
+                  style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}
+                >
+                  Anulowana — odnowienie wyłączone, dostęp trwa do końca
+                  opłaconego okresu.
                 </Text>
               )}
             </View>

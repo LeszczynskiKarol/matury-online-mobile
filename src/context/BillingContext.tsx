@@ -160,6 +160,18 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
           body: { productId, purchaseToken },
         });
 
+        // Zakup przypisany do innego konta w aplikacji: to nie jest błąd do
+        // ponawiania. Bez oznaczenia go jako obsłużonego apka próbowałaby go
+        // domknąć przy KAŻDYM starcie i za każdym razem straszyła tym samym
+        // komunikatem — a Play i tak nie odda go innemu użytkownikowi.
+        if (res.reason === "Token przypisany do innego konta") {
+          handled.current.add(purchaseToken);
+          setError(
+            "Ten zakup w Google Play należy do innego konta w aplikacji. Zaloguj się na to konto, na którym kupowałeś, albo napisz do nas — przepniemy dostęp.",
+          );
+          return;
+        }
+
         if (res.granted || res.reason === "Zakup już zaliczony") {
           handled.current.add(purchaseToken);
           // Dopiero teraz zakup może zniknąć z kolejki Play.
