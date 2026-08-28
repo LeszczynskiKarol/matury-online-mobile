@@ -15,6 +15,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { PremiumGate } from "../../components/common/PremiumGate";
+import { AdminExamList } from "../../components/exam/AdminExamList";
 import { colors } from "../../theme/colors";
 import { api } from "../../api/client";
 import {
@@ -769,6 +770,14 @@ export function ExamSelectorScreen() {
               )}
             </>
           )}
+
+          {/* Pełna lista arkuszy — wchodzi także w te nieaktywne i już
+              rozwiązane, których widok ucznia nie pokazuje. */}
+          <AdminExamList
+            onOpen={(examId) =>
+              navigation.navigate("ExamPlay", { examId, subjectId: "" })
+            }
+          />
 
           {/* History link */}
           <TouchableOpacity
