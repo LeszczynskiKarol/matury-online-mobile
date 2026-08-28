@@ -1,6 +1,14 @@
 // ============================================================================
-// Subscription Screen — Stripe checkout via in-app browser
-// Sends source:'mobile' → backend redirects to /api/stripe/mobile-return
+// Subscription Screen — zakupy przez Google Play Billing
+//
+// Zgodność z Payments policy Google Play: apka NIE otwiera zewnętrznego
+// checkoutu ani nie linkuje do płatności na stronie. Wszystko, co kosztuje,
+// idzie przez okno zakupu Play (BillingContext), a subskrypcją kupioną w Play
+// zarządza sam sklep — my pokazujemy tylko odnośnik do jego ustawień.
+//
+// Ceny pochodzą ze sklepu (`priceOf`), nie z kodu: Play przelicza je na walutę
+// i podatek kraju użytkownika, więc zaszyta „49 zł" byłaby nieprawdziwa dla
+// konta spoza Polski i rozjechałaby się z kwotą na ekranie płatności.
 // ============================================================================
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -12,33 +20,38 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
+import { useBilling } from "../../context/BillingContext";
 import { api } from "../../api/client";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { colors } from "../../theme/colors";
-import { spacing, radius } from "../../theme";
+import { spacing } from "../../theme";
+import {
+  SKU_PREMIUM_30DAYS,
+  SKU_PREMIUM_MONTHLY,
+} from "../../billing/products";
 
-const stripeApi = {
+const PLAY_PACKAGE = "pl.matury_online.app";
+const playSubscriptionsUrl = (sku: string) =>
+  `https://play.google.com/store/account/subscriptions?sku=${sku}&package=${PLAY_PACKAGE}`;
+
+const subscriptionApi = {
   status: () =>
     api<{
       isPremium: boolean;
+      provider?: "play" | "stripe";
       subscriptionStatus: string;
       subscriptionEnd: string | null;
       canResume: boolean;
       canCancel: boolean;
     }>("/stripe/status"),
-  checkout: (plan: "subscription" | "one_time") =>
-    api<{ url: string }>("/stripe/checkout", {
-      method: "POST",
-      body: { plan, source: "mobile" }, // ← KEY: tells backend to use mobile-return URL
-    }),
   cancel: () =>
     api<{ message: string; accessUntil: string }>("/stripe/cancel", {
       method: "POST",
@@ -55,7 +68,6 @@ const FEATURES = [
   { icon: "♾️", text: "Nieograniczone pytania" },
   { icon: "🎯", text: "Wybór tematów i lektur" },
   { icon: "🤖", text: "AI ocena wypracowań" },
-  //{ icon: "🔁", text: "Powtórki Spaced Repetition" },
   { icon: "📊", text: "Pełne statystyki i postępy" },
 ];
 
@@ -64,6 +76,7 @@ export function SubscriptionScreen() {
   const { colors: theme } = useTheme();
   const { isPremium, refresh } = useAuth();
   const navigation = useNavigation<any>();
+  const billing = useBilling();
 
   const [status, setStatus] = useState<any>(null);
   const [credits, setCredits] = useState<any>(null);
@@ -74,8 +87,8 @@ export function SubscriptionScreen() {
   const fetchStatus = useCallback(async () => {
     try {
       const [s, c] = await Promise.all([
-        stripeApi.status().catch(() => null),
-        stripeApi.credits().catch(() => null),
+        subscriptionApi.status().catch(() => null),
+        subscriptionApi.credits().catch(() => null),
       ]);
       setStatus(s);
       setCredits(c);
@@ -89,40 +102,18 @@ export function SubscriptionScreen() {
     fetchStatus();
   }, []);
 
+  // Po udanym zakupie BillingContext odświeża konto — status ekranu musi
+  // pójść za tym, inaczej user widzi „Darmowy" mimo opłaconego Premium.
+  useEffect(() => {
+    if (isPremium) void fetchStatus();
+  }, [isPremium, fetchStatus]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchStatus();
     await refresh();
+    await billing.reload();
     setRefreshing(false);
-  };
-
-  const handleCheckout = async (plan: "subscription" | "one_time") => {
-    setLoading(plan);
-    try {
-      const { url } = await stripeApi.checkout(plan);
-      if (url) {
-        // Opens Chrome Custom Tab — after payment, Stripe redirects to
-        // /api/stripe/mobile-return which shows "Zamknij okno" page
-        await WebBrowser.openBrowserAsync(url, {
-          dismissButtonStyle: "close",
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        });
-        // User closed the browser tab → refresh status
-        await fetchStatus();
-        await refresh();
-        const freshStatus = await stripeApi.status().catch(() => null);
-        if (freshStatus?.isPremium) {
-          Alert.alert("🎉 Sukces!", "Masz teraz dostęp Premium. Miłej nauki!");
-        }
-      }
-    } catch (err: any) {
-      Alert.alert(
-        "Błąd",
-        err.message || "Nie udało się utworzyć sesji płatności",
-      );
-    } finally {
-      setLoading(null);
-    }
   };
 
   const handleCancel = () => {
@@ -137,7 +128,7 @@ export function SubscriptionScreen() {
           onPress: async () => {
             setLoading("cancel");
             try {
-              const res = await stripeApi.cancel();
+              const res = await subscriptionApi.cancel();
               Alert.alert(
                 "Anulowano",
                 `Dostęp do ${new Date(res.accessUntil).toLocaleDateString("pl")}`,
@@ -158,7 +149,7 @@ export function SubscriptionScreen() {
   const handleResume = async () => {
     setLoading("resume");
     try {
-      await stripeApi.resume();
+      await subscriptionApi.resume();
       Alert.alert("Wznowiono!", "Subskrypcja aktywna.");
       await fetchStatus();
       await refresh();
@@ -175,8 +166,12 @@ export function SubscriptionScreen() {
       month: "long",
       year: "numeric",
     });
+
   const isCancelled =
     status?.subscriptionStatus === "CANCELLED" && status?.canResume;
+  const viaPlay = status?.provider === "play";
+  const monthlyPrice = billing.priceOf(SKU_PREMIUM_MONTHLY);
+  const oneTimePrice = billing.priceOf(SKU_PREMIUM_30DAYS);
 
   if (fetching)
     return (
@@ -276,7 +271,31 @@ export function SubscriptionScreen() {
               )}
             </View>
           </View>
-          {(status.canCancel || status.subscriptionStatus === "ACTIVE") && (
+
+          {/* Subskrypcją z Play zarządza sklep — własny przycisk „Anuluj"
+              nic by tu nie zrobił, bo nasze API nie ma do niej dostępu. */}
+          {viaPlay && isPremium && (
+            <TouchableOpacity
+              onPress={() =>
+                Linking.openURL(
+                  playSubscriptionsUrl(SKU_PREMIUM_MONTHLY),
+                ).catch(() => {})
+              }
+              style={{ marginTop: 12, paddingVertical: 8, alignItems: "center" }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: colors.brand[500],
+                  fontWeight: "600",
+                }}
+              >
+                Zarządzaj subskrypcją w Google Play →
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {!viaPlay && status.canCancel && (
             <TouchableOpacity
               onPress={handleCancel}
               disabled={loading === "cancel"}
@@ -297,7 +316,7 @@ export function SubscriptionScreen() {
               </Text>
             </TouchableOpacity>
           )}
-          {isCancelled && (
+          {!viaPlay && isCancelled && (
             <Button
               title={
                 loading === "resume" ? "Wznawianie..." : "Wznów subskrypcję"
@@ -322,9 +341,7 @@ export function SubscriptionScreen() {
               marginBottom: 8,
             }}
           >
-            <Text
-              style={{ fontSize: 15, fontWeight: "600", color: theme.text }}
-            >
+            <Text style={{ fontSize: 15, fontWeight: "600", color: theme.text }}>
               Kredyty AI
             </Text>
             <Text style={{ fontSize: 11, color: theme.textTertiary }}>
@@ -393,7 +410,53 @@ export function SubscriptionScreen() {
         </Text>
       </TouchableOpacity>
 
-      {/* Pricing */}
+      {/* Sklep niedostępny — bez tego user widziałby przyciski, które nic
+          nie robią, i nie wiedziałby dlaczego. */}
+      {billing.storeUnavailable && (
+        <Card style={{ marginBottom: 20 }}>
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: theme.text,
+              marginBottom: 6,
+            }}
+          >
+            Sklep Google Play niedostępny
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: theme.textSecondary,
+              marginBottom: 12,
+            }}
+          >
+            Zakupy w aplikacji obsługuje Google Play, a on nie wydał teraz
+            żadnej oferty. Upewnij się, że Sklep Play jest zainstalowany,
+            zaktualizowany i zalogowany na Twoje konto.
+          </Text>
+          <Button
+            title="Spróbuj ponownie"
+            onPress={() => billing.reload()}
+            variant="outline"
+            size="sm"
+          />
+        </Card>
+      )}
+
+      {billing.error && (
+        <Text
+          style={{
+            fontSize: 12,
+            color: colors.red[500],
+            marginBottom: 12,
+          }}
+        >
+          {billing.error}
+        </Text>
+      )}
+
+      {/* Oferta */}
       {(!isPremium ||
         status?.subscriptionStatus === "EXPIRED" ||
         status?.subscriptionStatus === "FREE") && (
@@ -442,12 +505,12 @@ export function SubscriptionScreen() {
               }}
             >
               <Text
-                style={{ fontSize: 36, fontWeight: "800", color: theme.text }}
+                style={{ fontSize: 32, fontWeight: "800", color: theme.text }}
               >
-                49
+                {monthlyPrice ?? "—"}
               </Text>
               <Text style={{ fontSize: 14, color: theme.textSecondary }}>
-                zł/mies.
+                / miesiąc
               </Text>
             </View>
             <View style={{ gap: 8, marginBottom: 20 }}>
@@ -471,12 +534,16 @@ export function SubscriptionScreen() {
             </View>
             <Button
               title={
-                loading === "subscription"
+                billing.pending === SKU_PREMIUM_MONTHLY
                   ? "Otwieranie..."
-                  : "Subskrybuj — 49 zł/mies."
+                  : "Subskrybuj"
               }
-              onPress={() => handleCheckout("subscription")}
-              loading={loading === "subscription"}
+              onPress={() => billing.buy(SKU_PREMIUM_MONTHLY)}
+              loading={billing.pending === SKU_PREMIUM_MONTHLY}
+              disabled={
+                !billing.hasProduct(SKU_PREMIUM_MONTHLY) ||
+                billing.pending !== null
+              }
             />
             <Text
               style={{
@@ -486,14 +553,12 @@ export function SubscriptionScreen() {
                 marginTop: 8,
               }}
             >
-              Karta / Revolut · Anuluj kiedy chcesz
+              Płatność przez Google Play · Anuluj kiedy chcesz
             </Text>
           </Card>
 
           <Card>
-            <Text
-              style={{ fontSize: 18, fontWeight: "700", color: theme.text }}
-            >
+            <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text }}>
               Jednorazowy
             </Text>
             <Text
@@ -514,23 +579,24 @@ export function SubscriptionScreen() {
               }}
             >
               <Text
-                style={{ fontSize: 36, fontWeight: "800", color: theme.text }}
+                style={{ fontSize: 32, fontWeight: "800", color: theme.text }}
               >
-                59
-              </Text>
-              <Text style={{ fontSize: 14, color: theme.textSecondary }}>
-                zł
+                {oneTimePrice ?? "—"}
               </Text>
             </View>
             <View style={{ gap: 8, marginBottom: 20 }}>
               {[
                 "Wszystko z Premium",
                 "Bez subskrypcji",
-                "Karta / Revolut / BLIK",
+                "Płatność przez Google Play",
               ].map((t, i) => (
                 <View
                   key={i}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
                 >
                   <Text style={{ fontSize: 12, color: colors.brand[500] }}>
                     ✓
@@ -543,10 +609,16 @@ export function SubscriptionScreen() {
             </View>
             <Button
               title={
-                loading === "one_time" ? "Otwieranie..." : "Kup dostęp — 59 zł"
+                billing.pending === SKU_PREMIUM_30DAYS
+                  ? "Otwieranie..."
+                  : "Kup dostęp na 30 dni"
               }
-              onPress={() => handleCheckout("one_time")}
-              loading={loading === "one_time"}
+              onPress={() => billing.buy(SKU_PREMIUM_30DAYS)}
+              loading={billing.pending === SKU_PREMIUM_30DAYS}
+              disabled={
+                !billing.hasProduct(SKU_PREMIUM_30DAYS) ||
+                billing.pending !== null
+              }
               variant="outline"
             />
           </Card>

@@ -362,7 +362,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         )}
 
         <Button
-          title="Przejdź na Premium — 49 zł/mies."
+          title="Przejdź na Premium"
           onPress={() => {
             logIntent("GATE_CLICK", mode);
             navigation.getParent()?.navigate("ProfileTab", {

@@ -269,7 +269,7 @@ export function RegisterScreen() {
                 }}
                 onPress={() =>
                   WebBrowser.openBrowserAsync(
-                    "https://www.matury-online.pl/regulamin",
+                    "https://www.matury-online.pl/regulamin?app=1",
                   )
                 }
                 suppressHighlighting
@@ -284,7 +284,7 @@ export function RegisterScreen() {
                 }}
                 onPress={() =>
                   WebBrowser.openBrowserAsync(
-                    "https://www.matury-online.pl/polityka-prywatnosci",
+                    "https://www.matury-online.pl/polityka-prywatnosci?app=1",
                   )
                 }
                 suppressHighlighting

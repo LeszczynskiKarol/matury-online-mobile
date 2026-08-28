@@ -81,8 +81,14 @@ export function FreePanel() {
 
   if (diagnoses === null) return null;
 
-  const openWeb = (path: string) =>
-    WebBrowser.openBrowserAsync(`${API_BASE_URL}${path}`).catch(() => {});
+  // ?app=1 mówi stronie, że otwiera ją aplikacja mobilna — wtedy nie
+  // pokazuje CTA prowadzącego do płatności na stronie. Google Play zabrania
+  // wyprowadzania użytkownika apki do zakupu poza swoim systemem, a diagnoza
+  // to jedyne miejsce, w którym apka w ogóle otwiera przeglądarkę.
+  const openWeb = (path: string) => {
+    const url = `${API_BASE_URL}${path}${path.includes("?") ? "&" : "?"}app=1`;
+    WebBrowser.openBrowserAsync(url).catch(() => {});
+  };
 
   const goExams = () =>
     navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });

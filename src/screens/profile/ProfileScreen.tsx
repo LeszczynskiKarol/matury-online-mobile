@@ -19,9 +19,10 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useEffect, useState } from "react";
-import * as WebBrowser from "expo-web-browser";
 import { api } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { useBilling } from "../../context/BillingContext";
+import { CREDIT_PACKAGES } from "../../billing/products";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -49,7 +50,11 @@ export function ProfileScreen() {
     remaining: number;
     total: number;
   } | null>(null);
-  const [buyingCredits, setBuyingCredits] = useState<string | null>(null);
+  const billing = useBilling();
+  // Który pakiet jest w trakcie kupowania, wie BillingContext — okno Play
+  // potrafi przeżyć zamknięcie tego ekranu, więc lokalny stan i tak by się
+  // rozjechał z rzeczywistością.
+  const buyingCredits = billing.pending;
 
   const handleLogout = () => {
     Alert.alert("Wylogować?", "Czy na pewno chcesz się wylogować?", [
@@ -81,26 +86,15 @@ export function ProfileScreen() {
     }
   }, [isPremium]);
 
-  const handleBuyCredits = async (pkg: string) => {
-    setBuyingCredits(pkg);
-    try {
-      const { url } = await api<{ url: string }>("/stripe/buy-credits", {
-        method: "POST",
-        body: { package: pkg },
-      });
-      if (url) {
-        await WebBrowser.openBrowserAsync(url);
-        // Refresh after return
-        const fresh = await api<{ remaining: number; total: number }>(
-          "/stripe/credits",
-        ).catch(() => null);
-        if (fresh) setCredits(fresh);
-      }
-    } catch (err: any) {
-      Alert.alert("Błąd", err.message || "Nie udało się otworzyć płatności");
-    } finally {
-      setBuyingCredits(null);
-    }
+  // Doładowanie kredytów idzie przez Google Play (produkt konsumowalny) —
+  // po potwierdzeniu zakupu na naszym serwerze BillingContext odświeża konto,
+  // a my dociągamy nowe saldo.
+  const handleBuyCredits = async (sku: string) => {
+    await billing.buy(sku);
+    const fresh = await api<{ remaining: number; total: number }>(
+      "/stripe/credits",
+    ).catch(() => null);
+    if (fresh) setCredits(fresh);
   };
 
   return (
@@ -566,20 +560,17 @@ export function ProfileScreen() {
             Dokup kredyty
           </Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
-            {[
-              { pkg: "credits_200", amount: 200, price: "19 zł", best: false },
-              { pkg: "credits_500", amount: 500, price: "39 zł", best: true },
-              {
-                pkg: "credits_1200",
-                amount: 1200,
-                price: "79 zł",
-                best: false,
-              },
-            ].map((p) => (
+            {CREDIT_PACKAGES.map((c) => ({
+              pkg: c.sku,
+              amount: c.amount,
+              // Cena ze sklepu — Play przelicza ją na walutę kraju konta.
+              price: billing.priceOf(c.sku) ?? "—",
+              best: c.amount === 500,
+            })).map((p) => (
               <TouchableOpacity
                 key={p.pkg}
                 onPress={() => handleBuyCredits(p.pkg)}
-                disabled={buyingCredits !== null}
+                disabled={buyingCredits !== null || !billing.hasProduct(p.pkg)}
                 style={{
                   flex: 1,
                   alignItems: "center",

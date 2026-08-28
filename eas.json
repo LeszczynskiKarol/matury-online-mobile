@@ -35,5 +35,14 @@
   },
   "cli": {
     "requireCommit": true
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "D:/seo-panel/backend/google-sa-key.json",
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    }
   }
 }

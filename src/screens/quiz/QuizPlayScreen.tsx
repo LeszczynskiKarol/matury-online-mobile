@@ -4637,28 +4637,9 @@ function LiveFilterBar({
             </FilterSection>
           )}
 
-          {/* Sources */}
-          {filterOptions.sources.length > 1 && (
-            <FilterSection label="Źródło" theme={theme}>
-              <View style={{ flexDirection: "row", gap: 6 }}>
-                {filterOptions.sources.map((s) => (
-                  <Pill
-                    key={s.source}
-                    active={filters.sources.includes(s.source)}
-                    onPress={() =>
-                      onFiltersChange({
-                        ...filters,
-                        sources: tog(filters.sources, s.source),
-                      })
-                    }
-                    theme={theme}
-                  >
-                    {s.source} ({s.count})
-                  </Pill>
-                ))}
-              </View>
-            </FilterSection>
-          )}
+          {/* Sekcja „Źródło” (PP / PR / egzamin) celowo usunięta: to
+              metadane redakcyjne, nie kryterium nauki — użytkownik ma
+              wybierać temat, typ i poziom, nie pochodzenie zadania. */}
         </View>
       )}
     </View>

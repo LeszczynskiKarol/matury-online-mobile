@@ -187,7 +187,7 @@ export function DashboardScreen() {
             </View>
 
             <Button
-              title="Przejdź na Premium — od 49 zł/mies."
+              title="Przejdź na Premium"
               onPress={() =>
                 navigation.navigate("ProfileTab", { screen: "Subscription" })
               }

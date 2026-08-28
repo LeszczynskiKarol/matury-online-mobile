@@ -21,6 +21,7 @@ import * as Linking from "expo-linking";
 
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
+import { BillingProvider } from "./src/context/BillingContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { navigationRef } from "./src/navigation/navigationRef";
 import { setupNotificationHandlers } from "./src/lib/pushNotifications";
@@ -200,7 +201,9 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
-            <AppInner />
+            <BillingProvider>
+              <AppInner />
+            </BillingProvider>
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>
