@@ -44,10 +44,16 @@ if (!file) {
   process.exit(2);
 }
 
+// Egzamin ósmoklasisty żyje w innej aplikacji (zdaj-angielski) — jego typy
+// zadań nie mają tu rendererów i nie mają ich mieć. Zrzut z prod może je
+// zawierać, więc odpadają tutaj, a nie w SQL-u.
+const OUT_OF_SCOPE_SUBJECTS = new Set(["angielski-osmoklasista"]);
+
 const rows = readFileSync(file, "utf8")
   .split("\n")
   .filter(Boolean)
-  .map((l) => JSON.parse(l));
+  .map((l) => JSON.parse(l))
+  .filter((r) => !OUT_OF_SCOPE_SUBJECTS.has(r.subject));
 
 const ne = (v: any) => typeof v === "string" && v.trim().length > 0;
 const arr = (v: any) => (Array.isArray(v) ? v : []);
