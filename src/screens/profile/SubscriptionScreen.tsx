@@ -47,6 +47,8 @@ const subscriptionApi = {
     api<{
       isPremium: boolean;
       provider?: "play" | "stripe";
+      adminOverride?: boolean;
+      hasPaidAccess?: boolean;
       subscriptionStatus: string;
       subscriptionEnd: string | null;
       canResume: boolean;
@@ -257,25 +259,46 @@ export function SubscriptionScreen() {
                 {isPremium ? "Premium" : "Darmowy"}
                 {isCancelled ? " (anulowana)" : ""}
               </Text>
-              {status.subscriptionEnd && isPremium && (
+              {/* Etykieta ze STATUSU, nie z isPremium: dla administratora
+                  isPremium jest zawsze prawdą, więc wygasła subskrypcja
+                  opisywana była jako „Następna płatność". */}
+              {status.subscriptionEnd &&
+                isPremium &&
+                status.subscriptionStatus !== "EXPIRED" && (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: theme.textSecondary,
+                      marginTop: 2,
+                    }}
+                  >
+                    {isCancelled ? "Wygaśnie" : "Następna płatność"}:{" "}
+                    {formatDate(status.subscriptionEnd)}
+                  </Text>
+                )}
+              {status.subscriptionStatus === "EXPIRED" &&
+                status.subscriptionEnd && (
+                  <Text
+                    style={{ fontSize: 12, color: "#f59e0b", marginTop: 2 }}
+                  >
+                    {viaPlay
+                      ? "Subskrypcja z Google Play wygasła"
+                      : "Subskrypcja wygasła"}
+                    : {formatDate(status.subscriptionEnd)}
+                  </Text>
+                )}
+              {status.adminOverride && (
                 <Text
-                  style={{
-                    fontSize: 12,
-                    color: theme.textSecondary,
-                    marginTop: 2,
-                  }}
+                  style={{ fontSize: 11, color: theme.textTertiary, marginTop: 2 }}
                 >
-                  {isCancelled ? "Wygaśnie" : "Następna płatność"}:{" "}
-                  {formatDate(status.subscriptionEnd)}
+                  Dostęp administratora — niezależny od subskrypcji.
                 </Text>
               )}
-              {!isPremium && (
+              {!isPremium && status.subscriptionStatus !== "EXPIRED" && (
                 <Text
                   style={{ fontSize: 12, color: colors.red[500], marginTop: 2 }}
                 >
-                  {viaPlay
-                    ? "Subskrypcja z Google Play wygasła"
-                    : "Brak aktywnej subskrypcji"}
+                  Brak aktywnej subskrypcji
                 </Text>
               )}
               {isPremium && isCancelled && (
@@ -291,7 +314,7 @@ export function SubscriptionScreen() {
 
           {/* Subskrypcją z Play zarządza sklep — własny przycisk „Anuluj"
               nic by tu nie zrobił, bo nasze API nie ma do niej dostępu. */}
-          {viaPlay && isPremium && (
+          {viaPlay && status.hasPaidAccess && (
             <TouchableOpacity
               onPress={() =>
                 Linking.openURL(
