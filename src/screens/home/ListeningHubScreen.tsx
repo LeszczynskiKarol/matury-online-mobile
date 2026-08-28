@@ -89,9 +89,13 @@ export function ListeningHubScreen() {
           marginBottom: 4,
         }}
       >
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={26} color={theme.text} />
-        </TouchableOpacity>
+        {/* Ekran jest teraz korzeniem własnej zakładki, a nie podstroną
+            dashboardu — wtedy nie ma dokąd wracać i strzałka tylko myli. */}
+        {navigation.canGoBack() && (
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={26} color={theme.text} />
+          </TouchableOpacity>
+        )}
         <Text
           style={{
             fontSize: 26,

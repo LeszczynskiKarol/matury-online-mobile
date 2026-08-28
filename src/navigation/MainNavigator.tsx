@@ -60,6 +60,26 @@ function HomeStackNav() {
   );
 }
 
+// Słuchanie ma własną zakładkę, bo to osobny tryb nauki (nagranie + zadania),
+// a nie podstrona przedmiotu — tak samo jak w panelu na stronie.
+const ListeningStack = createNativeStackNavigator();
+function ListeningStackNav() {
+  const { colors: theme } = useTheme();
+  return (
+    <ListeningStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.background },
+      }}
+    >
+      <ListeningStack.Screen
+        name="ListeningHubTab"
+        component={ListeningHubScreen}
+      />
+    </ListeningStack.Navigator>
+  );
+}
+
 const SubjectsStack = createNativeStackNavigator<SubjectsStackParamList>();
 function SubjectsStackNav() {
   const { colors: theme } = useTheme();
@@ -229,9 +249,19 @@ export function MainNavigator() {
           },
         })}
         options={{
-          tabBarLabel: "Przedmioty",
+          // Trasa zostaje — dashboard nawiguje do niej kafelkiem „Przedmioty" —
+          // ale w dolnym pasku jej nie ma, ustąpiła miejsca Słuchaniu.
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: "none" },
+        }}
+      />
+      <Tab.Screen
+        name="ListeningTab"
+        component={ListeningStackNav}
+        options={{
+          tabBarLabel: "Słuchanie",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="library-outline" size={size} color={color} />
+            <Ionicons name="headset-outline" size={size} color={color} />
           ),
         }}
       />
