@@ -106,7 +106,10 @@ function normalizeOptions(opts: unknown): Array<[string, string]> {
 function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: boolean }) {
   const audioUrl = task.content?.audioUrl;
   const barWidthRef = useRef(0);
-  const maxPlays = 2;
+  // Bez limitu odsłuchów w egzaminie (decyzja 28.08.2026). Dwa odsłuchy jak
+  // na maturze tylko frustrowały przy słabym zasięgu albo gdy uczeń chciał
+  // wrócić do fragmentu — nic nie zyskujemy, pilnując tego w aplikacji.
+  const maxPlays = Number.POSITIVE_INFINITY;
   const {
     playsLeft,
     loaded,
@@ -205,7 +208,7 @@ function AudioBanner({ task, theme, isDark }: { task: any; theme: any; isDark: b
             color: isDark ? "#93c5fd" : "#1e40af",
           }}
         >
-          Pozostało: {playsLeft}/{maxPlays}
+          Bez limitu odsłuchów
         </Text>
       </View>
 
