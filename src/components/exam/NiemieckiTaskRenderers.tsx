@@ -1803,7 +1803,7 @@ function OpenCloze({ task, answers, onAnswer, theme, isDark }: RenderProps) {
   const blanks = Array.isArray(content.blanks) ? content.blanks : [];
 
   if (passage && blanks.length > 0) {
-    const blankIds = blanks.map((b: any) => String(b.id));
+    const blankIds: string[] = blanks.map((b: any) => String(b.id));
     // Obsługujemy 2 typy markerów:
     // 1) {{id}} / {id}  (legacy)
     // 2) "10.1. _____"  (aktualny generator)
@@ -2101,7 +2101,9 @@ function Writing({ task, answers, onAnswer, theme, isDark }: RenderProps) {
             style={{
               fontSize: 10,
               fontWeight: "800",
-              color: theme.textTertiary,
+              // textTertiary to w ciemnym motywie zinc[500] — na ciemnym tle
+              // ten 10-punktowy nagłówek był praktycznie nieczytelny.
+              color: isDark ? theme.textSecondary : theme.textTertiary,
               letterSpacing: 1,
               marginBottom: 8,
             }}
@@ -2148,7 +2150,12 @@ function Writing({ task, answers, onAnswer, theme, isDark }: RenderProps) {
                         color: theme.text,
                       }}
                     >
-                      {t.title || ""}
+                      {t.title ||
+                        (typeof t.promptPL === "string"
+                          ? t.promptPL.length > 90
+                            ? t.promptPL.slice(0, 90).trimEnd() + "…"
+                            : t.promptPL
+                          : "")}
                     </Text>
                     {t.form && (
                       <Text

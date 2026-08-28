@@ -46,10 +46,43 @@ function splitLabeledTexts(
   }));
 }
 
+/** "A. erklaren, warum..." → { id: "A", text: "erklaren, warum..." }. */
+function labeledOption(o: any, i: number): { id: string; text: string } {
+  if (o && typeof o === "object")
+    return { id: String(o.id ?? o.key ?? o.label ?? i), text: String(o.text ?? o.content ?? "") };
+  const str = String(o ?? "");
+  const m = str.match(/^\s*([A-H])[.)]\s+(.*)$/s);
+  return m ? { id: m[1], text: m[2].trim() } : { id: String(i), text: str };
+}
+
 export function normalizeEnglishContent(type: string, raw: any): any {
   if (!raw || typeof raw !== "object") return raw;
   const c: any = { ...raw };
-  switch (type) {
+  // Warianty niemieckie mają DOKŁADNIE te same rozjazdy kształtu co angielskie,
+  // a wpadały w `default` i wracały nietknięte — przez co zadania renderowały
+  // się bez sekcji odpowiedzi (sam odtwarzacz, luki bez fragmentów).
+  switch (type.replace(/_de$/, "")) {
+    case "listening_mcq":
+    case "listening_mcq_pr": {
+      // Renderer czyta texts[].questions[]; generator bywa, że daje płaskie
+      // items[] (wszystkie pytania do wszystkich nagrań naraz).
+      const hasTexts =
+        Array.isArray(c.texts) &&
+        c.texts.some((t: any) => Array.isArray(t?.questions) && t.questions.length);
+      if (!hasTexts && Array.isArray(c.items) && c.items.length) {
+        c.texts = [
+          {
+            id: "1",
+            questions: c.items.map((it: any) => ({
+              id: String(it.id ?? ""),
+              question: it.question ?? it.text ?? "",
+              options: (it.options || []).map(labeledOption),
+            })),
+          },
+        ];
+      }
+      break;
+    }
     case "reading_mcq": {
       const src = c.questions || c.items || [];
       c.questions = src.map((q: any) => ({
@@ -59,9 +92,49 @@ export function normalizeEnglishContent(type: string, raw: any): any {
       c.text = c.text ?? c.passage ?? "";
       break;
     }
-    case "reading_gapped_text": {
-      c.sentences = c.sentences || c.fragments || [];
+    case "reading_gapped_text":
+    case "reading_gapped_text_pr": {
+      const src = c.sentences || c.fragments || [];
+      // Renderer buduje mapę fragmentów po polach id/text; generator dla PR
+      // opisuje je jako label/content, przez co lista do wyboru była pusta
+      // i luk nie dało się wypełnić.
+      c.fragments = Array.isArray(src)
+        ? src.map((f: any, i: number) =>
+            f && typeof f === "object"
+              ? { id: String(f.id ?? f.label ?? i), text: String(f.text ?? f.content ?? "") }
+              : labeledOption(f, i),
+          )
+        : src;
+      c.sentences = c.fragments;
       c.textWithGaps = c.textWithGaps ?? c.passage ?? "";
+      break;
+    }
+    case "reading_paragraph_match": {
+      // Tu kierunek dopasowania jest ODWROTNY niż w heading_match: to zdania
+      // (items) są wierszami, a częściami do wyboru są fragmenty tekstu.
+      // Renderer wyświetla `headings` u góry i pyta o nie przy każdej
+      // `section`, więc mapujemy zdania → sections, części tekstu → headings.
+      const parts =
+        (Array.isArray(c.passage?.parts) && c.passage.parts) ||
+        (Array.isArray(c.parts) && c.parts) ||
+        [];
+      if (parts.length && !c.headings) {
+        c.headings = Object.fromEntries(
+          parts.map((p: any, i: number) => [
+            String(p?.label ?? p?.id ?? i),
+            String(p?.content ?? p?.text ?? ""),
+          ]),
+        );
+      }
+      if (!c.sections?.length && Array.isArray(c.items) && c.items.length) {
+        const stem = typeof c.questionStem === "string" ? c.questionStem.trim() : "";
+        c.sections = c.items.map((it: any) => ({
+          id: String(it.id ?? ""),
+          text: [stem, String(it.question ?? it.text ?? "")]
+            .filter(Boolean)
+            .join(" "),
+        }));
+      }
       break;
     }
     case "reading_heading_match": {
