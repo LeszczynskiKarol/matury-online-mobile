@@ -91,8 +91,8 @@ android {
         applicationId 'pl.matury_online.app'
         minSdk = rootProject.ext.minSdkVersion
         targetSdk = rootProject.ext.targetSdkVersion
-        versionCode 16
-        versionName "1.0.10"
+        versionCode 17
+        versionName "1.0.11"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -103,15 +103,37 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Klucz przesyłania do buildów lokalnych. Domyślne wyjście
+        // `expo prebuild` podpisuje release kluczem DEBUGOWYM — przy budowaniu
+        // przez EAS podmienia go serwer, ale gradlew tego nie robi i Play
+        // odrzuca taki plik (a zakupy Play Billing nie działają w ogóle,
+        // bo Google honoruje je tylko dla instalacji ze sklepu).
+        //
+        // Hasła leżą w android/keystore.properties (gitignore). Gdy pliku nie
+        // ma, release wraca do klucza debugowego: build się uda, ale posłuży
+        // wyłącznie do obejrzenia apki, nie do Play.
+        release {
+            def props = new Properties()
+            def f = rootProject.file('keystore.properties')
+            if (f.exists()) {
+                f.withInputStream { props.load(it) }
+                storeFile file(props['storeFile'])
+                storePassword props['storePassword']
+                keyAlias props['keyAlias']
+                keyPassword props['keyPassword']
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig = signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig = signingConfigs.debug
+            // Klucz przesyłania, gdy jest skonfigurowany; w przeciwnym razie
+            // debugowy — patrz komentarz przy signingConfigs.release.
+            signingConfig = rootProject.file('keystore.properties').exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources = enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
