@@ -15,6 +15,31 @@ import {
   type AudioStatus,
 } from "expo-audio";
 
+// ── Rejestr żywych odtwarzaczy ──────────────────────────────────────────────
+// Jeden aktywny odtwarzacz w całej apce. Bez tego: każde zadanie tworzyło
+// własny player, a `remove()` w expo-audio NIE ucisza natywnego odtwarzacza
+// na Androidzie — nagranie z poprzedniego zadania leciało dalej pod następnym,
+// głosy nakładały się, a STOP (który robił to samo `remove()`) nic nie
+// zmieniał. Każdy player jest tu rejestrowany; `stopAllListeningPlayers()`
+// pauzuje i zwalnia wszystkie — wołane przy tworzeniu nowego, przy zmianie
+// zadania/pytania i przy wyjściu z ekranu.
+const livePlayers = new Set<AudioPlayer>();
+
+function silence(p: AudioPlayer) {
+  // pause() PRZED remove(): samo zwolnienie obiektu zostawia dźwięk grający
+  try {
+    p.pause();
+  } catch {}
+  try {
+    p.remove();
+  } catch {}
+}
+
+export function stopAllListeningPlayers(): void {
+  for (const p of livePlayers) silence(p);
+  livePlayers.clear();
+}
+
 interface Options {
   src: string | null;
   maxPlays: number;
@@ -56,9 +81,8 @@ export function useListeningPlayer({
     const p = playerRef.current;
     playerRef.current = null;
     if (p) {
-      try {
-        p.remove();
-      } catch {}
+      livePlayers.delete(p);
+      silence(p);
     }
     setLoaded(false);
     setIsPlaying(false);
@@ -131,7 +155,11 @@ export function useListeningPlayer({
         interruptionMode: "duckOthers",
       }).catch(() => {});
 
+      // Zawsze jeden aktywny odtwarzacz w apce — ucisz wszystkie inne
+      // (np. z poprzedniego zadania) zanim ruszy nowy.
+      stopAllListeningPlayers();
       const player = createAudioPlayer({ uri: src }, { updateInterval: 400 });
+      livePlayers.add(player);
       playerRef.current = player;
       countedRef.current = false;
 
@@ -173,11 +201,14 @@ export function useListeningPlayer({
     }
   }, [canStart, src, disabled, destroyPlayer, armWatchdog]);
 
+  // STOP = ucisz i wróć na początek; następne PLAY tworzy nowy odtwarzacz od
+  // zera (i liczy się jako kolejny odsłuch). Decyduje ref, nie stan `loaded`
+  // z ostatniego renderu — ten bywał nieświeży i przycisk nic nie robił.
   const handleStop = useCallback(() => {
-    if (!playerRef.current || !loaded) return;
+    if (!playerRef.current) return;
     destroyPlayer();
     setPositionMs(0);
-  }, [loaded, destroyPlayer]);
+  }, [destroyPlayer]);
 
   // frac ∈ [0, 1] — pozycja dotknięcia na pasku
   const seekToFraction = useCallback(

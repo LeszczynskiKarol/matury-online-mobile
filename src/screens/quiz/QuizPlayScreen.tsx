@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { colors } from "../../theme/colors";
+import { stopAllListeningPlayers } from "../../hooks/useListeningPlayer";
 import { ListeningQuestion } from "../../components/quiz/ListeningQuestion";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
 import { processGamificationResponse } from "../../components/common/GamificationToasts";
@@ -130,6 +131,13 @@ export function QuizPlayScreen() {
   const scrollRef = useRef<ScrollView>(null);
   // ── Matching shuffled options (must be top-level hook) ─────────────────
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Ten sam mechanizm co w egzaminie: zmiana pytania i wyjście z quizu
+  // uciszają każdy grający odtwarzacz nagrania.
+  useEffect(() => {
+    stopAllListeningPlayers();
+    return () => stopAllListeningPlayers();
+  }, [currentIndex]);
   const question = questions[currentIndex];
   const matchingShuffledRight = useMemo(() => {
     if (question?.type !== "MATCHING" || !question?.content?.pairs) return [];

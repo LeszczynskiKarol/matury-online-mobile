@@ -28,6 +28,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
+import { stopAllListeningPlayers } from "../../hooks/useListeningPlayer";
 import { MathEditor } from "../../components/exam/MathEditor";
 import {
   isGermanTaskType,
@@ -79,6 +80,15 @@ export function ExamPlayerScreen() {
   const [data, setData] = useState<ExamStartData | null>(null);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [currentTaskId, setCurrentTaskId] = useState("");
+
+  // Nagranie należy do zadania: przejście do poprzedniego/następnego ucisza
+  // wszystko, co gra. Bez tego narrator z zadania 1 leciał pod zadaniem 2,
+  // a kolejne PLAY nakładało na niego drugi głos. Sprzątanie przy
+  // odmontowaniu obsługuje wyjście z egzaminu.
+  useEffect(() => {
+    stopAllListeningPlayers();
+    return () => stopAllListeningPlayers();
+  }, [currentTaskId]);
   const [remainingMs, setRemainingMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState(false);
