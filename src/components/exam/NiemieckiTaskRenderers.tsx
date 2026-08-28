@@ -922,6 +922,14 @@ function ListeningFillDe({ task, answers, onAnswer, theme, isDark }: RenderProps
   return (
     <View>
       <AudioBanner task={task} theme={theme} isDark={isDark} />
+      {/* Transkrypcja należy do nagrania, więc stoi przy odtwarzaczu.
+          Doklejona na końcu lądowała pod polami odpowiedzi, gdzie wygląda
+          jak część zadania. */}
+      <TranscriptPanel
+        transcript={content.transcript || ""}
+        theme={theme}
+        isDark={isDark}
+      />
 
       {templateHasGaps ? (
         <View
@@ -965,31 +973,45 @@ function ListeningFillDe({ task, answers, onAnswer, theme, isDark }: RenderProps
             Luki należy uzupełnić w języku niemieckim.
           </Text>
           <View style={{ gap: 10 }}>
-            {items.map((q: any) => (
-              <View
-                key={q.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: "700",
-                    color: theme.text,
-                    minWidth: 40,
-                  }}
+            {items.map((q: any) => {
+              // Treść pytania bywa pod `questionDE` (warianty _de) — bez tego
+              // zostawał sam numer i puste pole, czyli zadanie nie do
+              // rozwiązania. Pytania bywają długie, więc idą NAD polem.
+              const prompt =
+                q.questionDE ?? q.question ?? q.text ?? q.prompt ?? "";
+              return (
+              <View key={q.id} style={{ gap: 6 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}
                 >
-                  {q.id}
-                </Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "700",
+                      color: theme.text,
+                      minWidth: 34,
+                    }}
+                  >
+                    {q.id}
+                  </Text>
+                  {!!prompt && (
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontSize: 13,
+                        color: theme.text,
+                        lineHeight: 19,
+                      }}
+                    >
+                      {prompt}
+                    </Text>
+                  )}
+                </View>
                 {q.blankLabel && (
                   <Text
                     style={{
                       fontSize: 12,
                       color: theme.textSecondary,
-                      minWidth: 110,
                     }}
                   >
                     {q.blankLabel}:
@@ -1015,16 +1037,11 @@ function ListeningFillDe({ task, answers, onAnswer, theme, isDark }: RenderProps
                   }}
                 />
               </View>
-            ))}
+              );
+            })}
           </View>
         </>
       )}
-
-      <TranscriptPanel
-        transcript={content.transcript || ""}
-        theme={theme}
-        isDark={isDark}
-      />
     </View>
   );
 }
