@@ -2355,8 +2355,12 @@ export function GermanTaskRenderer(props: RenderProps) {
   // Use of language
   if (t === "mini_dialogues") return <MiniDialogues {...props} />;
   if (t === "both_sentences") return <BothSentences {...props} />;
-  if (t === "open_cloze" || t === "mcq_cloze" || t === "word_formation")
+  if (t === "open_cloze" || t === "word_formation")
     return <OpenCloze {...props} />;
+  // mcq_cloze to wybór wariantu, nie wpisywanie: OpenCloze renderuje same
+  // pola tekstowe i nie pokazuje w ogóle opcji A–D. ReadingMcq wyświetla
+  // tekst z lukami i przy każdej luce warianty do zaznaczenia.
+  if (t === "mcq_cloze") return <ReadingMcq {...props} />;
   if (
     t === "transformation" ||
     t === "sentence_completion_pr" ||

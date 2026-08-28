@@ -149,6 +149,73 @@ export function normalizeEnglishContent(type: string, raw: any): any {
       }));
       break;
     }
+    case "reading_two_texts": {
+      // Renderer wypisuje `texts[]`; PR-owy wariant trzyma oba teksty jako
+      // osobne obiekty text1/text2, więc na ekranie nie było ŻADNEGO tekstu,
+      // a pytania odsyłały do „Tekstu 1" i „Tekstu 2".
+      if (!c.texts?.length && (c.text1 || c.text2)) {
+        c.texts = [c.text1, c.text2]
+          .filter(Boolean)
+          .map((t: any, i: number) => ({
+            id: String(i + 1),
+            title: t.title ?? "",
+            text: t.content ?? t.text ?? "",
+          }));
+      }
+      if (Array.isArray(c.items)) {
+        c.items = c.items.map((it: any) => ({
+          ...it,
+          // Pytania otwarte niosą treść w `sentenceWithGap`.
+          question: it.question ?? it.sentenceWithGap ?? "",
+          options: Array.isArray(it.options)
+            ? it.options.map(labeledOption)
+            : it.options,
+        }));
+      }
+      break;
+    }
+    case "mcq_cloze": {
+      // Warianty odpowiedzi przychodzą jako "A. geschenkt" — bez rozbicia na
+      // literę i treść renderer numerowałby je pozycyjnie (0,1,2), a klucz
+      // odpowiedzi mówi "A".
+      if (Array.isArray(c.items)) {
+        c.items = c.items.map((it: any) => ({
+          ...it,
+          options: Array.isArray(it.options)
+            ? it.options.map(labeledOption)
+            : it.options,
+        }));
+      }
+      break;
+    }
+    case "word_three_sentences": {
+      // Renderer transformacji czyta `prompt`; tutaj treścią zadania są trzy
+      // zdania, do których pasuje jeden wyraz — bez tego zostawał sam numer
+      // i puste pole.
+      if (Array.isArray(c.items)) {
+        c.items = c.items.map((it: any) => ({
+          ...it,
+          prompt:
+            it.prompt ??
+            (Array.isArray(it.sentences) ? it.sentences.join("\n") : ""),
+        }));
+      }
+      break;
+    }
+    case "sentence_transform_pr":
+    case "sentence_transform": {
+      // Para zdań: wyjściowe + docelowe z luką. Renderer pokazuje `prompt`.
+      if (Array.isArray(c.items)) {
+        c.items = c.items.map((it: any) => ({
+          ...it,
+          prompt:
+            it.prompt ??
+            [it.sourceSentence, it.targetSentence].filter(Boolean).join("\n"),
+          hint: it.hint ?? it.givenWords ?? "",
+        }));
+      }
+      break;
+    }
     case "reading_mixed": {
       // Wariant `items`+`passage` (mcq+open) — obsługiwany gałęzią renderera,
       // zostaw bez zmian.
