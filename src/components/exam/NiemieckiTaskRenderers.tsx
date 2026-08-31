@@ -761,7 +761,7 @@ function ListeningMcqDe({ task, answers, onAnswer, theme, isDark }: RenderProps)
                     lineHeight: 20,
                   }}
                 >
-                  {q.id}. {q.question}
+                  {q.id}. {q.question ?? q.text ?? q.prompt ?? ""}
                 </Text>
                 <View style={{ gap: 8 }}>
                   {normalizeOptions(q.options).map(([key, val]) => (
@@ -1357,13 +1357,40 @@ function ReadingGappedText({ task, answers, onAnswer, theme, isDark }: RenderPro
   }
   const fragmentKeys = Object.keys(fragmentMap).sort();
 
-  // Wyciągnij gap IDs z passage (markery X.Y. ___ lub X. ___)
+  // Wyciągnij gap IDs z passage. Markery mają kilka formatów, zależnie od
+  // generatora: "7.1. ___", "[7.1]" albo "(7.1)". Wcześniej regex wymagał
+  // podkreśleń, więc zadania z markerami "[7.1]" renderowały się bez ani
+  // jednego pickera i nie dało się ich rozwiązać.
   const passage: string = content.passage || content.textWithGaps || "";
-  const gapRegex = /(\d+(?:\.\d+)?)\.\s*_{3,}/g;
+  const GAP_MARKER =
+    /(\d+(?:\.\d+)?\.\s*_{3,}|\[\s*\d+\.\d+\s*\]|\(\s*\d+\.\d+\s*\))/;
+  const gapIdOf = (part: string): string | null => {
+    const m = part.match(
+      /^(?:\[\s*|\(\s*)?(\d+(?:\.\d+)?)(?:\s*\]|\s*\)|\.\s*_{3,})$/,
+    );
+    return m ? m[1] : null;
+  };
+  const gapRegex = new RegExp(GAP_MARKER.source, "g");
   const gapIds: string[] = [];
   let gm: RegExpExecArray | null;
   while ((gm = gapRegex.exec(passage))) {
-    if (!gapIds.includes(gm[1])) gapIds.push(gm[1]);
+    const id = gapIdOf(gm[1]);
+    if (id && !gapIds.includes(id)) gapIds.push(id);
+  }
+  // Fallback: w trybie LIVE `correctAnswers` bywa wycinane anty-cheatem, a gdy
+  // parsowanie markerów zawiedzie, lepiej pokazać pickery wyliczone z punktacji
+  // niż pustą sekcję.
+  if (!gapIds.length) {
+    const fromKeys = Object.keys(content.correctAnswers || {});
+    const prefix = task.number ?? 7;
+    const count =
+      typeof task.points === "number" && task.points > 0
+        ? task.points
+        : Math.max(fragmentKeys.length - 1, 0);
+    const fb = fromKeys.length
+      ? fromKeys
+      : Array.from({ length: count }, (_, i) => `${prefix}.${i + 1}`);
+    gapIds.push(...fb);
   }
 
   const usedValues = useMemo(() => {
@@ -1386,7 +1413,7 @@ function ReadingGappedText({ task, answers, onAnswer, theme, isDark }: RenderPro
     }
     const lines = passage.split("\n");
     return lines.map((line, li) => {
-      const parts = line.split(/(\d+(?:\.\d+)?\.\s*_{3,})/);
+      const parts = line.split(new RegExp("(" + GAP_MARKER.source + ")"));
       return (
         <View
           key={li}
@@ -1398,9 +1425,9 @@ function ReadingGappedText({ task, answers, onAnswer, theme, isDark }: RenderPro
           }}
         >
           {parts.map((part, i) => {
-            const m = part.match(/^(\d+(?:\.\d+)?)\.\s*_{3,}$/);
-            if (m) {
-              const gid = m[1];
+            const gid0 = gapIdOf(part);
+            if (gid0) {
+              const gid = gid0;
               const cur = answers[gid] || "";
               return (
                 <View
