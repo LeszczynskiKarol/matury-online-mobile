@@ -28,6 +28,12 @@ export interface ExamStartData {
   exam: {
     id: string;
     title: string;
+    // Od 2.09.2026 backend nazywa arkusz wprost — pasek gracza pokazuje
+    // przedmiot i poziom zamiast samego licznika zadań. Pola opcjonalne,
+    // żeby apka działała też ze starszym backendem.
+    subjectName?: string | null;
+    subjectSlug?: string | null;
+    level?: "PODSTAWOWY" | "ROZSZERZONY" | null;
     timeMinutes: number;
     maxPoints: number;
     content: {

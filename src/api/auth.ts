@@ -23,6 +23,9 @@ export interface User {
   currentStreak: number;
   longestStreak: number;
   lastActiveAt: string | null;
+  // Zgoda na maile marketingowe (art. 10 UŚUDE) — dobrowolna, odwoływalna
+  // w profilu. false także dla kont sprzed jej wprowadzenia (2.09.2026).
+  marketingConsent?: boolean;
   selectedSubjects?: {
     subject: {
       id: string;
@@ -59,11 +62,22 @@ export async function register(data: {
   passwordConfirm: string;
   name?: string;
   acceptTerms: boolean;
+  marketingConsent?: boolean;
 }): Promise<RegisterResponse> {
   return api<RegisterResponse>("/auth/register", {
     method: "POST",
     body: data,
     auth: false,
+  });
+}
+
+// ── Zgoda marketingowa ────────────────────────────────────────────────────
+export async function setMarketingConsent(
+  consent: boolean,
+): Promise<{ marketingConsent: boolean }> {
+  return api<{ marketingConsent: boolean }>("/auth/marketing-consent", {
+    method: "PATCH",
+    body: { consent },
   });
 }
 

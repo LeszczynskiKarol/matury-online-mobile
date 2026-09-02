@@ -50,6 +50,9 @@ export function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
+  // Zgoda marketingowa — DOBROWOLNA (art. 10 UŚUDE), domyślnie odznaczona,
+  // niczego nie blokuje. Cofnięcie: profil.
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -101,6 +104,7 @@ export function RegisterScreen() {
         passwordConfirm,
         name: name.trim() || undefined,
         acceptTerms,
+        marketingConsent,
       });
       if (result.requiresVerification) {
         navigation.navigate("Verify", { email: result.email });
@@ -306,6 +310,52 @@ export function RegisterScreen() {
               {errors.terms}
             </Text>
           )}
+
+          {/* Zgoda marketingowa — nieobowiązkowa, ten sam wzorzec co terms */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 10,
+              marginTop: 12,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => setMarketingConsent(!marketingConsent)}
+              style={{ paddingTop: 2 }}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  borderWidth: 2,
+                  borderColor: marketingConsent ? colors.brand[500] : theme.border,
+                  backgroundColor: marketingConsent
+                    ? colors.brand[500]
+                    : "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {marketingConsent && (
+                  <Ionicons name="checkmark" size={14} color="#fff" />
+                )}
+              </View>
+            </TouchableOpacity>
+            <Text
+              style={{
+                flex: 1,
+                fontSize: 13,
+                fontFamily: "DMSans_400Regular",
+                color: theme.textSecondary,
+              }}
+              onPress={() => setMarketingConsent(!marketingConsent)}
+            >
+              Chcę dostawać na e-mail informacje o nowościach i promocjach
+              (dobrowolne — zgodę cofniesz w każdej chwili w profilu)
+            </Text>
+          </View>
 
           <Button
             title="Zarejestruj się"

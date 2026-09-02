@@ -32,6 +32,7 @@ interface AuthContextValue {
     passwordConfirm: string;
     name?: string;
     acceptTerms: boolean;
+    marketingConsent?: boolean;
   }) => Promise<{ requiresVerification: boolean; email: string }>;
   verifyEmail: (email: string, code: string) => Promise<void>;
   loginWithGoogle: (credential: string) => Promise<void>;

@@ -12,7 +12,7 @@ import {
   Image,
 } from "react-native";
 import { getProfile, type ProfileResponse } from "../../api/gamification";
-import { deleteAccount } from "../../api/auth";
+import { deleteAccount, setMarketingConsent } from "../../api/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -44,7 +44,30 @@ export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const { colors: theme, isDark, toggle } = useTheme();
-  const { user, isPremium, logout } = useAuth();
+  const { user, isPremium, logout, refresh } = useAuth();
+  // Zgoda marketingowa — stan lokalny z optymistycznym przełączeniem
+  // i cofnięciem, gdy serwer nie przyjmie. Źródło prawdy: /me.
+  const [mktConsent, setMktConsent] = useState<boolean>(
+    user?.marketingConsent === true,
+  );
+  const [mktSaving, setMktSaving] = useState(false);
+  useEffect(() => {
+    setMktConsent(user?.marketingConsent === true);
+  }, [user?.marketingConsent]);
+  const toggleMktConsent = async () => {
+    if (mktSaving) return;
+    const want = !mktConsent;
+    setMktConsent(want);
+    setMktSaving(true);
+    try {
+      await setMarketingConsent(want);
+      refresh().catch(() => {});
+    } catch {
+      setMktConsent(!want); // serwer nie przyjął — wróć do stanu faktycznego
+    } finally {
+      setMktSaving(false);
+    }
+  };
   const navigation = useNavigation<Nav>();
   const [credits, setCredits] = useState<{
     remaining: number;
@@ -680,6 +703,56 @@ export function ProfileScreen() {
                 borderRadius: 11,
                 backgroundColor: "#fff",
                 alignSelf: isDark ? "flex-end" : "flex-start",
+              }}
+            />
+          </View>
+        </TouchableOpacity>
+
+        {/* Zgoda marketingowa (art. 10 UŚUDE) — to samo miejsce cofnięcia,
+            które obiecuje polityka prywatności. Maile transakcyjne
+            (płatności, kody) przychodzą niezależnie od tej zgody. */}
+        <TouchableOpacity
+          onPress={toggleMktConsent}
+          disabled={mktSaving}
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            paddingHorizontal: spacing[5],
+            paddingVertical: spacing[4],
+            borderBottomWidth: 1,
+            borderBottomColor: theme.borderLight,
+            opacity: mktSaving ? 0.6 : 1,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+            <Ionicons name="mail-outline" size={20} color={theme.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "500", color: theme.text }}>
+                Maile z nowościami i promocjami
+              </Text>
+              <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 2 }}>
+                Dobrowolne — włączasz i wyłączasz kiedy chcesz
+              </Text>
+            </View>
+          </View>
+          <View
+            style={{
+              width: 48,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: mktConsent ? colors.brand[500] : colors.zinc[300],
+              justifyContent: "center",
+              paddingHorizontal: 3,
+            }}
+          >
+            <View
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                backgroundColor: "#fff",
+                alignSelf: mktConsent ? "flex-end" : "flex-start",
               }}
             />
           </View>

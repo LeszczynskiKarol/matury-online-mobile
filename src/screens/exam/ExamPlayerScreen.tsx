@@ -781,6 +781,38 @@ export function ExamPlayerScreen() {
 
           {/* Progress text */}
           <View style={{ flex: 1, alignItems: "center" }}>
+            {/* Który to arkusz: przedmiot + poziom (od backendu 2.09.2026;
+                starszy backend nie przysyła pól — linia po prostu znika).
+                Dwa Texty w rzędzie: przy ciasnym środku paska skraca się
+                NAZWA przedmiotu, a poziom (PP/PR) zostaje zawsze widoczny. */}
+            {data.exam.subjectName ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  maxWidth: "100%",
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flexShrink: 1,
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: theme.text,
+                  }}
+                >
+                  {data.exam.subjectName}
+                </Text>
+                {data.exam.level ? (
+                  <Text
+                    style={{ fontSize: 11, fontWeight: "700", color: theme.text }}
+                  >
+                    {` · ${data.exam.level === "ROZSZERZONY" ? "PR" : "PP"}`}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
             <Text
               style={{
                 fontSize: 12,
