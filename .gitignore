@@ -19,3 +19,10 @@ fcm-service-account.json
 # artefakty buildów — nigdy do repo
 *.apk
 *.aab
+
+# Klucz przesyłania i hasła do buildów lokalnych — nigdy do repo
+android/keystore.properties
+credentials/
+.keystore
+*.jks
+credentials.json
