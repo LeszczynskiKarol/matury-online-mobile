@@ -24,6 +24,7 @@ import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { BillingProvider } from "./src/context/BillingContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { navigationRef } from "./src/navigation/navigationRef";
+import { installAppStateTracking, trackScreen } from "./src/lib/usage";
 import { setupNotificationHandlers } from "./src/lib/pushNotifications";
 import { colors } from "./src/theme/colors";
 
@@ -150,6 +151,9 @@ function AppInner() {
     return () => sub.remove();
   }, [refresh]);
 
+  // Analityka użycia: app_open + heartbeat przy powrocie na pierwszy plan.
+  useEffect(() => installAppStateTracking(), []);
+
   if (isLoading) {
     return (
       <View
@@ -175,6 +179,8 @@ function AppInner() {
       <NavigationContainer
         ref={navigationRef}
         theme={isDark ? navDarkTheme : navLightTheme}
+        onReady={() => trackScreen(navigationRef.getCurrentRoute()?.name)}
+        onStateChange={() => trackScreen(navigationRef.getCurrentRoute()?.name)}
       >
         <RootNavigator />
       </NavigationContainer>

@@ -3,6 +3,12 @@
 // ============================================================================
 
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
+import Constants from "expo-constants";
+
+// Wersja z app.json (bare: trzymana w zgodzie z build.gradle). Idzie w nagłówku
+// X-App-Version, żeby panel widział, ile osób siedzi na starym buildzie.
+const APP_VERSION: string = Constants.expoConfig?.version ?? "unknown";
 
 // ── Konfiguracja ──────────────────────────────────────────────────────────
 // PROD backend — ten sam co web app
@@ -87,6 +93,10 @@ export async function api<T = any>(
     "Content-Type": "application/json",
     Accept: "application/json",
     "X-Client": "matury-mobile", // ← backend może użyć do pominięcia reCAPTCHA
+    // Analityka użycia po stronie serwera (panel admina → Użycie): platforma
+    // i wersja apki idą z nagłówkami, apka nie ma żadnego SDK analitycznego.
+    "X-Platform": Platform.OS,
+    "X-App-Version": APP_VERSION,
   };
 
   if (auth) {
