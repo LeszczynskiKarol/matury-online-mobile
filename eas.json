@@ -40,7 +40,7 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "D:/seo-panel/backend/google-sa-key.json",
-        "track": "internal",
+        "track": "production",
         "releaseStatus": "completed"
       }
     }
