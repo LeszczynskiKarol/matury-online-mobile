@@ -27,6 +27,11 @@ import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/common/ProgressBar";
 import { TrialOfferCard } from "../../components/common/TrialOfferCard";
 import { FreePanel } from "../../components/common/FreePanel";
+import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
+import {
+  getNotifications,
+  type AppNotification,
+} from "../../api/notifications";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 
@@ -42,16 +47,27 @@ export function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [activeExam, setActiveExam] = useState<ActiveExamData | null>(null);
+  // Nieudana płatność Stripe (web). Pobierane razem z resztą; błąd (w tym
+  // 404, gdy backend nie ma jeszcze route'u) po prostu nie pokazuje banera.
+  const [paymentFailed, setPaymentFailed] = useState<AppNotification | null>(
+    null,
+  );
 
   const fetchData = useCallback(async () => {
     try {
-      const [dashboardData, subjectsData, profileData, activeExamData] =
-        await Promise.all([
-          getDashboard().catch(() => null),
-          getSubjects().catch(() => []),
-          getProfile().catch(() => null),
-          getActiveExam().catch(() => null),
-        ]);
+      const [
+        dashboardData,
+        subjectsData,
+        profileData,
+        activeExamData,
+        notificationsData,
+      ] = await Promise.all([
+        getDashboard().catch(() => null),
+        getSubjects().catch(() => []),
+        getProfile().catch(() => null),
+        getActiveExam().catch(() => null),
+        getNotifications().catch(() => null),
+      ]);
       setData(dashboardData);
       setSubjects(subjectsData.filter((s) => s.isActive));
       setProfile(profileData);
@@ -60,6 +76,10 @@ export function DashboardScreen() {
           ? activeExamData
           : null,
       );
+      const list = Array.isArray(notificationsData?.notifications)
+        ? notificationsData!.notifications
+        : [];
+      setPaymentFailed(list.find((n) => n.type === "PAYMENT_FAILED") ?? null);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
@@ -141,6 +161,14 @@ export function DashboardScreen() {
             />
           </TouchableOpacity>
         </View>
+
+        {/* Nieudana płatność — na samej górze, nad ofertą i FreePanel */}
+        {paymentFailed && (
+          <PaymentFailedBanner
+            notification={paymentFailed}
+            onDismissed={() => setPaymentFailed(null)}
+          />
+        )}
 
         {/* Premium CTA */}
         <Card
@@ -403,6 +431,14 @@ export function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Nieudana płatność — nad wszystkim innym, dopóki nie zamknie/opłaci */}
+      {paymentFailed && (
+        <PaymentFailedBanner
+          notification={paymentFailed}
+          onDismissed={() => setPaymentFailed(null)}
+        />
+      )}
 
       {/* ═══ ACTIVE EXAM RESUME — duży amber banner ═══ */}
       {activeExam?.active && !activeExam.expired && (

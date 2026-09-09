@@ -71,6 +71,103 @@ const MODE_CONFIG: Record<
   },
 };
 
+// ── Wariant po wygaśnięciu / nieudanej płatności ─────────────────────────────
+// Ta sama logika co w webowym PremiumGate: PAST_DUE → payment_failed;
+// EXPIRED / CANCELLED|ONE_TIME|ANNUAL po subscriptionEnd → expired.
+// Reszta (FREE, brak statusu) → dotychczasowy gate.
+
+interface StripeStatus {
+  subscriptionStatus?: string | null;
+  subscriptionEnd?: string | null;
+  hasPaidAccess?: boolean;
+  provider?: "play" | "stripe";
+}
+
+type GateVariant =
+  | { kind: "default" }
+  | { kind: "payment_failed" }
+  | { kind: "expired"; daysSince: number | null };
+
+function classifyStatus(st: StripeStatus | null): GateVariant {
+  if (!st) return { kind: "default" };
+  const status = (st.subscriptionStatus ?? "").toUpperCase();
+  const now = Date.now();
+  const endMs = st.subscriptionEnd ? new Date(st.subscriptionEnd).getTime() : NaN;
+  const ended = Number.isFinite(endMs) && endMs < now;
+
+  if (status === "PAST_DUE") return { kind: "payment_failed" };
+  if (
+    status === "EXPIRED" ||
+    ((status === "CANCELLED" || status === "ONE_TIME" || status === "ANNUAL") &&
+      ended)
+  ) {
+    const daysSince = Number.isFinite(endMs)
+      ? Math.floor((now - endMs) / 86_400_000)
+      : null;
+    return { kind: "expired", daysSince };
+  }
+  return { kind: "default" };
+}
+
+function pluralDni(n: number): string {
+  return n === 1 ? "1 dzień" : `${n} dni`;
+}
+
+function maturaBullet(days: number | null, tail = ""): string {
+  if (days === null) return `Do matury coraz bliżej${tail}`;
+  return `Do matury ${days === 1 ? "został" : "zostało"} ${pluralDni(days)}${tail}`;
+}
+
+function variantCopy(
+  v: Exclude<GateVariant, { kind: "default" }>,
+  days: number | null,
+): { headline: string; bullets: string[]; cta: string } {
+  if (v.kind === "payment_failed") {
+    return {
+      headline: "Płatność za Premium nie przeszła",
+      bullets: [
+        "Twoje konto jest w trybie ograniczonym, ale postępy, streak i powtórki czekają nietknięte",
+        "Najczęściej to brak środków na karcie w dniu pobrania — wystarczy opłacić albo zmienić kartę",
+        "Po opłaceniu dostęp wraca od razu",
+      ],
+      cta: "Opłać i wróć do nauki",
+    };
+  }
+  const d = v.daysSince;
+  if (d !== null && d <= 30) {
+    const when = d === 0 ? "dzisiaj" : d === 1 ? "wczoraj" : `${pluralDni(d)} temu`;
+    return {
+      headline: `Twoje Premium wygasło ${when}`,
+      bullets: [
+        "Wszystko zostało: XP, streak, historia sesji i powtórki",
+        "Wznowienie to jedno kliknięcie — bez zakładania konta od nowa",
+        maturaBullet(days, " — każdy tydzień przerwy to punkty do odrobienia"),
+      ],
+      cta: "Wznów Premium",
+    };
+  }
+  if (d !== null && d <= 90) {
+    return {
+      headline: `Minęło ${pluralDni(d)} od wygaśnięcia Premium`,
+      bullets: [
+        "Twoje statystyki i powtórki są zachowane, ale plan nauki zdążył się rozjechać",
+        "System dobierze pytania od nowa pod Twoje aktualne braki",
+        maturaBullet(days),
+      ],
+      cta: "Wróć do nauki",
+    };
+  }
+  return {
+    headline: "Wróć do nauki przed maturą",
+    bullets: [
+      "Twoje konto i postępy nadal tu są",
+      "Zacznij od darmowej diagnozy albo od razu od pytań z najsłabszych działów",
+      maturaBullet(days),
+    ],
+    cta: "Wznów Premium",
+  };
+}
+
 // ── Mini-podglądy wartości ───────────────────────────────────────────────────
 
 function MiniQuizPreview() {
@@ -241,8 +338,15 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const cfg = MODE_CONFIG[mode];
   const days = daysToMatura();
   const [diagnosis, setDiagnosis] = useState<DiagnosisSummary | null>(null);
+  const [variant, setVariant] = useState<GateVariant>({ kind: "default" });
 
   useEffect(() => {
+    // To samo wywołanie co w SubscriptionScreen — status z backendu decyduje,
+    // czy pokazać copy „po wygaśnięciu"/„płatność nie przeszła".
+    api<StripeStatus>("/stripe/status")
+      .then((st) => setVariant(classifyStatus(st)))
+      .catch(() => {});
+
     // Log odbicia od paywalla — ta sama tabela co na webie, więc lejek w
     // panelu admina obejmuje oba klienty (tryb ma prefiks `mobile:`).
     logIntent("GATE_VIEW", mode);
@@ -256,6 +360,11 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
       })
       .catch(() => {});
   }, []);
+
+  const special = variant.kind === "default" ? null : variantCopy(variant, days);
+  const headline = special?.headline ?? cfg.headline;
+  const bullets = special?.bullets ?? cfg.bullets;
+  const ctaTitle = special?.cta ?? "Przejdź na Premium";
 
   return (
     <ScrollView
@@ -305,11 +414,11 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
             lineHeight: 27,
           }}
         >
-          {cfg.headline}
+          {headline}
         </Text>
 
         <View style={{ gap: 8, marginBottom: 16 }}>
-          {cfg.bullets.map((b) => (
+          {bullets.map((b) => (
             <View key={b} style={{ flexDirection: "row", gap: 8 }}>
               <Text style={{ color: colors.brand[500], fontWeight: "700" }}>✓</Text>
               <Text
@@ -362,7 +471,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         )}
 
         <Button
-          title="Przejdź na Premium"
+          title={ctaTitle}
           onPress={() => {
             logIntent("GATE_CLICK", mode);
             navigation.getParent()?.navigate("ProfileTab", {
@@ -382,8 +491,12 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
           Anuluj w każdej chwili · Bezpieczna płatność Stripe · Dostęp od razu
         </Text>
 
-        {/* Oferta próbna POD ceną — kto jest gotów kupić, kupuje wyżej. */}
-        <TrialOfferCard trigger={`gate:${mode}`} />
+        {/* Oferta próbna POD ceną — kto jest gotów kupić, kupuje wyżej.
+            Konto po wygaśnięciu / z nieudaną płatnością już zna produkt —
+            tam oferta próbna nie ma sensu. */}
+        {variant.kind === "default" && (
+          <TrialOfferCard trigger={`gate:${mode}`} />
+        )}
       </View>
     </ScrollView>
   );

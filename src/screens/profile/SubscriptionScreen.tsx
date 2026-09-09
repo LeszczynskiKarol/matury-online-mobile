@@ -49,6 +49,8 @@ const subscriptionApi = {
       provider?: "play" | "stripe";
       adminOverride?: boolean;
       hasPaidAccess?: boolean;
+      /** PAST_DUE: link do zaległej faktury Stripe (opłać / zmień kartę). */
+      pastDueInvoiceUrl?: string | null;
       subscriptionStatus: string;
       subscriptionEnd: string | null;
       canResume: boolean;
@@ -179,6 +181,10 @@ export function SubscriptionScreen() {
   const isCancelled =
     status?.subscriptionStatus === "CANCELLED" && status?.canResume;
   const viaPlay = status?.provider === "play";
+  // Nieudana płatność za subskrypcję Stripe (kupioną na webie): nowy zakup
+  // — także przez Play — założyłby drugą subskrypcję. Jedyna sensowna akcja
+  // to opłacenie zaległej faktury / zmiana karty.
+  const isPastDue = status?.subscriptionStatus === "PAST_DUE" && !viaPlay;
   const monthlyPrice = billing.priceOf(SKU_PREMIUM_MONTHLY);
   const oneTimePrice = billing.priceOf(SKU_PREMIUM_30DAYS);
 
@@ -294,7 +300,12 @@ export function SubscriptionScreen() {
                   Dostęp administratora — niezależny od subskrypcji.
                 </Text>
               )}
-              {!isPremium && status.subscriptionStatus !== "EXPIRED" && (
+              {isPastDue && (
+                <Text style={{ fontSize: 12, color: "#f59e0b", marginTop: 2 }}>
+                  Płatność nie przeszła — dostęp wstrzymany
+                </Text>
+              )}
+              {!isPremium && !isPastDue && status.subscriptionStatus !== "EXPIRED" && (
                 <Text
                   style={{ fontSize: 12, color: colors.red[500], marginTop: 2 }}
                 >
@@ -496,10 +507,40 @@ export function SubscriptionScreen() {
         </Text>
       )}
 
+      {/* PAST_DUE: jedna akcja zamiast cennika */}
+      {isPastDue && status && (
+        <Card style={{ marginBottom: 24, borderWidth: 1, borderColor: "#f59e0b" }}>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: theme.text }}>
+            💳 Bank odrzucił płatność za subskrypcję
+          </Text>
+          <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 6 }}>
+            Najczęściej to brak środków na karcie w dniu pobrania. Opłać zaległą
+            fakturę albo podaj inną kartę — dostęp wróci od razu, bez zakładania
+            nowej subskrypcji.
+          </Text>
+          {status.pastDueInvoiceUrl ? (
+            <Button
+              title="Opłać albo zmień kartę →"
+              onPress={() =>
+                Linking.openURL(status.pastDueInvoiceUrl!).catch(() => {})
+              }
+              style={{ marginTop: 14 }}
+              size="sm"
+            />
+          ) : (
+            <Text style={{ fontSize: 12, color: theme.textTertiary, marginTop: 10 }}>
+              Zaległą fakturę opłacisz na www.matury-online.pl w zakładce
+              Subskrypcja.
+            </Text>
+          )}
+        </Card>
+      )}
+
       {/* Oferta */}
-      {(!isPremium ||
-        status?.subscriptionStatus === "EXPIRED" ||
-        status?.subscriptionStatus === "FREE") && (
+      {!isPastDue &&
+        (!isPremium ||
+          status?.subscriptionStatus === "EXPIRED" ||
+          status?.subscriptionStatus === "FREE") && (
         <View style={{ gap: 16, marginBottom: 24 }}>
           <Card style={{ borderWidth: 2, borderColor: colors.brand[500] }}>
             <View
