@@ -104,6 +104,41 @@ export async function resendCode(email: string): Promise<{ sent: boolean }> {
   });
 }
 
+// ── Stan doręczenia maila z kodem ─────────────────────────────────────────
+// Backend zna go ze zdarzeń SES (pełna skrzynka, nieistniejący adres).
+export type VerificationDeliveryState =
+  | "unknown"
+  | "pending"
+  | "delivered"
+  | "mailbox_full"
+  | "mailbox_full_before"
+  | "delayed"
+  | "undeliverable"
+  | "failed";
+
+export async function verificationStatus(
+  email: string,
+): Promise<{ state: VerificationDeliveryState }> {
+  return api("/auth/verification-status", {
+    method: "POST",
+    body: { email },
+    auth: false,
+  });
+}
+
+// ── Zmiana adresu na niezweryfikowanym koncie (za hasłem z rejestracji) ────
+export async function changeUnverifiedEmail(data: {
+  email: string;
+  password: string;
+  newEmail: string;
+}): Promise<RegisterResponse> {
+  return api<RegisterResponse>("/auth/change-unverified-email", {
+    method: "POST",
+    body: data,
+    auth: false,
+  });
+}
+
 // ── Login ─────────────────────────────────────────────────────────────────
 export async function login(
   email: string,
