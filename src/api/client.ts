@@ -97,6 +97,9 @@ export async function api<T = any>(
     // i wersja apki idą z nagłówkami, apka nie ma żadnego SDK analitycznego.
     "X-Platform": Platform.OS,
     "X-App-Version": APP_VERSION,
+    // Deklaracja: ta wersja dobiera klucz odpowiedzi PO odpowiedzi
+    // (lib/answerKeys.ts), więc backend oddaje pytania bez klucza.
+    "X-Answer-Reveal": "server",
   };
 
   if (auth) {

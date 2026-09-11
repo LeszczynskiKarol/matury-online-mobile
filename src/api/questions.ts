@@ -99,6 +99,17 @@ export async function skipQuestion(
   });
 }
 
+/** „Pokaż odpowiedź": klucz z serwera (+ zapis REVEALED w sesji). */
+export async function revealQuestion(
+  questionId: string,
+  sessionId?: string | null,
+): Promise<{ reveal: any; explanation: string | null }> {
+  return api(`/questions/${questionId}/reveal`, {
+    method: "POST",
+    body: sessionId ? { sessionId } : {},
+  });
+}
+
 export async function trackView(
   questionId: string,
   sessionId?: string,

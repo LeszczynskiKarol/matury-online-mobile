@@ -44,9 +44,11 @@ import {
   getQuestions,
   getFilterOptions,
   trackView,
+  revealQuestion,
   Question,
   FilterOptions,
 } from "../../api/questions";
+import { mergeAnswerKeys } from "../../lib/answerKeys";
 import { OptionCard } from "../../components/quiz/OptionCard";
 import { ProgressBar } from "../../components/common/ProgressBar";
 import { Button } from "../../components/ui/Button";
@@ -141,15 +143,19 @@ export function QuizPlayScreen() {
   const question = questions[currentIndex];
   const matchingShuffledRight = useMemo(() => {
     if (question?.type !== "MATCHING" || !question?.content?.pairs) return [];
-    return [...question.content.pairs.map((p: any) => p.right)].sort(
-      () => Math.random() - 0.5,
-    );
+    // Pytanie przychodzi bez pairs[].right — prawa kolumna to `rightOptions`
+    // (posortowane, bez korelacji z kluczem). Stara treść z kluczem: jak dotąd.
+    const pool: string[] = Array.isArray(question.content.rightOptions)
+      ? question.content.rightOptions.map(String)
+      : question.content.pairs.map((p: any) => p.right).filter((r: any) => r != null);
+    return [...pool].sort(() => Math.random() - 0.5);
   }, [question?.id]);
 
   const [selectedAnswer, setSelectedAnswer] = useState<any>(null);
   const [openAnswer, setOpenAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [revealing, setRevealing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ correct: 0, totalXp: 0, answered: 0 });
   const startTime = useRef(Date.now());
@@ -225,7 +231,15 @@ export function QuizPlayScreen() {
 
   // ── Derived ─────────────────────────────────────────────────────────────
 
-  const content = question?.content;
+  // Pytanie przychodzi bez klucza; po ocenie/podglądzie klucz jest w
+  // result.reveal — scalony tu, renderery niżej czytają go jak dotąd.
+  const content = useMemo(
+    () =>
+      result?.reveal && question?.content
+        ? mergeAnswerKeys(question.content, result.reveal)
+        : question?.content,
+    [question?.content, result?.reveal],
+  );
 
   const MATH_SUBJECT_NAMES = [
     "matematyka",
@@ -4184,25 +4198,54 @@ export function QuizPlayScreen() {
                 </View>
 
                 <TouchableOpacity
-                  onPress={() => {
-                    const correct = getCorrectAnswerLocal(
-                      question.type,
-                      content,
-                    );
+                  disabled={revealing}
+                  onPress={async () => {
+                    // Klucz z serwera (pytanie jest bez klucza); ten sam
+                    // request zapisuje REVEALED w sesji.
+                    const q = question;
+                    setRevealing(true);
+                    let reveal: any = null;
+                    let serverExplanation: string | null = null;
+                    try {
+                      const r = await revealQuestion(
+                        q.id,
+                        listeningSessionId || sessionId,
+                      );
+                      reveal = r.reveal;
+                      serverExplanation = r.explanation;
+                    } catch (err) {
+                      console.warn("reveal failed", err);
+                    } finally {
+                      setRevealing(false);
+                    }
+                    const merged = reveal
+                      ? mergeAnswerKeys(q.content, reveal)
+                      : q.content;
+                    const correct = getCorrectAnswerLocal(q.type, merged);
+                    if (!reveal && correct == null) {
+                      Alert.alert(
+                        "Nie udało się pobrać odpowiedzi",
+                        "Sprawdź połączenie i spróbuj jeszcze raz.",
+                      );
+                      return;
+                    }
                     const revealData = {
                       isCorrect: false,
                       score: 0,
                       xpEarned: 0,
                       explanation:
-                        question.content?.explanation || content?.explanation,
+                        (q as any).explanation ||
+                        serverExplanation ||
+                        merged?.explanation,
                       correctAnswer: correct,
                       revealed: true,
+                      reveal,
                     };
                     setResult(revealData);
                     setSubmitted(true);
                     setResultsMap((prev) => ({
                       ...prev,
-                      [question.id]: revealData,
+                      [q.id]: revealData,
                     }));
                   }}
                   style={{
