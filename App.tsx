@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { GamificationToasts } from "./src/components/common/GamificationToasts";
+import { UpdatePrompt } from "./src/components/common/UpdatePrompt";
 import {
   NavigationContainer,
   DefaultTheme,
@@ -185,6 +186,8 @@ function AppInner() {
         <RootNavigator />
       </NavigationContainer>
       <GamificationToasts />
+      {/* „Jest nowa wersja” — tylko sugestia, nie blokuje apki */}
+      <UpdatePrompt />
     </KeyboardAvoidingView>
   );
 }
