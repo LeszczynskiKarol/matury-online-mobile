@@ -39,6 +39,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { submitAnswer, completeSession } from "../../api/sessions";
+import { maybeAskForReviewOnStreak } from "../../lib/reviewPrompt";
 import {
   skipQuestion as apiSkipQuestion,
   getQuestions,
@@ -469,6 +470,11 @@ export function QuizPlayScreen() {
       });
       if (res.gamification)
         processGamificationResponse(res.gamification as any);
+      // Seria z odpowiedzi serwera — /sessions/:id/complete jej nie zwraca,
+      // a to ona decyduje, czy na koniec poprosić o ocenę w Play.
+      const streak =
+        res.streakUpdate?.currentStreak ?? res.gamification?.streak ?? null;
+      if (typeof streak === "number") lastStreak.current = streak;
       answeredIds.current.add(question.id);
       setResult(res);
       setSubmitted(true);
@@ -629,10 +635,17 @@ export function QuizPlayScreen() {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, [currentIndex]);
 
+  // Ostatnia seria zobaczona w odpowiedzi serwera na wysłaną odpowiedź.
+  const lastStreak = useRef<number | null>(null);
+
   const goToResults = async () => {
     if (isListeningOnly && listeningSessionId) {
       endListening(listeningSessionId).catch(console.error);
     }
+    // Drugi moment satysfakcji obok dobrze zdanego arkusza: utrzymana seria.
+    // Bez tego uczeń, który robi tylko sesje nauki, nie był pytany o ocenę
+    // ani razu. Throttling i próg siedzą w lib/reviewPrompt.
+    void maybeAskForReviewOnStreak(lastStreak.current);
     try {
       const sessionResult = await completeSession(sessionId);
       navigation.replace("QuizResult", {
