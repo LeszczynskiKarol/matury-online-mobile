@@ -16,6 +16,25 @@ import { parseChemText } from "../../utils/chemText";
 const FENCE_SPLIT = /(```[\s\S]*?```)/g;
 const FENCE_PARSE = /^```([^\n`]*)\n?([\s\S]*?)```$/;
 
+// Markdownowe **pogrubienie** — rutyny piszą tak nagłówki materiałów
+// (**Trener**, **Zajecia**); bez tego uczeń widział gołe gwiazdki. Tylko frazy
+// bez spacji przy gwiazdkach i bez łamania linii w środku. Lustro web/Chem.tsx.
+const BOLD_SPLIT = /(\*\*\S(?:[^*\n]*?\S)?\*\*)/g;
+
+function renderProse(text: string): React.ReactNode {
+  if (!text.includes("**")) return parseChemText(text);
+  return text.split(BOLD_SPLIT).map((chunk, i) => {
+    if (chunk.length > 4 && chunk.startsWith("**") && chunk.endsWith("**")) {
+      return (
+        <Text key={i} style={{ fontWeight: "700" }}>
+          {parseChemText(chunk.slice(2, -2))}
+        </Text>
+      );
+    }
+    return chunk ? <React.Fragment key={i}>{parseChemText(chunk)}</React.Fragment> : null;
+  });
+}
+
 export function CodeAwareText({
   text,
   style,
@@ -32,7 +51,7 @@ export function CodeAwareText({
   if (!raw.includes("```")) {
     return (
       <View style={containerStyle}>
-        <Text style={style}>{parseChemText(raw)}</Text>
+        <Text style={style}>{renderProse(raw)}</Text>
       </View>
     );
   }
@@ -86,7 +105,7 @@ export function CodeAwareText({
         if (!part.trim()) return null;
         return (
           <Text key={i} style={style}>
-            {parseChemText(part)}
+            {renderProse(part)}
           </Text>
         );
       })}
