@@ -80,18 +80,22 @@ export interface MathGraphProps {
 
 // ── Safe math evaluator ───────────────────────────────────────────────────
 
+// Zapis w bazie jest mieszany (`sin(x)` i `Math.sin(x)`), więc najpierw
+// zdejmujemy każdy prefiks `Math.`, potem dokładamy go dla całej listy nazw.
+// Poprzednia wersja robiła z `Math.sin(` → `Math.Math.sin(` (NaN, pusta
+// krzywa) i nie znała `exp`/`pow`/`log2`. Lustro web/MathGraph.tsx.
+const FN_NAMES =
+  "sqrt|abs|sin|cos|tan|asin|acos|atan|log2|log10|log|ln|exp|pow|min|max|floor|ceil|round|sign";
+
 function createFn(expr: string): (x: number) => number {
   const prepared = expr
-    .replace(/([a-zA-Z0-9\)]+)\^([a-zA-Z0-9\.\(]+)/g, "Math.pow($1,$2)")
-    .replace(/sqrt\(/g, "Math.sqrt(")
-    .replace(/abs\(/g, "Math.abs(")
-    .replace(/sin\(/g, "Math.sin(")
-    .replace(/cos\(/g, "Math.cos(")
-    .replace(/tan\(/g, "Math.tan(")
-    .replace(/log\(/g, "Math.log(")
-    .replace(/ln\(/g, "Math.log(")
-    .replace(/pi/g, "Math.PI")
-    .replace(/e(?![a-zA-Z])/g, "Math.E");
+    .replace(/Math\./g, "")
+    .replace(/([a-zA-Z0-9\)]+)\^([a-zA-Z0-9\.\(]+)/g, "pow($1,$2)")
+    .replace(new RegExp(`\\b(${FN_NAMES})\\s*\\(`, "g"), (_m, name: string) =>
+      `Math.${name === "ln" ? "log" : name}(`,
+    )
+    .replace(/\b(pi|PI)\b/g, "Math.PI")
+    .replace(/(^|[^0-9.A-Za-z_])(e|E)(?![A-Za-z0-9_])/g, "$1Math.E");
   return new Function(
     "x",
     `"use strict"; try { return ${prepared}; } catch { return NaN; }`,
