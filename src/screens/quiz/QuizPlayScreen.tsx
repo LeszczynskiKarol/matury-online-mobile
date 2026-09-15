@@ -2447,7 +2447,7 @@ export function QuizPlayScreen() {
                   !Array.isArray(selectedAnswer)
                     ? (selectedAnswer as Record<string, string>)
                     : {};
-                const parts = content.template.split(
+                const parts = normalizeClozeTemplate(content.template).split(
                   /(\{\{[^}]+\}\}|\(\d+\))/g,
                 );
                 return (
@@ -4411,6 +4411,18 @@ export function QuizPlayScreen() {
 // ══════════════════════════════════════════════════════════════════════════
 // LIVE FILTER BAR (mobile version of web LiveFilterBar)
 // ══════════════════════════════════════════════════════════════════════════
+
+// Renderer CLOZE zna tylko znaczniki `(N)` i `{{id}}`. W bazie trafiały się też
+// `___(1)` / `(1)___` (pole plus zbędne podkreślniki obok) oraz goły `___`
+// bez numeru — wtedy zdanie wychodziło bez pola do wpisania (zgłoszenie
+// cmtc9j1f300sbqhgkrny2aej2, 2026-09). Gołe podkreślniki numerujemy po kolei
+// tylko wtedy, gdy szablon nie ma innych znaczników. Lustro webowego QuizPlayer.
+function normalizeClozeTemplate(template: string): string {
+  const t = template.replace(/_{2,}\((\d+)\)|\((\d+)\)_{2,}/g, "($1$2)");
+  if (/\{\{[^}]+\}\}|\(\d+\)/.test(t)) return t;
+  let n = 0;
+  return t.replace(/_{2,}/g, () => `(${++n})`);
+}
 
 function LiveFilterBar({
   filters,
