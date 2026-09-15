@@ -29,6 +29,7 @@ import { Button } from "../../components/ui/Button";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 import type { ProfileStackParamList } from "../../navigation/types";
+import { SUBSCRIPTION_STATUS_LABEL } from "../../lib/premium";
 
 type Nav = NativeStackNavigationProp<ProfileStackParamList>;
 
@@ -92,14 +93,7 @@ export function ProfileScreen() {
       .catch(() => {});
   }, []);
 
-  const statusLabel: Record<string, string> = {
-    FREE: "Darmowe",
-    ACTIVE: "Premium",
-    ONE_TIME: "Premium (30 dni)",
-    PAST_DUE: "Zaległa płatność",
-    CANCELLED: "Anulowane",
-    EXPIRED: "Wygasło",
-  };
+  const statusLabel = SUBSCRIPTION_STATUS_LABEL;
 
   useEffect(() => {
     if (isPremium) {

@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { api, setToken, clearToken } from "./client";
+import type { SubscriptionStatus } from "../lib/premium";
 
 export interface User {
   id: string;
@@ -10,13 +11,7 @@ export interface User {
   name: string | null;
   avatarUrl: string | null;
   role: "STUDENT" | "ADMIN";
-  subscriptionStatus:
-    | "FREE"
-    | "ACTIVE"
-    | "ONE_TIME"
-    | "PAST_DUE"
-    | "CANCELLED"
-    | "EXPIRED";
+  subscriptionStatus: SubscriptionStatus;
   subscriptionEnd: string | null;
   totalXp: number;
   globalLevel: number;

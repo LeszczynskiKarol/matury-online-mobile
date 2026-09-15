@@ -16,6 +16,7 @@ import {
   unregisterPush,
 } from "../lib/pushNotifications";
 import type { User } from "../api/auth";
+import { isPremiumStatus } from "../lib/premium";
 
 interface AuthContextValue {
   user: User | null;
@@ -70,11 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user) syncPushRegistration();
   }, [!!user]);
 
-  const isPremium =
-    user?.subscriptionStatus === "ACTIVE" ||
-    (user?.subscriptionStatus === "ONE_TIME" &&
-      !!user?.subscriptionEnd &&
-      new Date(user.subscriptionEnd) > new Date());
+  // Jedna reguła dla wszystkich statusów (w tym ANNUAL) — lib/premium.ts.
+  const isPremium = isPremiumStatus(
+    user?.subscriptionStatus,
+    user?.subscriptionEnd,
+  );
 
   // ── Actions ─────────────────────────────────────────────────────────────
   const login = useCallback(async (email: string, password: string) => {
