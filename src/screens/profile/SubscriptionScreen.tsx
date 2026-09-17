@@ -200,6 +200,12 @@ export function SubscriptionScreen() {
     viaPlay && status?.subscriptionStatus === "CANCELLED" && !!status?.hasPaidAccess;
   const isCancelled =
     (status?.subscriptionStatus === "CANCELLED" && status?.canResume) || playCancelled;
+  // Pakiet i 30 dni to zakupy JEDNORAZOWE (Play lub web) — bez odnowień, więc
+  // nigdy „Następna płatność" ani link do zarządzania subskrypcją w Play.
+  const isAnnual = status?.subscriptionStatus === "ANNUAL";
+  const isOneTime = status?.subscriptionStatus === "ONE_TIME";
+  const isOneOff = (isAnnual || isOneTime) && !!status?.hasPaidAccess;
+  const annualName = "Pakiet Maturalny";
   // Nieudana płatność za subskrypcję Stripe (kupioną na webie). W apce
   // jedyną drogą jest zakup przez Google Play — backend po nim sam kasuje
   // nieopłaconą subskrypcję Stripe (services/stripe-replace.ts), więc drugiej
@@ -290,7 +296,13 @@ export function SubscriptionScreen() {
               <Text
                 style={{ fontSize: 15, fontWeight: "600", color: theme.text }}
               >
-                {isPremium ? "Premium" : "Darmowy"}
+                {isOneOff && isAnnual
+                  ? annualName
+                  : isOneOff
+                    ? "Premium — 30 dni"
+                    : isPremium
+                      ? "Premium"
+                      : "Darmowy"}
                 {isCancelled ? " (anulowana)" : ""}
               </Text>
               {/* Etykieta ze STATUSU, nie z isPremium: dla administratora
@@ -306,7 +318,7 @@ export function SubscriptionScreen() {
                       marginTop: 2,
                     }}
                   >
-                    {isCancelled ? "Wygaśnie" : "Następna płatność"}:{" "}
+                    {isOneOff ? "Dostęp do" : isCancelled ? "Wygaśnie" : "Następna płatność"}:{" "}
                     {formatDate(status.subscriptionEnd)}
                   </Text>
                 )}
@@ -345,6 +357,11 @@ export function SubscriptionScreen() {
                   Brak aktywnej subskrypcji
                 </Text>
               )}
+              {isOneOff && (
+                <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 4 }}>
+                  Płatność jednorazowa — bez odnowień i kolejnych opłat.
+                </Text>
+              )}
               {isPremium && isCancelled && (
                 <Text
                   style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}
@@ -359,7 +376,7 @@ export function SubscriptionScreen() {
 
           {/* Subskrypcją z Play zarządza sklep — własny przycisk „Anuluj"
               nic by tu nie zrobił, bo nasze API nie ma do niej dostępu. */}
-          {viaPlay && status.hasPaidAccess && (
+          {viaPlay && status.hasPaidAccess && !isOneOff && (
             <TouchableOpacity
               onPress={() =>
                 Linking.openURL(
@@ -483,19 +500,17 @@ export function SubscriptionScreen() {
                   : "🔴"}
             </Text>
           </View>
+          {/* Historia w karcie kredytów — luzem nad ofertą rozpraszała. */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate("AiCreditsHistory" as any)}
+            style={{ paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderTopColor: theme.border }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.brand[500] }}>
+              Historia zużycia →
+            </Text>
+          </TouchableOpacity>
         </Card>
       )}
-
-      <TouchableOpacity
-        onPress={() => navigation.navigate("AiCreditsHistory" as any)}
-        style={{ paddingVertical: 8 }}
-      >
-        <Text
-          style={{ fontSize: 13, fontWeight: "600", color: colors.brand[500] }}
-        >
-          Historia zużycia →
-        </Text>
-      </TouchableOpacity>
 
       {/* Sklep niedostępny — bez tego user widziałby przyciski, które nic
           nie robią, i nie wiedziałby dlaczego. */}
