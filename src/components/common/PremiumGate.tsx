@@ -184,7 +184,9 @@ function variantCopy(
     headline: "Wróć do nauki przed maturą",
     bullets: [
       "Twoje konto i postępy nadal tu są",
-      "Zacznij od darmowej diagnozy albo od razu od pytań z najsłabszych działów",
+      // Bez odsyłania do darmowej diagnozy — to oferta dla nowych kont, a tu
+      // stoi ktoś, kto już płacił i produkt zna (decyzja Karola 17.09.2026).
+      "System dobierze pytania od nowa pod Twoje aktualne braki",
       maturaBullet(days),
     ],
     cta: "Wznów Premium",
