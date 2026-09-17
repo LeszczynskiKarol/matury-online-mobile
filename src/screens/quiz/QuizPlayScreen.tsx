@@ -6,6 +6,7 @@ import { colors } from "../../theme/colors";
 import { stopAllListeningPlayers } from "../../hooks/useListeningPlayer";
 import { ListeningQuestion } from "../../components/quiz/ListeningQuestion";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
+import { FillInInline, canRenderInline } from "../../components/quiz/FillInInline";
 import { processGamificationResponse } from "../../components/common/GamificationToasts";
 import {
   startListening,
@@ -1379,7 +1380,30 @@ export function QuizPlayScreen() {
               )}
             {/* Question text — CodeAwareText renderuje płoty ```lang jako
                 bloki kodu (informatyka), resztę przez parseChemText */}
-            {question.type !== "LISTENING" && (
+            {/* FILL_IN z wykropkowaniem: treść i pola w jednym bloku, pola
+                dokładnie w miejscach luk (components/quiz/FillInInline.tsx). */}
+            {question.type === "FILL_IN" &&
+              canRenderInline(content.question, content.blanks) && (
+                <FillInInline
+                  text={content.question}
+                  blanks={content.blanks}
+                  values={
+                    typeof selectedAnswer === "object" &&
+                    selectedAnswer &&
+                    !Array.isArray(selectedAnswer)
+                      ? (selectedAnswer as Record<string, string>)
+                      : {}
+                  }
+                  onChange={(next) => setSelectedAnswer(next)}
+                  submitted={submitted}
+                  theme={theme}
+                />
+              )}
+            {question.type !== "LISTENING" &&
+              !(
+                question.type === "FILL_IN" &&
+                canRenderInline(content.question, content.blanks)
+              ) && (
               <>
                 <CodeAwareText
                   text={content.question || content.prompt || ""}
@@ -2591,9 +2615,12 @@ export function QuizPlayScreen() {
                 );
               })()}
 
-            {/* FILL_IN */}
+            {/* FILL_IN — układ zapasowy: pola pod tekstem („Luka 1", „Luka 2").
+                Zostaje dla pytań, w których liczba znaczników w treści nie
+                zgadza się z liczbą luk, więc nie da się ich wstawić w tekst. */}
             {question.type === "FILL_IN" &&
               content.blanks &&
+              !canRenderInline(content.question, content.blanks) &&
               (() => {
                 const ans =
                   typeof selectedAnswer === "object" &&
