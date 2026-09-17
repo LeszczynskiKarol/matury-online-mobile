@@ -2069,7 +2069,57 @@ function ExamTaskInput({
             </View>
           );
         }
-        // math_two_part — two textareas
+        // math_two_part z opcjami („Wybierz A albo B oraz C albo D” — matura PP
+        // i egzamin ósmoklasisty). Backend porównuje odpowiedź
+        // z `part.correctAnswer` pod kluczem `part.id || part<N>`, więc pole
+        // tekstowe dawało 0 pkt każdemu, kto nie wpisał samej litery.
+        const twoParts: any[] =
+          Array.isArray(content.parts) && content.parts.length
+            ? content.parts
+            : [content.partA, content.partB].filter(Boolean);
+        if (twoParts.length && twoParts.every((p) => Array.isArray(p?.options) && p.options.length)) {
+          const picked =
+            value && typeof value === "object" && !Array.isArray(value) ? value : {};
+          return (
+            <View style={{ gap: 18 }}>
+              {twoParts.map((p: any, i: number) => {
+                const key = p.id || `part${i + 1}`;
+                return (
+                  <View key={key} style={{ gap: 8 }}>
+                    {!!p.label && (
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "600",
+                          color: theme.text,
+                          lineHeight: 21,
+                        }}
+                      >
+                        {parseChemText(p.label)}
+                      </Text>
+                    )}
+                    {p.options.map((o: any) => (
+                      <OptionCard
+                        key={o.id}
+                        id={o.id}
+                        text={parseChemText(o.text)}
+                        state={picked[key] === o.id ? "selected" : "default"}
+                        onPress={() =>
+                          onChange({
+                            ...picked,
+                            [key]: picked[key] === o.id ? null : o.id,
+                          })
+                        }
+                        disabled={false}
+                      />
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          );
+        }
+        // math_two_part bez opcji — dwa pola tekstowe
         const cur =
           typeof value === "object" && value ? value : { part1: "", part2: "" };
         return (
