@@ -3759,19 +3759,25 @@ export function QuizPlayScreen() {
                         >
                           Dane
                         </Text>
+                        {/* Dwie kolumny MUSZĄ mieć zadeklarowany podział i prawo
+                            do zawijania: bez tego długa wartość (np.
+                            „8 bitów/piksel = 1 bajt/piksel") wychodziła poza
+                            box i poza ekran — zgłoszone 17.09.2026. */}
                         {givens.map((g, i) => (
                           <View
                             key={i}
                             style={{
                               flexDirection: "row",
                               justifyContent: "space-between",
-                              alignItems: "center",
+                              alignItems: "flex-start",
+                              gap: 10,
                             }}
                           >
                             <Text
                               style={{
                                 fontSize: 14,
                                 color: theme.textSecondary,
+                                flexShrink: 1,
                               }}
                             >
                               {parseChemText(g.label)}
@@ -3782,6 +3788,9 @@ export function QuizPlayScreen() {
                                 fontWeight: "700",
                                 color: theme.text,
                                 fontFamily: "JetBrainsMono_400Regular",
+                                flexShrink: 1,
+                                flexGrow: 0,
+                                textAlign: "right",
                               }}
                             >
                               {g.value}
