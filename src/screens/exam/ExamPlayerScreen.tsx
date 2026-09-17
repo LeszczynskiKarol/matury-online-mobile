@@ -60,6 +60,7 @@ import {
 } from "../../components/common/AdminCopyButton";
 import type { ExamStackParamList } from "../../navigation/types";
 import { handlePremiumError } from "../../lib/premiumAlert";
+import { ReportButton } from "../../components/quiz/ReportQuestion";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -997,6 +998,15 @@ export function ExamPlayerScreen() {
             <Text style={{ fontSize: 11, color: theme.textTertiary, flex: 1 }}>
               {currentTask.points} pkt
             </Text>
+            {/* Zgłoszenie błędu w zadaniu — jak „Zgłoś" w quizie i jak na webie. */}
+            <ReportButton
+              exam={{
+                examId,
+                taskId: currentTask.id,
+                taskLabel: String(currentTask.number ?? ""),
+              }}
+              questionPreview={cleanInstructionForDisplay(currentTask)}
+            />
             {currentTask.gradingType === "ai" && (
               <View
                 style={{

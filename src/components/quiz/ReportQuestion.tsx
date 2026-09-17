@@ -71,13 +71,22 @@ const CATEGORIES: {
 // ReportButton — mały przycisk w UI pytania
 // ══════════════════════════════════════════════════════════════════════════
 
+/** Zadanie z arkusza: id arkusza, id zadania i numer widoczny dla ucznia. */
+export interface ReportExamTask {
+  examId: string;
+  taskId: string;
+  taskLabel?: string;
+}
+
 interface ReportButtonProps {
-  questionId: string;
+  questionId?: string;
+  exam?: ReportExamTask;
   questionPreview?: string;
 }
 
 export function ReportButton({
   questionId,
+  exam,
   questionPreview,
 }: ReportButtonProps) {
   const [visible, setVisible] = useState(false);
@@ -113,6 +122,7 @@ export function ReportButton({
         visible={visible}
         onClose={() => setVisible(false)}
         questionId={questionId}
+        exam={exam}
         questionPreview={questionPreview}
       />
     </>
@@ -127,11 +137,13 @@ function ReportModal({
   visible,
   onClose,
   questionId,
+  exam,
   questionPreview,
 }: {
   visible: boolean;
   onClose: () => void;
-  questionId: string;
+  questionId?: string;
+  exam?: ReportExamTask;
   questionPreview?: string;
 }) {
   const { colors: theme, isDark } = useTheme();
@@ -163,7 +175,13 @@ function ReportModal({
     setSubmitting(true);
     try {
       const res = await createReport({
-        questionId,
+        ...(exam
+          ? {
+              examId: exam.examId,
+              examTaskId: exam.taskId,
+              examTaskLabel: exam.taskLabel,
+            }
+          : { questionId }),
         category,
         description: description.trim(),
       });

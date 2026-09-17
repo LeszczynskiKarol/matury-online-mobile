@@ -33,6 +33,7 @@ import { getPracticeLinks, type PracticeLinks } from "../../api/premium";
 import { maybeAskForReview } from "../../lib/reviewPrompt";
 import { askForPushPermissionOnce } from "../../lib/pushNotifications";
 import type { ExamStackParamList } from "../../navigation/types";
+import { ReportButton } from "../../components/quiz/ReportQuestion";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -1266,6 +1267,17 @@ export function ExamResultsScreen() {
                 >
                   {currentTask.points} pkt
                 </Text>
+                {/* W wynikach najczęściej widać, że klucz albo ocena są złe. */}
+                {exam?.id && (
+                  <ReportButton
+                    exam={{
+                      examId: exam.id,
+                      taskId: currentTask.id,
+                      taskLabel: String(currentTask.number ?? ""),
+                    }}
+                    questionPreview={String(currentTask.instruction ?? "")}
+                  />
+                )}
                 <Text
                   style={{
                     fontSize: 15,

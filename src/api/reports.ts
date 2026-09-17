@@ -13,7 +13,13 @@ export type ReportCategory =
   | "OTHER";
 
 export async function createReport(data: {
-  questionId: string;
+  /** Pytanie z quizu (wiersz Question) — ALBO trójka examId/examTaskId niżej. */
+  questionId?: string;
+  // Zadania arkusza nie są wierszami Question (żyją w Exam.content), więc mają
+  // własną parę identyfikatorów — tak samo jak na webie.
+  examId?: string;
+  examTaskId?: string;
+  examTaskLabel?: string;
   category: ReportCategory;
   description: string;
 }): Promise<{ ok: boolean; reportId: string; message: string }> {
