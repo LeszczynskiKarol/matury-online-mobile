@@ -35,6 +35,7 @@ import { colors } from "../../theme/colors";
 import { spacing } from "../../theme";
 import {
   SKU_PREMIUM_30DAYS,
+  SKU_ANNUAL,
   SKU_PREMIUM_MONTHLY,
 } from "../../billing/products";
 
@@ -56,6 +57,18 @@ const subscriptionApi = {
       subscriptionEnd: string | null;
       canResume: boolean;
       canCancel: boolean;
+      /** Pakiet Maturalny — `play`: cena tygodniowa w Google Play (backend: play-annual.ts). */
+      annualOffer?: {
+        play?: {
+          available: boolean;
+          priceZl: number;
+          fullPriceZl: number;
+          daysRemaining: number;
+          chargedDays: number;
+          freeDays: number;
+          endDate: string;
+        };
+      };
     }>("/stripe/status"),
   cancel: () =>
     api<{ message: string; accessUntil: string }>("/stripe/cancel", {
@@ -192,6 +205,11 @@ export function SubscriptionScreen() {
   const playHold = viaPlay && status?.playState === "SUBSCRIPTION_STATE_ON_HOLD";
   const monthlyPrice = billing.priceOf(SKU_PREMIUM_MONTHLY);
   const oneTimePrice = billing.priceOf(SKU_PREMIUM_30DAYS);
+  // Pakiet tylko wtedy, gdy backend mówi „w sprzedaży" (sezon, nie posiadasz go)
+  // i Sklep faktycznie ma produkt — inaczej przycisk prowadziłby donikąd.
+  const annualPrice = billing.priceOf(SKU_ANNUAL);
+  const annualPlay = status?.annualOffer?.play;
+  const showAnnual = !!annualPlay?.available && billing.hasProduct(SKU_ANNUAL);
 
   if (fetching)
     return (
@@ -564,7 +582,94 @@ export function SubscriptionScreen() {
           status?.subscriptionStatus === "EXPIRED" ||
           status?.subscriptionStatus === "FREE") && (
         <View style={{ gap: 16, marginBottom: 24 }}>
-          <Card style={{ borderWidth: 2, borderColor: colors.brand[500] }}>
+          {/* Pakiet Maturalny — polecany, gdy jest w sprzedaży (jak na webie).
+              Cena ze Sklepu (priceOf); opis „płacisz za X dni" i pełna cena
+              z backendu są liczone na ten sam tydzień co cena w Play. */}
+          {showAnnual && annualPlay && (
+            <Card style={{ borderWidth: 2, borderColor: colors.brand[500] }}>
+              <View
+                style={{
+                  position: "absolute",
+                  top: -12,
+                  left: 16,
+                  backgroundColor: colors.brand[500],
+                  paddingHorizontal: 12,
+                  paddingVertical: 4,
+                  borderRadius: 99,
+                }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}>
+                  🎁 OSTATNIE 30 DNI GRATIS
+                </Text>
+              </View>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text, marginTop: 8 }}>
+                Pakiet Maturalny
+              </Text>
+              <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 12 }}>
+                Jedna wpłata. Spokój aż do matury.
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                <Text style={{ fontSize: 32, fontWeight: "800", color: theme.text }}>
+                  {annualPrice ?? "—"}
+                </Text>
+                {annualPlay.fullPriceZl > annualPlay.priceZl && (
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: theme.textTertiary,
+                      textDecorationLine: "line-through",
+                    }}
+                  >
+                    {annualPlay.fullPriceZl} zł
+                  </Text>
+                )}
+              </View>
+              <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 12 }}>
+                Tyle co subskrypcja do matury — minus 30 dni.
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 14 }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: theme.text, backgroundColor: theme.backgroundSecondary, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, overflow: "hidden" }}>
+                  🗓️ {annualPlay.daysRemaining} dni dostępu
+                </Text>
+                <Text style={{ fontSize: 11, color: theme.textTertiary }}>−</Text>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: "#047857", backgroundColor: "#d1fae5", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, overflow: "hidden" }}>
+                  🎁 30 gratis
+                </Text>
+                <Text style={{ fontSize: 11, color: theme.textTertiary }}>=</Text>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: colors.brand[700], backgroundColor: colors.brand[100], paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, overflow: "hidden" }}>
+                  płacisz za {annualPlay.chargedDays}
+                </Text>
+              </View>
+              <View style={{ gap: 8, marginBottom: 20 }}>
+                {[
+                  `Wszystko z Premium — do ${formatDate(annualPlay.endDate)}`,
+                  "600 kredytów AI co miesiąc",
+                  "Zero odnowień — płacisz raz i masz z głowy",
+                ].map((t, i) => (
+                  <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 12, color: colors.brand[500] }}>✓</Text>
+                    <Text style={{ fontSize: 13, color: theme.textSecondary, flex: 1 }}>{t}</Text>
+                  </View>
+                ))}
+              </View>
+              <Button
+                title={
+                  billing.pending === SKU_ANNUAL
+                    ? "Otwieranie..."
+                    : `Biorę Pakiet${annualPrice ? ` — ${annualPrice}` : ""}`
+                }
+                onPress={() => billing.buy(SKU_ANNUAL)}
+                loading={billing.pending === SKU_ANNUAL}
+                disabled={billing.pending !== null}
+              />
+              <Text style={{ fontSize: 11, color: theme.textTertiary, textAlign: "center", marginTop: 8 }}>
+                Płatność przez Google Play · jednorazowo, bez odnowień
+              </Text>
+            </Card>
+          )}
+
+          <Card style={showAnnual ? undefined : { borderWidth: 2, borderColor: colors.brand[500] }}>
+            {!showAnnual && (
             <View
               style={{
                 position: "absolute",
@@ -580,6 +685,7 @@ export function SubscriptionScreen() {
                 POLECANY
               </Text>
             </View>
+            )}
             <Text
               style={{
                 fontSize: 18,

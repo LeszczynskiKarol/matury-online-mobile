@@ -83,6 +83,7 @@ interface StripeStatus {
   provider?: "play" | "stripe";
   /** Tylko provider=play — np. SUBSCRIPTION_STATE_ON_HOLD. */
   playState?: string | null;
+  annualOffer?: { play?: { available?: boolean } };
 }
 
 type GateVariant =
@@ -361,12 +362,16 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const days = daysToMatura();
   const [diagnosis, setDiagnosis] = useState<DiagnosisSummary | null>(null);
   const [variant, setVariant] = useState<GateVariant>({ kind: "default" });
+  const [annualAvailable, setAnnualAvailable] = useState(false);
 
   useEffect(() => {
     // To samo wywołanie co w SubscriptionScreen — status z backendu decyduje,
     // czy pokazać copy „po wygaśnięciu"/„płatność nie przeszła".
     api<StripeStatus>("/stripe/status")
-      .then((st) => setVariant(classifyStatus(st)))
+      .then((st) => {
+        setVariant(classifyStatus(st));
+        setAnnualAvailable(!!st?.annualOffer?.play?.available);
+      })
       .catch(() => {});
 
     // Log odbicia od paywalla — ta sama tabela co na webie, więc lejek w
@@ -502,6 +507,21 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
           }}
           icon={<Ionicons name="diamond" size={16} color="#fff" />}
         />
+        {/* Subtelna podpowiedź o Pakiecie Maturalnym — najbardziej opłacalna
+            opcja; prowadzi do ekranu Subskrypcja, gdzie pakiet stoi na górze. */}
+        {annualAvailable && variant.kind !== "play_hold" && (
+          <TouchableOpacity
+            onPress={() => {
+              logIntent("GATE_CLICK", `${mode}:annual`);
+              navigation.getParent()?.navigate("ProfileTab", { screen: "Subscription" });
+            }}
+            style={{ marginTop: 12, alignItems: "center" }}
+          >
+            <Text style={{ fontSize: 12, color: colors.brand[500], fontWeight: "600", textAlign: "center" }}>
+              💡 Pakiet Maturalny do 31 maja — ostatnie 30 dni gratis
+            </Text>
+          </TouchableOpacity>
+        )}
         {variant.kind !== "play_hold" && (
         <Text
           style={{

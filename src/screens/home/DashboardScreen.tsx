@@ -28,6 +28,7 @@ import { ProgressBar } from "../../components/common/ProgressBar";
 import { TrialOfferCard } from "../../components/common/TrialOfferCard";
 import { FreePanel } from "../../components/common/FreePanel";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
+import { api } from "../../api/client";
 import {
   getNotifications,
   type AppNotification,
@@ -53,6 +54,10 @@ export function DashboardScreen() {
     null,
   );
 
+  // Pakiet Maturalny w sprzedaży w Play (backend: annualOffer.play) — subtelna
+  // podpowiedź pod przyciskiem oferty.
+  const [annualAvailable, setAnnualAvailable] = useState(false);
+
   const fetchData = useCallback(async () => {
     try {
       const [
@@ -61,13 +66,16 @@ export function DashboardScreen() {
         profileData,
         activeExamData,
         notificationsData,
+        stripeStatus,
       ] = await Promise.all([
         getDashboard().catch(() => null),
         getSubjects().catch(() => []),
         getProfile().catch(() => null),
         getActiveExam().catch(() => null),
         getNotifications().catch(() => null),
+        api<{ annualOffer?: { play?: { available?: boolean } } }>("/stripe/status").catch(() => null),
       ]);
+      setAnnualAvailable(!!stripeStatus?.annualOffer?.play?.available);
       setData(dashboardData);
       setSubjects(subjectsData.filter((s) => s.isActive));
       setProfile(profileData);
@@ -224,6 +232,25 @@ export function DashboardScreen() {
               }
               icon={<Ionicons name="star" size={16} color="#fff" />}
             />
+            {annualAvailable && (
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate("ProfileTab", { screen: "Subscription" })
+                }
+                style={{ marginTop: 12 }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: colors.brand[500],
+                    fontWeight: "600",
+                    textAlign: "center",
+                  }}
+                >
+                  💡 Pakiet Maturalny do 31 maja — ostatnie 30 dni gratis
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </Card>
         )}

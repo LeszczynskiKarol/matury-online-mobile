@@ -14,6 +14,12 @@
 
 export const SKU_PREMIUM_MONTHLY = "premium_monthly";
 export const SKU_PREMIUM_30DAYS = "premium_30days";
+/**
+ * Pakiet Maturalny — dostęp do 31 maja. Cena w Play zmienia się raz w tygodniu
+ * (backend: services/play-annual.ts). Konsumowalny, żeby dało się go kupić
+ * ponownie w kolejnym roku szkolnym; backend przyznaje dostęp raz na token.
+ */
+export const SKU_ANNUAL = "pakiet_maturalny";
 export const SKU_CREDITS_200 = "credits_200";
 export const SKU_CREDITS_500 = "credits_500";
 export const SKU_CREDITS_1200 = "credits_1200";
@@ -23,6 +29,7 @@ export const SUBSCRIPTION_SKUS = [SKU_PREMIUM_MONTHLY];
 
 /** Produkty jednorazowe. */
 export const INAPP_SKUS = [
+  SKU_ANNUAL,
   SKU_PREMIUM_30DAYS,
   SKU_CREDITS_200,
   SKU_CREDITS_500,
