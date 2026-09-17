@@ -170,8 +170,10 @@ export function DashboardScreen() {
           />
         )}
 
-        {/* Premium CTA — także przy nieudanej płatności Stripe: zakup w Google
-            Play zastępuje nieopłaconą subskrypcję (backend ją anuluje). */}
+        {/* Premium CTA — JEDEN box: przy nieudanej płatności jego rolę pełni
+            baner wyżej (ma własny przycisk „Kup Premium w aplikacji"). Dwa boxy
+            z tą samą akcją jeden pod drugim to był powód zgłoszenia 17.09.2026. */}
+        {!paymentFailed && (
         <Card
           style={{
             marginBottom: 24,
@@ -224,6 +226,7 @@ export function DashboardScreen() {
             />
           </View>
         </Card>
+        )}
 
         {/* Darmowy panel — co konto FREE faktycznie MOŻE zrobić, ze stanem.
             Stoi zaraz pod ofertą, a nad wyszarzonymi przedmiotami: najpierw
