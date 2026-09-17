@@ -192,9 +192,14 @@ export function SubscriptionScreen() {
       year: "numeric",
     });
 
-  const isCancelled =
-    status?.subscriptionStatus === "CANCELLED" && status?.canResume;
   const viaPlay = status?.provider === "play";
+  // Anulowana w Google Play (RTDN SUBSCRIPTION_CANCELED → CANCELLED). Wznowić
+  // ją może tylko Sklep Play, więc `canResume` (Stripe) jest tu zawsze false —
+  // do 17.09.2026 ekran pokazywał wtedy „Następna płatność", choć jej nie będzie.
+  const playCancelled =
+    viaPlay && status?.subscriptionStatus === "CANCELLED" && !!status?.hasPaidAccess;
+  const isCancelled =
+    (status?.subscriptionStatus === "CANCELLED" && status?.canResume) || playCancelled;
   // Nieudana płatność za subskrypcję Stripe (kupioną na webie). W apce
   // jedyną drogą jest zakup przez Google Play — backend po nim sam kasuje
   // nieopłaconą subskrypcję Stripe (services/stripe-replace.ts), więc drugiej
@@ -344,8 +349,9 @@ export function SubscriptionScreen() {
                 <Text
                   style={{ fontSize: 11, color: "#f59e0b", marginTop: 4 }}
                 >
-                  Anulowana — odnowienie wyłączone, dostęp trwa do końca
-                  opłaconego okresu.
+                  {playCancelled
+                    ? "Anulowana w Google Play — nie odnowi się i nie pobierzemy kolejnej opłaty. Dostęp trwa do końca opłaconego okresu; do tego czasu możesz ją przywrócić w Sklepie Play."
+                    : "Anulowana — odnowienie wyłączone, dostęp trwa do końca opłaconego okresu."}
                 </Text>
               )}
             </View>
@@ -369,7 +375,9 @@ export function SubscriptionScreen() {
                   fontWeight: "600",
                 }}
               >
-                Zarządzaj subskrypcją w Google Play →
+                {playCancelled
+                  ? "Przywróć subskrypcję w Google Play →"
+                  : "Zarządzaj subskrypcją w Google Play →"}
               </Text>
             </TouchableOpacity>
           )}
