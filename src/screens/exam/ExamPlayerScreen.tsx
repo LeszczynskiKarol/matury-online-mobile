@@ -60,6 +60,7 @@ import {
 } from "../../components/common/AdminCopyButton";
 import type { ExamStackParamList } from "../../navigation/types";
 import { handlePremiumError } from "../../lib/premiumAlert";
+import { tableColWidths } from "../../lib/tableWidths";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
@@ -1130,6 +1131,15 @@ function ExamTaskInput({
   const content = task.content || {};
 
   // ── Generic table/graph rendering (before task-specific input) ──
+  // Jedna siatka dla nagłówka i wierszy (lib/tableWidths.ts) — bez tego
+  // kolumny rozjeżdżały się wiersz po wierszu.
+  const tableColW = content.table
+    ? tableColWidths(content.table.headers, content.table.rows, {
+        charPx: 6.2,
+        firstMin: 120,
+        min: 64,
+      })
+    : [];
   const tableElement = content.table ? (
     <View style={{ marginBottom: 16 }}>
       <ScrollView horizontal showsHorizontalScrollIndicator>
@@ -1154,7 +1164,7 @@ function ExamTaskInput({
                   borderRightWidth:
                     i < content.table.headers.length - 1 ? 1 : 0,
                   borderColor: theme.border,
-                  minWidth: 60,
+                  width: tableColW[i],
                 }}
               >
                 <Text
@@ -1183,7 +1193,7 @@ function ExamTaskInput({
                     paddingVertical: 8,
                     borderRightWidth: ci < row.length - 1 ? 1 : 0,
                     borderColor: theme.border,
-                    minWidth: 60,
+                    width: tableColW[ci],
                   }}
                 >
                   <Text style={{ fontSize: 12, color: theme.text }}>

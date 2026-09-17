@@ -7,6 +7,7 @@ import { stopAllListeningPlayers } from "../../hooks/useListeningPlayer";
 import { ListeningQuestion } from "../../components/quiz/ListeningQuestion";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
 import { FillInInline, canRenderInline } from "../../components/quiz/FillInInline";
+import { tableColWidths } from "../../lib/tableWidths";
 import { processGamificationResponse } from "../../components/common/GamificationToasts";
 import {
   startListening,
@@ -2872,6 +2873,12 @@ export function QuizPlayScreen() {
                   !Array.isArray(selectedAnswer)
                     ? (selectedAnswer as Record<string, string>)
                     : {};
+                // Jedna siatka dla nagłówka i wierszy (lib/tableWidths.ts).
+                const colW = tableColWidths(
+                  content.table.headers,
+                  content.table.rows,
+                  { charPx: 6.2, firstMin: 130, min: 70 },
+                );
                 return (
                   <View style={{ gap: 16 }}>
                     <ScrollView horizontal showsHorizontalScrollIndicator>
@@ -2899,7 +2906,7 @@ export function QuizPlayScreen() {
                                 borderRightWidth:
                                   i < content.table.headers.length - 1 ? 1 : 0,
                                 borderColor: theme.border,
-                                minWidth: 70,
+                                width: colW[i],
                               }}
                             >
                               <Text
@@ -2932,7 +2939,7 @@ export function QuizPlayScreen() {
                                   paddingVertical: 8,
                                   borderRightWidth: ci < row.length - 1 ? 1 : 0,
                                   borderColor: theme.border,
-                                  minWidth: 70,
+                                  width: colW[ci],
                                 }}
                               >
                                 <Text

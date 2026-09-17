@@ -18,6 +18,7 @@ import { colors } from "../../theme/colors";
 import { SvgViewer } from "./SvgViewer";
 import { parseChemText } from "../../utils/chemText";
 import { SqlSchemaView } from "./Tier2TaskRenderers";
+import { tableColWidths } from "../../lib/tableWidths";
 
 interface MaterialProps {
   mat: any;
@@ -257,28 +258,10 @@ function TableMaterial({ mat, theme, isDark }: MaterialProps) {
   const headers: string[] = Array.isArray(td.headers) ? td.headers : [];
   const rows: string[][] = Array.isArray(td.rows) ? td.rows : [];
 
-  // Szerokości kolumn liczone RAZ dla całej tabeli. Wcześniej każda komórka
-  // miała tylko `minWidth`, więc wiersz z krótką treścią był węższy od
-  // nagłówka i kolumny nie trzymały jednej linii — na telefonie wyglądało to
-  // jak dwie wartości w jednej kolumnie (zgłoszone 17.09.2026).
-  // Bez pomiaru tekstu: szacujemy z liczby znaków (fontSize 11 ≈ 6 px/znak),
-  // z sufitem, żeby długie opisy się zawijały, a tabela nie rozjeżdżała ekranu.
-  const colCount = Math.max(
-    headers.length,
-    ...(rows.length ? rows.map((r) => (Array.isArray(r) ? r.length : 0)) : [0]),
-  );
-  const colWidths = Array.from({ length: colCount }, (_, i) => {
-    const texts = [headers[i], ...rows.map((r) => (Array.isArray(r) ? r[i] : ""))]
-      .map((v) => String(v ?? ""));
-    const chars = texts.reduce((m, s) => Math.max(m, s.length), 0);
-    const longestWord = texts.reduce(
-      (m, s) => s.split(/\s+/).reduce((n, w) => Math.max(n, w.length), m),
-      0,
-    );
-    const min = i === 0 ? 120 : 64;
-    const wanted = Math.max(chars * 6 + 22, longestWord * 6.6 + 22, min);
-    return Math.round(Math.min(wanted, i === 0 ? 230 : 190));
-  });
+  // Szerokości kolumn liczy wspólna funkcja (lib/tableWidths.ts) — ta sama
+  // dla materiałów, pytań z tabelą w quizie i tabel w arkuszu.
+  const colWidths = tableColWidths(headers, rows);
+  const colCount = colWidths.length;
 
   return (
     <View>
