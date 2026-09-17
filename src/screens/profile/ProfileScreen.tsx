@@ -10,6 +10,9 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { getProfile, type ProfileResponse } from "../../api/gamification";
 import { deleteAccount, setMarketingConsent } from "../../api/auth";
@@ -46,6 +49,10 @@ export function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const { colors: theme, isDark, toggle } = useTheme();
   const { user, isPremium, logout, refresh } = useAuth();
+  // Usuwanie konta: osobna strefa pod linią + modal z przepisaniem słowa.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteWord, setDeleteWord] = useState("");
+  const [deleting, setDeleting] = useState(false);
   // Zgoda marketingowa — stan lokalny z optymistycznym przełączeniem
   // i cofnięciem, gdy serwer nie przyjmie. Źródło prawdy: /me.
   const [mktConsent, setMktConsent] = useState<boolean>(
@@ -776,52 +783,151 @@ export function ProfileScreen() {
       </Card>
 
       <Button title="Wyloguj się" onPress={handleLogout} variant="ghost" />
-      <TouchableOpacity
-        onPress={() => {
-          Alert.alert(
-            "Usunąć konto?",
-            "Ta operacja jest nieodwracalna. Wszystkie dane (postępy, statystyki, subskrypcja) zostaną trwale usunięte.",
-            [
-              { text: "Anuluj", style: "cancel" },
-              {
-                text: "Usuń konto",
-                style: "destructive",
-                onPress: () => {
-                  Alert.alert(
-                    "Na pewno?",
-                    'Wpisz "USUŃ" mentalnie i potwierdź. Nie da się tego cofnąć.',
-                    [
-                      { text: "Nie, zostaję", style: "cancel" },
-                      {
-                        text: "Tak, usuń bezpowrotnie",
-                        style: "destructive",
-                        onPress: async () => {
-                          try {
-                            await deleteAccount();
-                            logout();
-                          } catch (err: any) {
-                            Alert.alert(
-                              "Błąd",
-                              err.message || "Nie udało się usunąć konta",
-                            );
-                          }
-                        },
-                      },
-                    ],
-                  );
-                },
-              },
-            ],
-          );
+
+      {/* ── Usuwanie konta ──────────────────────────────────────────────
+          Wcześniej „Usuń konto" wisiało bezpośrednio pod „Wyloguj się":
+          dwie akcje kończące sesję, jedna odwracalna, druga nie. Teraz
+          oddzielone linią i podpisem, w kolorze drugorzędnym (czerwień
+          dopiero w modalu), a potwierdzenie wymaga przepisania słowa. */}
+      <View
+        style={{
+          marginTop: 40,
+          paddingTop: 20,
+          borderTopWidth: 1,
+          borderTopColor: theme.border,
         }}
-        style={{ alignItems: "center", marginTop: 16, paddingVertical: 12 }}
       >
         <Text
-          style={{ fontSize: 13, color: colors.red[500], fontWeight: "500" }}
+          style={{
+            fontSize: 11,
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            color: theme.textSecondary,
+            marginBottom: 8,
+          }}
         >
-          Usuń konto
+          Ustawienia konta
         </Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            setDeleteWord("");
+            setDeleteOpen(true);
+          }}
+          style={{ paddingVertical: 10 }}
+        >
+          <Text style={{ fontSize: 14, color: theme.textSecondary }}>
+            Usuń konto i wszystkie dane
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal
+        visible={deleteOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !deleting && setDeleteOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: theme.card,
+              borderRadius: 24,
+              padding: 20,
+              gap: 14,
+            }}
+          >
+            <Text
+              style={{ fontSize: 18, fontWeight: "800", color: theme.text }}
+            >
+              Usunąć konto?
+            </Text>
+            <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+              Ta operacja jest nieodwracalna. Znikną wyniki, postęp, historia
+              nauki i kredyty AI. Aktywna subskrypcja nie odnowi się ponownie.
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+              Wpisz <Text style={{ fontWeight: "800" }}>USUWAM</Text>, żeby potwierdzić:
+            </Text>
+            <TextInput
+              value={deleteWord}
+              onChangeText={setDeleteWord}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="USUWAM"
+              placeholderTextColor={theme.textSecondary}
+              style={{
+                borderWidth: 1,
+                borderColor: theme.border,
+                borderRadius: 14,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                fontSize: 15,
+                color: theme.text,
+              }}
+            />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                disabled={deleting}
+                onPress={() => setDeleteOpen(false)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  alignItems: "center",
+                  backgroundColor: theme.background,
+                }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>
+                  Zostaję
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={deleting || deleteWord.trim().toUpperCase() !== "USUWAM"}
+                onPress={async () => {
+                  setDeleting(true);
+                  try {
+                    await deleteAccount();
+                    logout();
+                  } catch (err: any) {
+                    setDeleting(false);
+                    Alert.alert(
+                      "Błąd",
+                      err.message || "Nie udało się usunąć konta",
+                    );
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  alignItems: "center",
+                  backgroundColor: colors.red[500],
+                  opacity:
+                    deleting || deleteWord.trim().toUpperCase() !== "USUWAM"
+                      ? 0.4
+                      : 1,
+                }}
+              >
+                {deleting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>
+                    Usuń na zawsze
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

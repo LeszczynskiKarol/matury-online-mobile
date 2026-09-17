@@ -319,7 +319,11 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
       const found =
         subscriptions.find((s) => s.id === sku) ||
         products.find((p) => p.id === sku);
-      return (found as any)?.displayPrice ?? null;
+      const price: string | undefined = (found as any)?.displayPrice;
+      // „49,00 zł" → „49 zł": końcówkę pokazujemy tylko, gdy nie jest zerowa
+      // („49,99 zł" zostaje). Separator tysięcy (np. „1.000") nietknięty,
+      // bo po nim idzie cyfra.
+      return price ? price.replace(/[,.]00(?!\d)/, "") : null;
     },
     [subscriptions, products],
   );
