@@ -8,8 +8,10 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { authApi } from "../api";
+import { AppState } from "react-native";
 import { getToken, clearToken } from "../api/client";
 import {
   syncPushRegistration,
@@ -62,6 +64,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
     })();
+  }, []);
+
+  // Stan konta może zmienić się POZA apką: koniec subskrypcji w Google Play,
+  // zwrot, ręczna zmiana w panelu. Bez tego apka trzymała stary dostęp do
+  // restartu — user z wygasłym Pakietem wchodził do zadań i dopiero zapis
+  // odpowiedzi wracał z błędem (zgłoszone 17.09.2026).
+  const lastSync = useRef(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      if (Date.now() - lastSync.current < 30_000) return;
+      lastSync.current = Date.now();
+      authApi
+        .getMe()
+        .then(setUser)
+        .catch(() => {});
+    });
+    return () => sub.remove();
   }, []);
 
   // Cichy sync tokenu push przy każdym zalogowanym stanie — odświeża

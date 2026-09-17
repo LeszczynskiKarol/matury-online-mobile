@@ -63,6 +63,7 @@ import {
   AdminCopyButton,
 } from "../../components/common/AdminCopyButton";
 import type { QuizStackParamList } from "../../navigation/types";
+import { useAuth } from "../../context/AuthContext";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -113,6 +114,7 @@ export function QuizPlayScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
+  const { refresh } = useAuth();
   const route = useRoute<any>();
 
   const {
@@ -485,6 +487,27 @@ export function QuizPlayScreen() {
         answered: prev.answered + 1,
       }));
     } catch (err: any) {
+      // Dostęp mógł wygasnąć w trakcie nauki (koniec subskrypcji w Play,
+      // zwrot, zmiana w panelu). Zamiast suchego „Błąd" mówimy, co się stało,
+      // odświeżamy stan konta i proponujemy przejście do planów.
+      if (err?.code === "PREMIUM_REQUIRED") {
+        refresh().catch(() => {});
+        Alert.alert(
+          "Dostęp Premium wygasł",
+          "Odpowiedzi nie da się już zapisać. Twoje dotychczasowe postępy są zachowane.",
+          [
+            { text: "Później", style: "cancel", onPress: () => navigation.goBack() },
+            {
+              text: "Zobacz plany",
+              onPress: () =>
+                navigation
+                  .getParent()
+                  ?.navigate("ProfileTab", { screen: "Subscription" }),
+            },
+          ],
+        );
+        return;
+      }
       Alert.alert("Błąd", err.message || "Nie udało się zapisać odpowiedzi");
     } finally {
       setLoading(false);
