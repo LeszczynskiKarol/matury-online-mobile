@@ -81,11 +81,14 @@ interface StripeStatus {
   subscriptionEnd?: string | null;
   hasPaidAccess?: boolean;
   provider?: "play" | "stripe";
+  /** Tylko provider=play — np. SUBSCRIPTION_STATE_ON_HOLD. */
+  playState?: string | null;
 }
 
 type GateVariant =
   | { kind: "default" }
   | { kind: "payment_failed" }
+  | { kind: "play_hold" }
   | { kind: "expired"; daysSince: number | null };
 
 function classifyStatus(st: StripeStatus | null): GateVariant {
@@ -95,6 +98,12 @@ function classifyStatus(st: StripeStatus | null): GateVariant {
   const endMs = st.subscriptionEnd ? new Date(st.subscriptionEnd).getTime() : NaN;
   const ended = Number.isFinite(endMs) && endMs < now;
 
+  // Google Play wstrzymał subskrypcję po nieudanej płatności — backend
+  // oznacza to jako EXPIRED, ale „wygasło" byłoby nieprawdą: wystarczy
+  // zaktualizować płatność w Sklepie Play.
+  if (st.provider === "play" && st.playState === "SUBSCRIPTION_STATE_ON_HOLD") {
+    return { kind: "play_hold" };
+  }
   if (status === "PAST_DUE") return { kind: "payment_failed" };
   if (
     status === "EXPIRED" ||
@@ -122,15 +131,28 @@ function variantCopy(
   v: Exclude<GateVariant, { kind: "default" }>,
   days: number | null,
 ): { headline: string; bullets: string[]; cta: string } {
+  if (v.kind === "play_hold") {
+    return {
+      headline: "Google Play nie pobrał płatności za Premium",
+      bullets: [
+        "Subskrypcja jest wstrzymana, ale postępy, streak i powtórki czekają nietknięte",
+        "Zaktualizuj metodę płatności w Sklepie Play — dostęp wróci automatycznie",
+        "Nie kupuj Premium drugi raz — to założyłoby drugą subskrypcję",
+      ],
+      cta: "Napraw płatność w Sklepie Play",
+    };
+  }
   if (v.kind === "payment_failed") {
     return {
+      // Bez „opłać / zmień kartę" (apka z Google Play nie może kierować do
+      // płatności poza Play). Zakup w apce przez Play — backend anuluje wtedy
+      // nieopłaconą subskrypcję Stripe (services/stripe-replace.ts).
       headline: "Płatność za Premium nie przeszła",
       bullets: [
-        "Twoje konto jest w trybie ograniczonym, ale postępy, streak i powtórki czekają nietknięte",
-        "Najczęściej to brak środków na karcie w dniu pobrania — wystarczy opłacić albo zmienić kartę",
-        "Po opłaceniu dostęp wraca od razu",
+        "Dostęp Premium jest wstrzymany, ale postępy, streak i powtórki czekają nietknięte",
+        "Kup Premium w aplikacji przez Google Play — poprzednia, nieopłacona subskrypcja zostanie anulowana automatycznie",
       ],
-      cta: "Opłać i wróć do nauki",
+      cta: "Kup Premium w Google Play",
     };
   }
   const d = v.daysSince;
@@ -480,6 +502,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
           }}
           icon={<Ionicons name="diamond" size={16} color="#fff" />}
         />
+        {variant.kind !== "play_hold" && (
         <Text
           style={{
             fontSize: 11,
@@ -488,8 +511,9 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
             marginTop: 10,
           }}
         >
-          Anuluj w każdej chwili · Bezpieczna płatność Stripe · Dostęp od razu
+          Anuluj w każdej chwili · Płatność przez Google Play · Dostęp od razu
         </Text>
+        )}
 
         {/* Oferta próbna POD ceną — kto jest gotów kupić, kupuje wyżej.
             Konto po wygaśnięciu / z nieudaną płatnością już zna produkt —

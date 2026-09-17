@@ -49,8 +49,9 @@ const subscriptionApi = {
       provider?: "play" | "stripe";
       adminOverride?: boolean;
       hasPaidAccess?: boolean;
-      /** PAST_DUE: link do zaległej faktury Stripe (opłać / zmień kartę). */
-      pastDueInvoiceUrl?: string | null;
+      /** Tylko provider=play: SUBSCRIPTION_STATE_IN_GRACE_PERIOD / _ON_HOLD / … */
+      playState?: string | null;
+      playExpiry?: string | null;
       subscriptionStatus: string;
       subscriptionEnd: string | null;
       canResume: boolean;
@@ -181,10 +182,14 @@ export function SubscriptionScreen() {
   const isCancelled =
     status?.subscriptionStatus === "CANCELLED" && status?.canResume;
   const viaPlay = status?.provider === "play";
-  // Nieudana płatność za subskrypcję Stripe (kupioną na webie): nowy zakup
-  // — także przez Play — założyłby drugą subskrypcję. Jedyna sensowna akcja
-  // to opłacenie zaległej faktury / zmiana karty.
+  // Nieudana płatność za subskrypcję Stripe (kupioną na webie). W apce
+  // jedyną drogą jest zakup przez Google Play — backend po nim sam kasuje
+  // nieopłaconą subskrypcję Stripe (services/stripe-replace.ts), więc drugiej
+  // subskrypcji nie będzie.
   const isPastDue = status?.subscriptionStatus === "PAST_DUE" && !viaPlay;
+  // Stan subskrypcji z Google Play (backend: /stripe/status → playState).
+  const playGrace = viaPlay && status?.playState === "SUBSCRIPTION_STATE_IN_GRACE_PERIOD";
+  const playHold = viaPlay && status?.playState === "SUBSCRIPTION_STATE_ON_HOLD";
   const monthlyPrice = billing.priceOf(SKU_PREMIUM_MONTHLY);
   const oneTimePrice = billing.priceOf(SKU_PREMIUM_30DAYS);
 
@@ -305,7 +310,12 @@ export function SubscriptionScreen() {
                   Płatność nie przeszła — dostęp wstrzymany
                 </Text>
               )}
-              {!isPremium && !isPastDue && status.subscriptionStatus !== "EXPIRED" && (
+              {playHold && (
+                <Text style={{ fontSize: 12, color: "#f59e0b", marginTop: 2 }}>
+                  Płatność w Google Play nie przeszła — dostęp wstrzymany
+                </Text>
+              )}
+              {!isPremium && !isPastDue && !playHold && status.subscriptionStatus !== "EXPIRED" && (
                 <Text
                   style={{ fontSize: 12, color: colors.red[500], marginTop: 2 }}
                 >
@@ -511,33 +521,45 @@ export function SubscriptionScreen() {
       {isPastDue && status && (
         <Card style={{ marginBottom: 24, borderWidth: 1, borderColor: "#f59e0b" }}>
           <Text style={{ fontSize: 15, fontWeight: "600", color: theme.text }}>
-            💳 Bank odrzucił płatność za subskrypcję
+            💳 Płatność za Premium nie przeszła
+          </Text>
+          {/* Bez odesłań do płatności poza Google Play (faktura Stripe, www). */}
+          <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 6 }}>
+            Dostęp Premium jest wstrzymany. Możesz kupić Premium poniżej przez
+            Google Play — poprzednia, nieopłacona subskrypcja zostanie wtedy
+            anulowana automatycznie. Postępy, streak i powtórki są zachowane.
+          </Text>
+        </Card>
+      )}
+
+      {/* Google Play: płatność nie przeszła. W karencji dostęp trwa, po niej
+          (ON_HOLD) jest wstrzymany. Naprawia się to wyłącznie w Sklepie Play —
+          nowy zakup założyłby drugą subskrypcję, więc oferty wtedy nie ma. */}
+      {(playGrace || playHold) && status && (
+        <Card style={{ marginBottom: 24, borderWidth: 1, borderColor: "#f59e0b" }}>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: theme.text }}>
+            {playHold
+              ? "💳 Google Play nie pobrał płatności — dostęp wstrzymany"
+              : "💳 Google Play nie mógł pobrać płatności"}
           </Text>
           <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 6 }}>
-            Najczęściej to brak środków na karcie w dniu pobrania. Opłać zaległą
-            fakturę albo podaj inną kartę — dostęp wróci od razu, bez zakładania
-            nowej subskrypcji.
+            {playHold
+              ? "Subskrypcja czeka, aż zaktualizujesz metodę płatności w Sklepie Play. Postępy są zachowane, a po opłaceniu dostęp wróci automatycznie."
+              : `Premium nadal działa${status.playExpiry ? ` do ${formatDate(status.playExpiry)}` : ""}, ale Google nie pobrał opłaty. Zaktualizuj metodę płatności w Sklepie Play, żeby nie stracić dostępu.`}
           </Text>
-          {status.pastDueInvoiceUrl ? (
-            <Button
-              title="Opłać albo zmień kartę →"
-              onPress={() =>
-                Linking.openURL(status.pastDueInvoiceUrl!).catch(() => {})
-              }
-              style={{ marginTop: 14 }}
-              size="sm"
-            />
-          ) : (
-            <Text style={{ fontSize: 12, color: theme.textTertiary, marginTop: 10 }}>
-              Zaległą fakturę opłacisz na www.matury-online.pl w zakładce
-              Subskrypcja.
-            </Text>
-          )}
+          <Button
+            title="Otwórz subskrypcje w Sklepie Play →"
+            onPress={() =>
+              Linking.openURL(playSubscriptionsUrl(SKU_PREMIUM_MONTHLY)).catch(() => {})
+            }
+            style={{ marginTop: 14 }}
+            size="sm"
+          />
         </Card>
       )}
 
       {/* Oferta */}
-      {!isPastDue &&
+      {!playHold &&
         (!isPremium ||
           status?.subscriptionStatus === "EXPIRED" ||
           status?.subscriptionStatus === "FREE") && (

@@ -2,18 +2,19 @@
 // PaymentFailedBanner — karta „płatność za Premium nie przeszła"
 // src/components/common/PaymentFailedBanner.tsx
 //
-// Odpowiednik webowego #payment-failed-banner z layoutu Dashboard. Dane
-// przychodzą z GET /api/notifications (type PAYMENT_FAILED). Krzyżyk chowa
-// kartę od razu i w tle wysyła dismiss — użytkownik nie czeka na sieć.
+// Dane przychodzą z GET /api/notifications (type PAYMENT_FAILED). Krzyżyk
+// chowa kartę od razu i w tle wysyła dismiss.
 //
-// Przycisk „Opłać albo zmień kartę" otwiera Stripe hosted invoice
-// (data.payUrl). To płatność za subskrypcję Stripe kupioną na webie, więc
-// polityka Play nie ma tu zastosowania — subskrypcje z Play nie generują tego
-// powiadomienia. Bez payUrl → ekran Subscription.
+// Apka jest dystrybuowana przez Google Play, więc nie może kierować do
+// płatności poza Google Play (polityka płatności Play): żadnych linków do
+// faktur Stripe, żadnego „opłać na stronie". Jedyna akcja to zakup Premium
+// W APCE przez Google Play — backend po takim zakupie sam kasuje nieopłaconą
+// subskrypcję Stripe (services/stripe-replace.ts). Treść jest własna, nie
+// `notification.body`, bo backend pisze ją pod web („opłać albo zmień kartę").
 // ============================================================================
 
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Linking } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
@@ -22,7 +23,6 @@ import { spacing, radius } from "../../theme";
 import {
   dismissNotification,
   type AppNotification,
-  type PaymentFailedData,
 } from "../../api/notifications";
 
 export function PaymentFailedBanner({
@@ -38,19 +38,6 @@ export function PaymentFailedBanner({
   const [hidden, setHidden] = useState(false);
 
   if (hidden) return null;
-
-  const data = (notification.data ?? {}) as Partial<PaymentFailedData>;
-  const payUrl = typeof data.payUrl === "string" && data.payUrl ? data.payUrl : null;
-
-  const handlePay = () => {
-    if (payUrl) {
-      Linking.openURL(payUrl).catch(() => {
-        navigation.navigate("ProfileTab", { screen: "Subscription" });
-      });
-      return;
-    }
-    navigation.navigate("ProfileTab", { screen: "Subscription" });
-  };
 
   const handleDismiss = () => {
     setHidden(true);
@@ -85,7 +72,7 @@ export function PaymentFailedBanner({
               marginBottom: 4,
             }}
           >
-            {notification.title}
+            Płatność za Premium nie przeszła
           </Text>
           <Text
             style={{
@@ -94,7 +81,9 @@ export function PaymentFailedBanner({
               lineHeight: 19,
             }}
           >
-            {notification.body}
+            Dostęp Premium jest wstrzymany. Możesz kupić Premium w aplikacji
+            przez Google Play — poprzednia, nieopłacona subskrypcja zostanie
+            wtedy anulowana automatycznie. Postępy są zachowane.
           </Text>
         </View>
         <TouchableOpacity
@@ -109,7 +98,7 @@ export function PaymentFailedBanner({
       </View>
 
       <TouchableOpacity
-        onPress={handlePay}
+        onPress={() => navigation.navigate("ProfileTab", { screen: "Subscription" })}
         accessibilityRole="button"
         style={{
           marginTop: 12,
@@ -124,7 +113,7 @@ export function PaymentFailedBanner({
         }}
       >
         <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
-          Opłać albo zmień kartę
+          Kup Premium w aplikacji
         </Text>
         <Ionicons name="arrow-forward" size={14} color="#fff" />
       </TouchableOpacity>

@@ -170,7 +170,8 @@ export function DashboardScreen() {
           />
         )}
 
-        {/* Premium CTA */}
+        {/* Premium CTA — także przy nieudanej płatności Stripe: zakup w Google
+            Play zastępuje nieopłaconą subskrypcję (backend ją anuluje). */}
         <Card
           style={{
             marginBottom: 24,

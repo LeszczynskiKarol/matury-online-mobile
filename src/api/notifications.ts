@@ -12,7 +12,7 @@ export type NotificationType = "PAYMENT_FAILED" | (string & {});
 
 export interface PaymentFailedData {
   invoiceId: string;
-  /** Stripe hosted invoice — płatność za subskrypcję kupioną na webie. */
+  /** Link do faktury (web). W apce NIE używamy — polityka płatności Google Play. */
   payUrl: string | null;
   amountZl: number;
   retryAt: string | null;
