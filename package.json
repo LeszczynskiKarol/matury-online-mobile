@@ -4,6 +4,9 @@
   "main": "expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
+    "phone": "node scripts/phone.js",
+    "phone:local": "node scripts/phone.js --local",
+    "phone:build": "npx expo run:android --variant debug --no-bundler",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
