@@ -982,6 +982,15 @@ export function SqlSchemaView({
 }) {
   const tables = Array.isArray(schema?.tables) ? schema.tables : [];
   const relations = Array.isArray(schema?.relations) ? schema.relations : [];
+  // Szerokość kolumny z nazwy pola i najdłuższej wartości w przykładowych
+  // danych — nagłówek i wiersze muszą trzymać tę samą siatkę.
+  const sampleColW = (t: any, name: string) => {
+    const vals = (Array.isArray(t?.sampleRows) ? t.sampleRows : [])
+      .slice(0, 5)
+      .map((r: any) => String(r?.[name] ?? ""));
+    const chars = vals.reduce((m: number, s: string) => Math.max(m, s.length), name.length);
+    return Math.round(Math.min(Math.max(chars * 6 + 18, 80), 180));
+  };
   return (
     <View
       style={{
@@ -1077,7 +1086,7 @@ export function SqlSchemaView({
                     <View
                       key={f.name}
                       style={{
-                        minWidth: 80,
+                        width: sampleColW(t, f.name),
                         paddingHorizontal: 8,
                         paddingVertical: 4,
                         borderRightWidth: fi < t.fields.length - 1 ? 1 : 0,
@@ -1112,7 +1121,7 @@ export function SqlSchemaView({
                       <View
                         key={f.name}
                         style={{
-                          minWidth: 80,
+                          width: sampleColW(t, f.name),
                           paddingHorizontal: 8,
                           paddingVertical: 4,
                           borderRightWidth: fi < t.fields.length - 1 ? 1 : 0,
@@ -1350,6 +1359,19 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
   const ans =
     typeof value === "object" && value && !Array.isArray(value) ? value : {};
 
+  // Jedna szerokość kolumny dla nagłówka, etykiet i pól — inaczej nagłówek
+  // z długim tytułem był szerszy od komórek i kolumny się rozjeżdżały
+  // (zgłoszone 17.09.2026). Szacowanie z liczby znaków: fontSize 12 ≈ 6.5 px.
+  const labelChars = rows.reduce(
+    (m: number, r: any) => Math.max(m, String(r?.label ?? "").length),
+    0,
+  );
+  const colW = (i: number) => {
+    const head = String(headers[i] ?? "");
+    const chars = i === 0 ? Math.max(head.length, labelChars) : head.length;
+    return Math.round(Math.min(Math.max(chars * 6.5 + 22, 120), 220));
+  };
+
   return (
     <View>
       <ScrollView horizontal>
@@ -1368,7 +1390,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
                 <View
                   key={i}
                   style={{
-                    minWidth: 120,
+                    width: colW(i),
                     paddingHorizontal: 10,
                     paddingVertical: 8,
                     borderRightWidth: i < headers.length - 1 ? 1 : 0,
@@ -1404,7 +1426,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
                 {row.label !== undefined && (
                   <View
                     style={{
-                      minWidth: 120,
+                      width: colW(0),
                       paddingHorizontal: 10,
                       paddingVertical: 8,
                       borderRightWidth: 1,
@@ -1423,7 +1445,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
                     <View
                       key={fi}
                       style={{
-                        minWidth: 120,
+                        width: colW(row.label !== undefined ? fi + 1 : fi),
                         padding: 2,
                         borderRightWidth: fi < fields.length - 1 ? 1 : 0,
                         borderColor: theme.border,
