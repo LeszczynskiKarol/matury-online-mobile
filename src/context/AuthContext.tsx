@@ -12,6 +12,7 @@ import React, {
 } from "react";
 import { authApi } from "../api";
 import { AppState } from "react-native";
+import { reportPlayIntegrity } from "../lib/playIntegrity";
 import { getToken, clearToken } from "../api/client";
 import {
   syncPushRegistration,
@@ -123,12 +124,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await authApi.verifyEmail(email, code);
     const me = await authApi.getMe();
     setUser(me);
+    // Świeże konto — raportujemy werdykt Play Integrity (lib/playIntegrity.ts).
+    reportPlayIntegrity();
   }, []);
 
   const loginWithGoogle = useCallback(async (credential: string) => {
     await authApi.loginWithGoogle(credential);
     const me = await authApi.getMe();
     setUser(me);
+    // Farma kont z 17.09.2026 rejestrowała się WYŁĄCZNIE przez Google — tu
+    // werdykt jest najbardziej potrzebny.
+    reportPlayIntegrity();
   }, []);
 
   const logout = useCallback(async () => {
