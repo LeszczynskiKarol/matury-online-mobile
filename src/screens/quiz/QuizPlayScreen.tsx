@@ -3477,6 +3477,25 @@ export function QuizPlayScreen() {
                                     {["P", "F"].map((label) => {
                                       const val = label === "P";
                                       const isThis = sa[si] === val;
+                                      // Po sprawdzeniu ORAZ po „Pokaż odpowiedź"
+                                      // (oba ustawiają `submitted`) zaznaczamy
+                                      // POPRAWNE P/F na zielono, a błędny wybór
+                                      // użytkownika na czerwono. Wcześniej nic nie
+                                      // było zaznaczone (zgłoszone 17.09.2026).
+                                      const isCorrectMark =
+                                        submitted && val === (st.isTrue === true);
+                                      const isWrongPick =
+                                        submitted && isThis && !isCorrectMark;
+                                      const filled = submitted
+                                        ? isCorrectMark || isWrongPick
+                                        : isThis;
+                                      const fill = submitted
+                                        ? isCorrectMark
+                                          ? colors.brand[500]
+                                          : colors.red[500]
+                                        : val
+                                          ? colors.brand[500]
+                                          : colors.red[500];
                                       return (
                                         <TouchableOpacity
                                           key={label}
@@ -3490,20 +3509,20 @@ export function QuizPlayScreen() {
                                             paddingHorizontal: 10,
                                             paddingVertical: 6,
                                             borderRadius: 10,
-                                            backgroundColor: isThis
-                                              ? val
-                                                ? colors.brand[500]
-                                                : colors.red[500]
+                                            backgroundColor: filled
+                                              ? fill
                                               : theme.card,
-                                            borderWidth: 1,
-                                            borderColor: theme.border,
+                                            borderWidth: isCorrectMark ? 2 : 1,
+                                            borderColor: isCorrectMark
+                                              ? colors.brand[600]
+                                              : theme.border,
                                           }}
                                         >
                                           <Text
                                             style={{
                                               fontSize: 12,
                                               fontWeight: "600",
-                                              color: isThis
+                                              color: filled
                                                 ? "#fff"
                                                 : theme.textSecondary,
                                             }}
@@ -4463,11 +4482,26 @@ export function QuizPlayScreen() {
       case "TABLE_DATA":
         return content.subQuestions?.map((sq: any) => sq.acceptedAnswers?.[0]);
       case "WIAZKA":
-        return content.subQuestions?.map((sq: any) => ({
-          id: sq.id,
-          type: sq.type,
-          correctAnswer: sq.correctAnswer || sq.acceptedAnswers?.[0],
-        }));
+        // Wcześniej leciały tu OBIEKTY, a box „Poprawna odpowiedź" wypisywał
+        // je jako surowy JSON (zgłoszone 17.09.2026). Teraz każda podczęść
+        // dostaje zdanie po polsku: litera, wybrana opcja z treścią, a dla
+        // prawda/fałsz — kolejne P/F.
+        return content.subQuestions?.map((sq: any, i: number) => {
+          const letter = String.fromCharCode(97 + i);
+          if (sq.type === "CLOSED") {
+            const opt = (sq.options || []).find(
+              (o: any) => o.id === sq.correctAnswer,
+            );
+            return `${letter}) ${sq.correctAnswer ?? "—"}${opt?.text ? ` — ${opt.text}` : ""}`;
+          }
+          if (sq.type === "TRUE_FALSE") {
+            const marks = (sq.statements || [])
+              .map((st: any, si: number) => `${si + 1}. ${st.isTrue ? "P" : "F"}`)
+              .join(", ");
+            return `${letter}) ${marks || "—"}`;
+          }
+          return `${letter}) ${sq.acceptedAnswers?.[0] ?? sq.correctAnswer ?? "—"}`;
+        });
       default:
         return null;
     }
