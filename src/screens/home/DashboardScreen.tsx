@@ -681,7 +681,12 @@ export function DashboardScreen() {
 
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => navigation.navigate("SubjectsTab")}
+            // Ta sama ścieżka co przycisk „Quiz" w dolnym menu: ekran wyboru
+            // przedmiotu i typu sesji. Wcześniej kafel prowadził na listę
+            // przedmiotów (SubjectsTab), czyli w zupełnie inny przepływ.
+            onPress={() =>
+              navigation.navigate("QuizTab", { screen: "QuizSetup" })
+            }
             style={{
               flex: 1,
               padding: 16,
