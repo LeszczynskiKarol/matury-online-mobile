@@ -59,6 +59,7 @@ import {
   AdminCopyButton,
 } from "../../components/common/AdminCopyButton";
 import type { ExamStackParamList } from "../../navigation/types";
+import { handlePremiumError } from "../../lib/premiumAlert";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -290,6 +291,7 @@ export function ExamPlayerScreen() {
         });
         navigation.replace("ExamResults", { attemptId: data.attemptId });
       } catch (err: any) {
+        if (handlePremiumError(err, navigation)) return;
         Alert.alert("Błąd", err.message || "Nie udało się przesłać egzaminu.");
         setPhase("exam");
       }

@@ -28,6 +28,7 @@ import {
 import { getTrialStatus, type TrialStatus } from "../../api/premium";
 import { radius } from "../../theme";
 import type { ExamStackParamList } from "../../navigation/types";
+import { handlePremiumError } from "../../lib/premiumAlert";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -178,6 +179,7 @@ export function ExamSelectorScreen() {
       setSelectedSubject(info);
       setExamList([]);
     } catch (err: any) {
+      if (handlePremiumError(err, navigation)) return;
       Alert.alert("Błąd", err.message);
     } finally {
       setLoadingExams(false);
