@@ -16,6 +16,7 @@ import Svg, {
 import { WebView } from "react-native-webview";
 import { colors } from "../../theme/colors";
 import { SvgViewer } from "./SvgViewer";
+import { ZoomableBox } from "./ZoomableBox";
 import { parseChemText } from "../../utils/chemText";
 import { SqlSchemaView } from "./Tier2TaskRenderers";
 import { tableColWidths } from "../../lib/tableWidths";
@@ -1456,20 +1457,32 @@ export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) 
       {isDbSchema && (
         <SqlSchemaView schema={mat.schema} theme={theme} isDark={isDark} />
       )}
+      {/* Materiały rysowane natywnie dostają wspólne powiększanie (ZoomableBox) —
+          do 18.09.2026 miały je tylko grafiki SVG. */}
       {isKlimatogram && (
-        <KlimatogramMaterial mat={mat} theme={theme} isDark={isDark} />
+        <ZoomableBox theme={theme} isDark={isDark} title={mat.title}>
+          <KlimatogramMaterial mat={mat} theme={theme} isDark={isDark} />
+        </ZoomableBox>
       )}
       {isCrossSection && <SvgMaterial mat={mat} theme={theme} />}
       {isMapEmbed && (
         <MapEmbedMaterial mat={mat} theme={theme} isDark={isDark} />
       )}
-      {isChart && <ChartMaterial mat={mat} theme={theme} isDark={isDark} />}
+      {isChart && (
+        <ZoomableBox theme={theme} isDark={isDark} title={mat.title}>
+          <ChartMaterial mat={mat} theme={theme} isDark={isDark} />
+        </ZoomableBox>
+      )}
       {isTable && <TableMaterial mat={mat} theme={theme} isDark={isDark} />}
       {isMapPoland && (
-        <MapPolandMaterial mat={mat} theme={theme} isDark={isDark} />
+        <ZoomableBox theme={theme} isDark={isDark} title={mat.title}>
+          <MapPolandMaterial mat={mat} theme={theme} isDark={isDark} />
+        </ZoomableBox>
       )}
       {isGenealogy && (
-        <GenealogyMaterial mat={mat} theme={theme} isDark={isDark} />
+        <ZoomableBox theme={theme} isDark={isDark} title={mat.title}>
+          <GenealogyMaterial mat={mat} theme={theme} isDark={isDark} />
+        </ZoomableBox>
       )}
       {isMapEurope && (
         <MapEuropeMaterial mat={mat} theme={theme} isDark={isDark} />
@@ -1477,7 +1490,11 @@ export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) 
       {isGovDiagram && (
         <GovDiagramMaterial mat={mat} theme={theme} isDark={isDark} />
       )}
-      {isImage && <ImageMaterial mat={mat} theme={theme} isDark={isDark} />}
+      {isImage && (
+        <ZoomableBox theme={theme} isDark={isDark} title={mat.title}>
+          <ImageMaterial mat={mat} theme={theme} isDark={isDark} />
+        </ZoomableBox>
+      )}
       {isTextSource && (
         <TextSourceMaterial mat={mat} theme={theme} isDark={isDark} />
       )}
