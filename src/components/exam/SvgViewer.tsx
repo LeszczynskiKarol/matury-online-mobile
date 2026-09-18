@@ -11,15 +11,6 @@ import { View, Text, TouchableOpacity, Pressable } from "react-native";
 import { WebView } from "react-native-webview";
 import { ZoomableSvgModal } from "./ZoomableSvgModal";
 
-/** Czy kolor tła jest ciemny — po jasności, nie po konkretnych wartościach. */
-function isDarkColor(hex: unknown): boolean {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex ?? "").trim());
-  if (!m) return false;
-  const n = parseInt(m[1], 16);
-  const l = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
-  return l < 0.4;
-}
-
 export function SvgViewer({
   svg,
   theme,
@@ -27,16 +18,18 @@ export function SvgViewer({
 }: {
   svg: string;
   theme: any;
-  /** Gdy wywołujący zna motyw (useTheme), podaje go wprost. */
+  /** true TYLKO gdy SVG jest wygenerowane pod ciemny motyw (ma własne tło). */
   isDark?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const baseH = 260;
-  // Do 18.09.2026 tryb ciemny rozpoznawany był po dwóch sztywno wpisanych
-  // kolorach tła. Motyw apki używa innego odcienia, więc w trybie ciemnym
-  // ramka i pasek podglądu wychodziły BIAŁE wokół ciemnego wykresu.
-  const isDark =
-    typeof isDarkProp === "boolean" ? isDarkProp : isDarkColor(theme.background);
+  // Grafiki z TREŚCI (materiały arkuszy, schematy) są rysowane ciemną kreską
+  // pod białe tło i zwykle nie mają własnego tła — na ciemnym podglądzie
+  // znikają (regresja z 18.09.2026: po „naprawie" wykrywania motywu wykresy
+  // popytu/podaży w arkuszu BiZ stały się niewidoczne). Dlatego domyślnie
+  // ZAWSZE biały „papier", jak ZoomableSvg na webie. Ciemne tło dostaje tylko
+  // wywołujący, który sam generuje SVG pod motyw i mówi to wprost (MathGraph).
+  const isDark = isDarkProp === true;
   const bg = isDark ? "#0f0f23" : "#ffffff";
 
   const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:${bg};overflow:hidden}svg{width:100%;height:auto;max-height:100vh}</style></head><body>${svg}</body></html>`;
