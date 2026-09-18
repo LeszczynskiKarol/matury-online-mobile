@@ -1115,8 +1115,26 @@ export function ExamPlayerScreen() {
 // TASK INPUT RENDERER — renders input for each exam task type
 // ══════════════════════════════════════════════════════════════════════════
 
+// BiZ (biznes i zarządzanie): każdy typ `biz_*` ma TEN SAM kształt danych co
+// jego odpowiednik `wos_*` — web robi z tego cienki adapter
+// (frontend/…/BiznesTaskRenderers.tsx, BIZ_TO_WOS). Apka tego adaptera nie
+// miała, a `biz_` nie było w żadnym wyrażeniu z prefiksami przedmiotów, więc
+// WSZYSTKIE zadania BiZ — dopasowania, A/B/C/D, prawda/fałsz, kolejność —
+// spadały do jednego pola tekstowego (zgłoszone 18.09.2026; 14 typów, 245
+// zadań w aktywnych arkuszach). Dwa typy bez bliźniaka w WOS idą jak na webie
+// do wieloliniowej odpowiedzi otwartej.
+const BIZ_TO_WOS: Record<string, string> = {
+  biz_calc: "wos_open_explain",
+  biz_case_analysis: "wos_open_explain",
+};
+function mapBizTaskType(type: unknown): string {
+  const t = String(type ?? "");
+  if (!t.startsWith("biz_")) return t;
+  return BIZ_TO_WOS[t] ?? `wos_${t.slice(4)}`;
+}
+
 function ExamTaskInput({
-  task,
+  task: rawTask,
   value,
   onChange,
   theme,
@@ -1128,6 +1146,12 @@ function ExamTaskInput({
   theme: any;
   isDark: boolean;
 }) {
+  // Typ podmieniamy tylko do WYBORU renderera — id, treść i wszystko, co idzie
+  // w odpowiedzi do backendu, zostaje nietknięte.
+  const task = useMemo(
+    () => ({ ...rawTask, type: mapBizTaskType(rawTask?.type) }),
+    [rawTask],
+  );
   const content = task.content || {};
 
   // ── Generic table/graph rendering (before task-specific input) ──
@@ -1882,6 +1906,68 @@ function ExamTaskInput({
         );
       }
       // ── MATH TYPES (use MathEditor) ─────────────────────────────────
+      // ABCD + wybór uzasadnienia (matematyka). Odpowiedź ma kształt
+      // { answer, justification } — identyczny jak na webie
+      // (MatematykaTaskRenderers.tsx → MathAbcdJustifiedTask). Do 18.09.2026
+      // typ spadał do pola tekstowego, więc zadania nie dało się poprawnie
+      // rozwiązać (17 zadań w aktywnych arkuszach).
+      case "math_abcd_justified": {
+        const answerOptions = content.answerOptions || content.options || [];
+        const justificationOptions =
+          content.justificationOptions || content.justifications || [];
+        const cur =
+          value && typeof value === "object" && !Array.isArray(value)
+            ? value
+            : { answer: null, justification: null };
+        const group = (
+          title: string,
+          opts: any[],
+          key: "answer" | "justification",
+        ) => (
+          <View>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "800",
+                color: theme.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: 0.6,
+                marginBottom: 8,
+              }}
+            >
+              {title}
+            </Text>
+            <View style={{ gap: 8 }}>
+              {opts.map((o: any) => (
+                <OptionCard
+                  key={o.id}
+                  id={o.id}
+                  text={parseChemText(o.text)}
+                  state={cur[key] === o.id ? "selected" : "default"}
+                  onPress={() =>
+                    onChange({ ...cur, [key]: cur[key] === o.id ? null : o.id })
+                  }
+                />
+              ))}
+            </View>
+          </View>
+        );
+        return (
+          <View style={{ gap: 18 }}>
+            {group("Odpowiedź:", answerOptions, "answer")}
+            {group("Uzasadnienie:", justificationOptions, "justification")}
+          </View>
+        );
+      }
+
+      // Zadania otwarte z poziomu rozszerzonego (math_pr_*) to te same zadania
+      // obliczeniowe/dowodowe co na podstawie — należy im się edytor
+      // matematyczny, a nie zwykłe pole tekstowe (300 zadań).
+      case "math_pr_short":
+      case "math_pr_extended":
+      case "math_pr_parametric":
+      case "math_pr_proof":
+      case "math_pr_optimization":
       case "math_short_calc":
       case "math_extended_calc":
       case "math_proof":
