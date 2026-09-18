@@ -228,6 +228,22 @@ const MATH_SYMBOLS: [RegExp, string][] = [
   [/\\}/g, "}"],
 ];
 
+// ── Bramka na komendy o wspólnym prefiksie ───────────────────────────────────
+// MATH_SYMBOLS jest stosowane po kolei, więc krótsza komenda zjadała dłuższą:
+// `\\le` trafiało w `\\left(` i zostawiało „≤ft(” w treści zadania (realnie
+// widoczne w arkuszu E8 z matematyki). Tak samo `\\in` psuło `\\infty`,
+// `\\ne` — `\\neg`, `\\big` — `\\bigg`, `\\subset` — `\\subseteq`.
+// Każdemu wzorcowi będącemu SAMĄ nazwą komendy dokładamy warunek: po nazwie
+// nie stoi kolejna litera. Wzorce z `\\b` albo z klasą znaków zostają bez zmian.
+const GUARDED_SYMBOLS: [RegExp, string][] = MATH_SYMBOLS.map(([re, rep]) => {
+  const src = re.source;
+  if (!/^\\\\[a-zA-Z]+(\\s\*)?$/.test(src)) return [re, rep];
+  const hasWs = src.endsWith("\\s*");
+  const name = hasWs ? src.slice(0, -3) : src;
+  return [new RegExp(`${name}(?![a-zA-Z])${hasWs ? "\\s*" : ""}`, re.flags), rep];
+});
+
+
 // ── Main parser ─────────────────────────────────────────────────────────
 
 export function parseChemText(text: string): string {
@@ -308,7 +324,7 @@ function parseMathBlock(raw: string): string {
   m = m.replace(/\\sqrt\s+(\w)/g, (_, c) => `√${c}`);
 
   // Apply all symbol replacements
-  for (const [pattern, replacement] of MATH_SYMBOLS) {
+  for (const [pattern, replacement] of GUARDED_SYMBOLS) {
     m = m.replace(pattern, replacement as string);
   }
 
