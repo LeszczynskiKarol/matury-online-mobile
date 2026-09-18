@@ -289,6 +289,14 @@ export function parseChemText(text: string): string {
 function parseMathBlock(raw: string): string {
   let m = raw;
 
+  // Polski przecinek dziesiętny: konwencja treści to `$1{,}5$` (klamry blokują
+  // KaTeX przed traktowaniem przecinka jako separatora). Bez tej linii apka
+  // pokazywała „0{,}67” (18.09.2026). Odstępy LaTeX-a `\,` `\;` `\:` to spacje,
+  // nie znaki — sprzątanie backslashy niżej zamieniłoby `1\,000` w „1,000”.
+  m = m.replace(/\{([,.])\}/g, "$1");
+  m = m.replace(/\\[,;:]/g, " ");
+  m = m.replace(/\\!/g, "");
+
   // \text{...} → plain text
   m = m.replace(/\\text\{([^}]*)\}/g, "$1");
   m = m.replace(/\\textbf\{([^}]*)\}/g, "$1");

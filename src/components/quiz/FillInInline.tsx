@@ -19,9 +19,26 @@
 import React from "react";
 import { View, Text, TextInput } from "react-native";
 import { colors } from "../../theme/colors";
+import { parseChemText } from "../../utils/chemText";
 
 const MARKER_SPLIT = /(_{3,}|\.{3,}|…+)/g;
 const MARKER_ONE = /^(_{3,}|\.{3,}|…+)$/;
+
+// Wzory `$…$` zamieniamy na Unicode PRZED łamaniem na słowa — inaczej
+// `$5\frac{1}{4} : \frac{3}{4} = $` rozpadał się na „słowa” i szedł na ekran
+// surowy (18.09.2026, zadania z matematyki). Konwertujemy tylko wnętrza
+// `$…$`, żeby parser nie ruszył wykropkowań i podkreśleń poza wzorami; luka
+// stojąca wewnątrz wzoru zostaje nietknięta. Gdy konwersja zmieni liczbę
+// znaczników (np. `\ldots` → „…”), zostajemy przy surowym tekście.
+function convertMath(text: string): string {
+  const out = text.replace(/\$([^$]+)\$/g, (_, inner: string) =>
+    inner
+      .split(MARKER_SPLIT)
+      .map((p) => (MARKER_ONE.test(p) || !p.trim() ? p : parseChemText(`$${p}$`)))
+      .join(""),
+  );
+  return countBlankMarkers(out) === countBlankMarkers(text) ? out : text;
+}
 
 export interface InlineBlank {
   id: string;
@@ -73,7 +90,7 @@ export function FillInInline({
     lineHeight: 30,
   };
 
-  const parts = text.split(MARKER_SPLIT);
+  const parts = convertMath(text).split(MARKER_SPLIT);
   let blankIndex = -1;
   const nodes: React.ReactNode[] = [];
 
