@@ -166,6 +166,9 @@ export function QuizPlayScreen() {
   const startTime = useRef(Date.now());
   const viewedIds = useRef<Set<string>>(new Set());
   const [resultsMap, setResultsMap] = useState<Record<string, any>>({});
+  // Co user wpisał/wybrał przy danym pytaniu. Razem z `resultsMap` pozwala
+  // wrócić do pytania i zobaczyć JEGO stan, zamiast czystego formularza.
+  const [answersMap, setAnswersMap] = useState<Record<string, any>>({});
   // ── Live filter state (identical to web) ────────────────────────────────
   const [filters, setFilters] = useState<LiveFilters>(() => ({
     ...EMPTY_FILTERS,
@@ -451,6 +454,34 @@ export function QuizPlayScreen() {
     }
   };
 
+  // ── Powrót do pytania pokazuje jego stan, nie pusty formularz ──────────
+  // Do 18.09.2026 cofnięcie się czyściło wszystko: pytanie po „Pokaż
+  // odpowiedź" wracało jako nierozwiązane, więc wystarczyło podejrzeć klucz,
+  // przejść dalej, wrócić i wpisać to, co się właśnie zobaczyło — z pełnym XP.
+  // Web robił to od początku dobrze; tu wyrównujemy zachowanie: stan pytania
+  // (wynik, podgląd odpowiedzi, wpisana treść) wraca z pamięci sesji.
+  useEffect(() => {
+    const qid = question?.id;
+    if (!qid) return;
+    const saved = resultsMap[qid];
+    if (saved) {
+      setResult(saved);
+      setSubmitted(true);
+      const a = answersMap[qid];
+      setSelectedAnswer(a ?? null);
+      setOpenAnswer(typeof a === "string" ? a : "");
+    } else {
+      setResult(null);
+      setSubmitted(false);
+      setSelectedAnswer(null);
+      setOpenAnswer("");
+    }
+    startTime.current = Date.now();
+    // Celowo TYLKO po id pytania: zmiany map w trakcie odpowiadania nie mogą
+    // nadpisywać tego, co user właśnie wpisuje.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question?.id]);
+
   const resetForNextQuestion = () => {
     setSelectedAnswer(null);
     setOpenAnswer("");
@@ -483,6 +514,7 @@ export function QuizPlayScreen() {
       setResult(res);
       setSubmitted(true);
       setResultsMap((prev) => ({ ...prev, [question.id]: res }));
+      setAnswersMap((prev) => ({ ...prev, [question.id]: response }));
       setStats((prev) => ({
         correct: prev.correct + (res.isCorrect ? 1 : 0),
         totalXp: prev.totalXp + (res.xpEarned || 0),
