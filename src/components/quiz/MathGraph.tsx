@@ -51,7 +51,7 @@ export function MathGraph({
     ],
   );
 
-  return <SvgViewer svg={svg} theme={theme} />;
+  return <SvgViewer svg={svg} theme={theme} isDark={isDark} />;
 }
 
 export default MathGraph;

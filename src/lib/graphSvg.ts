@@ -25,7 +25,7 @@
 export interface GraphSpec {
   xRange?: [number, number];
   yRange?: [number, number];
-  segments?: { fn: string; from: number; to: number; color?: string; style?: string }[];
+  segments?: { fn: string; from: number; to: number; color?: string; style?: string; label?: string }[];
   points?: { x: number; y: number; label?: string; color?: string; filled?: boolean }[];
   lines?: { from: [number, number]; to: [number, number]; style?: string; color?: string }[];
   circles?: { center: [number, number]; radius: number; color?: string }[];
@@ -106,13 +106,83 @@ const esc = (s: unknown) =>
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
+/** Jasność koloru #rrggbb w skali 0–1 (null, gdy to nie hex). */
+function luminance(hex: string): number | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+}
+
+/**
+ * Zakres osi. Część pytań nie ma w danych `xRange`/`yRange` (albo ma zakres,
+ * w którym dane się nie mieszczą) — domyślne −1…6 dawało wtedy PUSTY wykres,
+ * bo lata 1970–2020 i wartości 8–45 leżą daleko poza nim (zgłoszone
+ * 18.09.2026). Zakres liczymy więc z tego, co faktycznie jest na wykresie:
+ * punktów, odcinków i próbek każdej krzywej, z marginesem, żeby punkty
+ * i podpisy nie kleiły się do ramki.
+ */
+export function resolveRanges(spec: GraphSpec): [[number, number], [number, number]] {
+  // Dane „dyskretne" (punkty, odcinki, wektory, okręgi) MUSZĄ być widoczne.
+  // Próbki krzywych traktujemy łagodniej: parabola wychodząca górą poza podany
+  // zakres to normalny wykres funkcji, a nie błąd zakresu.
+  const dx: number[] = [];
+  const dy: number[] = [];
+  for (const pt of spec.points ?? []) { dx.push(pt.x); dy.push(pt.y); }
+  for (const l of spec.lines ?? []) { dx.push(l.from[0], l.to[0]); dy.push(l.from[1], l.to[1]); }
+  for (const v of spec.vectors ?? []) { dx.push(v.from[0], v.to[0]); dy.push(v.from[1], v.to[1]); }
+  for (const c of spec.circles ?? []) {
+    dx.push(c.center[0] - c.radius, c.center[0] + c.radius);
+    dy.push(c.center[1] - c.radius, c.center[1] + c.radius);
+  }
+  const cx: number[] = [];
+  const cy: number[] = [];
+  for (const s of [...(spec.segments ?? []), ...(spec.areas ?? [])]) {
+    if (!Number.isFinite(s.from) || !Number.isFinite(s.to)) continue;
+    const f = createFn(s.fn);
+    cx.push(s.from, s.to);
+    for (let i = 0; i <= 24; i++) {
+      const y = f(s.from + ((s.to - s.from) * i) / 24);
+      if (Number.isFinite(y)) cy.push(y);
+    }
+  }
+  const finite = (a: number[]) => a.filter((n) => Number.isFinite(n));
+
+  const pick = (
+    given: [number, number] | undefined,
+    discrete: number[],
+    curve: number[],
+    fallback: [number, number],
+  ): [number, number] => {
+    const d = finite(discrete);
+    const all = [...d, ...finite(curve)];
+    const ok = !!given && Number.isFinite(given[0]) && Number.isFinite(given[1]) && given[1] > given[0];
+    if (!all.length) return ok ? given! : fallback;
+    if (ok) {
+      const tol = (given![1] - given![0]) * 0.02;
+      const inside = (v: number) => v >= given![0] - tol && v <= given![1] + tol;
+      // Podany zakres zostaje, gdy widać w nim wszystkie dane dyskretne
+      // i choć kawałek czegokolwiek (krzywa całkiem poza = zły zakres).
+      if (d.every(inside) && all.some(inside)) return given!;
+    }
+    const dMin = Math.min(...all);
+    const dMax = Math.max(...all);
+    const span = dMax - dMin || Math.abs(dMax) || 1;
+    const pad = span * 0.08;
+    // Wartości nieujemne (procenty, liczebności) nie dostają ujemnego dołu osi.
+    const lo = dMin >= 0 && dMin - pad < 0 ? 0 : dMin - pad;
+    return [lo, dMax + pad];
+  };
+
+  return [pick(spec.xRange, dx, cx, [-1, 6]), pick(spec.yRange, dy, cy, [-1, 5])];
+}
+
 export function buildGraphSvg(
   spec: GraphSpec,
   isDark: boolean,
   opts: { responsive?: boolean } = {},
 ): string {
-  const [xMin, xMax] = spec.xRange ?? [-1, 6];
-  const [yMin, yMax] = spec.yRange ?? [-1, 5];
+  const [[xMin, xMax], [yMin, yMax]] = resolveRanges(spec);
   const xSpan = xMax - xMin || 1;
   const ySpan = yMax - yMin || 1;
 
@@ -122,7 +192,10 @@ export function buildGraphSvg(
   const H = 300;
   const PL = 50; // lewy margines na wartości osi Y
   const PR = 16;
-  const PT = 18;
+  // Gdy krzywe mają nazwy, nad wykresem powstaje pas na legendę — w środku
+  // wykresu nachodziła na podpisy punktów przy górnej krawędzi.
+  const hasLegend = (spec.segments ?? []).some((sg) => sg.label);
+  const PT = hasLegend ? 38 : 18;
   const PB = 34; // dolny margines na wartości osi X
   const plotW = W - PL - PR;
   const plotH = H - PT - PB;
@@ -140,6 +213,17 @@ export function buildGraphSvg(
   const yStep = niceStep(ySpan);
   const xt = ticksFor(xMin, xMax, xStep);
   const yt = ticksFor(yMin, yMax, yStep);
+
+  // Kolor linii musi odcinać się od tła. Treści bywają pisane pod jasny motyw
+  // (np. węgiel jako #374151) — na ciemnym tle taka linia znikała.
+  const lineColor = (name?: string) => {
+    const c = colorOf(name);
+    const l = luminance(c);
+    if (l === null) return c;
+    if (isDark && l < 0.3) return "#cbd5e1";
+    if (!isDark && l > 0.85) return "#475569";
+    return c;
+  };
 
   const p: string[] = [];
   p.push(
@@ -210,7 +294,7 @@ export function buildGraphSvg(
     }
     if (d) {
       p.push(
-        `<path d="${d.trim()}" fill="none" stroke="${colorOf(s.color)}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${s.style === "dashed" ? ' stroke-dasharray="6 5"' : ""}/>`,
+        `<path d="${d.trim()}" fill="none" stroke="${lineColor(s.color)}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${s.style === "dashed" ? ' stroke-dasharray="6 5"' : ""}/>`,
       );
     }
   }
@@ -234,6 +318,12 @@ export function buildGraphSvg(
   p.push(`</g>`);
 
   // ── punkty z podpisami (poza clipPath, żeby podpis przy krawędzi nie był cięty) ──
+  // Podpis staje Z BOKU punktu (po stronie, gdzie jest miejsce), a gdy nachodzi
+  // na wcześniejszy — zjeżdża w dół/górę. Przy kilku seriach kończących się
+  // w tym samym roku podpisy inaczej zlewały się w jedną plamę.
+  const placed: { x: number; y: number; w: number; h: number }[] = [];
+  const hits = (a: { x: number; y: number; w: number; h: number }) =>
+    placed.some((b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y);
   for (const pt of spec.points ?? []) {
     const X = toX(pt.x);
     const Y = toY(pt.y);
@@ -243,19 +333,41 @@ export function buildGraphSvg(
     );
     if (pt.label) {
       const label = String(pt.label);
-      const w = Math.min(label.length * 6.4 + 10, plotW);
       const h = 18;
-      // Nad punktem; gdy za blisko góry — pod punktem. W poziomie trzymamy
-      // podpis w obrębie wykresu, żeby długie etykiety nie wychodziły za ekran.
-      let ly = Y - 10 - h;
-      if (ly < PT) ly = Y + 10;
-      let lx = X - w / 2;
+      const w = Math.min(label.length * 6.4 + 10, plotW - 12);
+      const rightSide = X < PL + plotW / 2;
+      let lx = rightSide ? X + 9 : X - 9 - w;
       lx = Math.max(PL + 2, Math.min(lx, PL + plotW - w - 2));
+      let ly = Y - h / 2;
+      const box = { x: lx, y: ly, w, h };
+      // Szukamy wolnego miejsca: na zmianę niżej i wyżej, co pół wysokości.
+      for (let k = 1; k <= 12 && hits(box); k++) {
+        const shift = Math.ceil(k / 2) * (h + 2) * (k % 2 ? 1 : -1);
+        box.y = Math.max(PT, Math.min(ly + shift, PT + plotH - h));
+      }
+      placed.push(box);
       p.push(
-        `<rect x="${r1(lx)}" y="${r1(ly)}" width="${r1(w)}" height="${h}" rx="5" fill="${labelBg}" stroke="${col}" stroke-width="1" opacity="0.95"/>`,
-        `<text x="${r1(lx + w / 2)}" y="${r1(ly + 13)}" font-size="11.5" font-weight="600" fill="${text}" text-anchor="middle">${esc(label)}</text>`,
+        `<rect x="${r1(box.x)}" y="${r1(box.y)}" width="${r1(w)}" height="${h}" rx="5" fill="${labelBg}" stroke="${col}" stroke-width="1" opacity="0.95"/>`,
+        `<text x="${r1(box.x + w / 2)}" y="${r1(box.y + 13)}" font-size="11.5" font-weight="600" fill="${text}" text-anchor="middle">${esc(label)}</text>`,
       );
     }
+  }
+
+  // ── legenda linii (gdy krzywe mają nazwy) ────────────────────────────
+  const named = (spec.segments ?? []).filter((sg) => sg.label);
+  const seen = new Set<string>();
+  let legX = PL + 6;
+  for (const sg of named) {
+    const name = String(sg.label);
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const w = name.length * 6.2 + 26;
+    if (legX + w > PL + plotW) break;
+    p.push(
+      `<line x1="${r1(legX + 5)}" y1="16" x2="${r1(legX + 19)}" y2="16" stroke="${lineColor(sg.color)}" stroke-width="3"/>`,
+      `<text x="${r1(legX + 23)}" y="20" font-size="11.5" fill="${text}">${esc(name)}</text>`,
+    );
+    legX += w + 6;
   }
 
   p.push(`</svg>`);
