@@ -296,6 +296,9 @@ function parseMathBlock(raw: string): string {
   m = m.replace(/\{([,.])\}/g, "$1");
   m = m.replace(/\\[,;:]/g, " ");
   m = m.replace(/\\!/g, "");
+  // `\dfrac` / `\tfrac` to ten sam ułamek co `\frac` (inny tylko rozmiar
+  // w KaTeX). Bez tego sprzątanie nieznanych komend zostawiało „{2P}{a+b}”.
+  m = m.replace(/\\[dt]frac(?![a-zA-Z])/g, "\\frac");
 
   // \text{...} → plain text
   m = m.replace(/\\text\{([^}]*)\}/g, "$1");
