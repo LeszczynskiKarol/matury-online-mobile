@@ -8,6 +8,7 @@ import { ListeningQuestion } from "../../components/quiz/ListeningQuestion";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
 import { FillInInline, canRenderInline } from "../../components/quiz/FillInInline";
 import { tableColWidths } from "../../lib/tableWidths";
+import { CrossPunnett } from "../../components/quiz/CrossPunnett";
 import { processGamificationResponse } from "../../components/common/GamificationToasts";
 import {
   startListening,
@@ -368,6 +369,8 @@ export function QuizPlayScreen() {
     if (!question) return null;
     switch (question.type) {
       case "FILL_IN":
+      case "DIAGRAM_LABEL":
+      case "CROSS_PUNNETT":
       case "EXPERIMENT_DESIGN": {
         const obj =
           selectedAnswer &&
@@ -3992,6 +3995,117 @@ export function QuizPlayScreen() {
                 );
               })()}
 
+            {/* DIAGRAM_LABEL („Schemat") — podpisz elementy rysunku.
+                Do 18.09.2026 ten typ nie miał w apce ŻADNEGO pola odpowiedzi:
+                widać było polecenie i grafikę, a zadania nie dało się
+                rozwiązać (zgłoszone na biologii). Grafikę rysuje wspólny blok
+                materiału wizualnego wyżej; tu są pola, jak w wersji web
+                (BiologyQuestions.tsx → DiagramLabelQuestion). */}
+            {question.type === "DIAGRAM_LABEL" &&
+              Array.isArray(content.labels) &&
+              (() => {
+                const ans =
+                  typeof selectedAnswer === "object" &&
+                  selectedAnswer &&
+                  !Array.isArray(selectedAnswer)
+                    ? (selectedAnswer as Record<string, string>)
+                    : {};
+                return (
+                  <View style={{ gap: 14 }}>
+                    {content.labels.map((lbl: any) => {
+                      const userVal = (ans[lbl.id] || "").trim().toLowerCase();
+                      const isOk =
+                        submitted &&
+                        (lbl.acceptedAnswers || []).some(
+                          (a: string) => a.toLowerCase().trim() === userVal,
+                        );
+                      const showCorrect =
+                        submitted && !isOk && !!lbl.acceptedAnswers?.[0];
+                      return (
+                        <View
+                          key={lbl.id}
+                          style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}
+                        >
+                          <View
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 10,
+                              backgroundColor: colors.navy[500],
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginTop: 2,
+                            }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }}>
+                              {lbl.id}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "500",
+                                color: theme.text,
+                                marginBottom: 4,
+                              }}
+                            >
+                              {parseChemText(lbl.question || `Element ${lbl.id}`)}
+                            </Text>
+                            <TextInput
+                              value={
+                                showCorrect ? lbl.acceptedAnswers[0] : ans[lbl.id] || ""
+                              }
+                              onChangeText={(text) =>
+                                !submitted &&
+                                setSelectedAnswer({ ...ans, [lbl.id]: text })
+                              }
+                              editable={!submitted}
+                              autoCorrect={false}
+                              autoCapitalize="none"
+                              placeholder="Wpisz nazwę..."
+                              placeholderTextColor={theme.textTertiary}
+                              style={{
+                                backgroundColor: theme.inputBg,
+                                borderWidth: 1,
+                                borderRadius: 12,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                fontSize: 15,
+                                borderColor: submitted
+                                  ? isOk
+                                    ? colors.brand[500]
+                                    : colors.red[500]
+                                  : theme.border,
+                                color: showCorrect ? colors.brand[600] : theme.text,
+                                fontWeight: showCorrect ? "600" : undefined,
+                              }}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })()}
+
+            {/* CROSS_PUNNETT — krzyżówka genetyczna (components/quiz/CrossPunnett.tsx) */}
+            {question.type === "CROSS_PUNNETT" && (
+              <CrossPunnett
+                content={content}
+                values={
+                  typeof selectedAnswer === "object" &&
+                  selectedAnswer &&
+                  !Array.isArray(selectedAnswer)
+                    ? (selectedAnswer as Record<string, string>)
+                    : {}
+                }
+                onChange={(next) => setSelectedAnswer(next)}
+                submitted={submitted}
+                theme={theme}
+              />
+            )}
+
             {/* EXPERIMENT_DESIGN */}
             {question.type === "EXPERIMENT_DESIGN" &&
               content.fields &&
@@ -4513,6 +4627,21 @@ export function QuizPlayScreen() {
       case "GRAPH_INTERPRET":
       case "TABLE_DATA":
         return content.subQuestions?.map((sq: any) => sq.acceptedAnswers?.[0]);
+      case "CROSS_PUNNETT":
+        return [
+          content.parents?.mother?.acceptedGenotypes?.[0] &&
+            `♀ ${content.parents.mother.acceptedGenotypes[0]}`,
+          content.parents?.father?.acceptedGenotypes?.[0] &&
+            `♂ ${content.parents.father.acceptedGenotypes[0]}`,
+          ...(content.questions || []).map(
+            (q: any) =>
+              `${q.label || q.id}: ${q.acceptedAnswers?.[0] ?? q.expectedValue ?? "—"}${q.unit ? ` ${q.unit}` : ""}`,
+          ),
+        ].filter(Boolean);
+      case "DIAGRAM_LABEL":
+        return content.labels?.map(
+          (l: any) => `${l.id}. ${l.acceptedAnswers?.[0] ?? "—"}`,
+        );
       case "WIAZKA":
         // Wcześniej leciały tu OBIEKTY, a box „Poprawna odpowiedź" wypisywał
         // je jako surowy JSON (zgłoszone 17.09.2026). Teraz każda podczęść
