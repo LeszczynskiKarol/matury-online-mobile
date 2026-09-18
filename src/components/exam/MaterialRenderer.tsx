@@ -12,6 +12,7 @@ import Svg, {
   Circle,
   Text as SvgText,
   G,
+  Path,
 } from "react-native-svg";
 import { WebView } from "react-native-webview";
 import { colors } from "../../theme/colors";
@@ -20,11 +21,128 @@ import { ZoomableBox } from "./ZoomableBox";
 import { parseChemText } from "../../utils/chemText";
 import { SqlSchemaView } from "./Tier2TaskRenderers";
 import { tableColWidths } from "../../lib/tableWidths";
+import { niceStep, formatTick } from "../../lib/graphSvg";
 
 interface MaterialProps {
   mat: any;
   theme: any;
   isDark: boolean;
+}
+
+// ── Pomocnicze do wykresów ─────────────────────────────────────────────────
+
+/** Zawija podpis po słowach do `maxChars` znaków w linii, najwyżej `maxLines`. */
+function wrapLabel(label: string, maxChars: number, maxLines: number): string[] {
+  const words = String(label).split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if (!cur) cur = w;
+    else if ((cur + " " + w).length <= maxChars) cur += " " + w;
+    else {
+      lines.push(cur);
+      cur = w;
+    }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) {
+    const head = lines.slice(0, maxLines);
+    head[maxLines - 1] = head[maxLines - 1] + "…";
+    return head;
+  }
+  return lines.length ? lines : [""];
+}
+
+const PIE_COLORS = [
+  "#0891b2", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
+];
+
+/** 1100 → „1 100", 12.5 → „12,5" */
+function formatPl(v: number): string {
+  const [int, frac] = (Number.isInteger(v) ? String(v) : v.toFixed(2)).split(".");
+  let out = "";
+  for (let i = 0; i < int.length; i++) {
+    if (i > 0 && (int.length - i) % 3 === 0 && int[i - 1] !== "-") out += " ";
+    out += int[i];
+  }
+  return frac ? `${out},${frac}` : out;
+}
+
+/** Wykres kołowy (chartType: "pie") — do 18.09.2026 apka go nie znała
+ *  i rysowała strukturę wydatków jako linię. Legenda z wartością i udziałem,
+ *  tak jak na webie. */
+function PieMaterial({
+  data,
+  width,
+  theme,
+  isDark,
+}: {
+  data: any[];
+  width: number;
+  theme: any;
+  isDark: boolean;
+}) {
+  const items = data
+    .map((p: any, i: number) => ({
+      name: String(p.x),
+      value: Math.max(0, Number(p.y) || 0),
+      color: PIE_COLORS[i % PIE_COLORS.length],
+    }))
+    .filter((d) => d.value > 0);
+  const total = items.reduce((s, d) => s + d.value, 0) || 1;
+  const size = Math.min(width, 240);
+  const r = size / 2 - 6;
+  const c = size / 2;
+  let angle = -Math.PI / 2;
+  const slices = items.map((d) => {
+    const a0 = angle;
+    const a1 = angle + (d.value / total) * Math.PI * 2;
+    angle = a1;
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const path =
+      items.length === 1
+        ? ""
+        : `M ${c} ${c} L ${c + r * Math.cos(a0)} ${c + r * Math.sin(a0)} ` +
+          `A ${r} ${r} 0 ${large} 1 ${c + r * Math.cos(a1)} ${c + r * Math.sin(a1)} Z`;
+    return { ...d, path };
+  });
+
+  return (
+    <View style={{ width }}>
+      <View style={{ alignItems: "center" }}>
+        <Svg width={size} height={size}>
+          {slices.map((s, i) =>
+            s.path ? (
+              <Path
+                key={i}
+                d={s.path}
+                fill={s.color}
+                stroke={isDark ? "#0f0f23" : "#ffffff"}
+                strokeWidth={1.5}
+              />
+            ) : (
+              <Circle key={i} cx={c} cy={c} r={r} fill={s.color} />
+            ),
+          )}
+        </Svg>
+      </View>
+      <View style={{ marginTop: 10, gap: 6 }}>
+        {slices.map((s, i) => (
+          <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: s.color }} />
+            <Text style={{ flex: 1, fontSize: 12, color: theme.text }}>{s.name}</Text>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text }}>
+              {formatPl(s.value)}
+            </Text>
+            <Text style={{ fontSize: 11, color: theme.textSecondary, width: 40, textAlign: "right" }}>
+              {Math.round((s.value / total) * 100)}%
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 // ── Wykres liniowy / słupkowy (chartData) ─────────────────────────────────
@@ -33,16 +151,43 @@ function ChartMaterial({ mat, theme, isDark }: MaterialProps) {
   // chartData / experimentChartData / diagramData — różne nazwy backendu
   const cd =
     mat.chartData || mat.experimentChartData || mat.diagramData || {};
-  const chartType = cd.chartType || "line";
   const datasets: any[] = Array.isArray(cd.datasets) ? cd.datasets : [];
 
+  // X labels (z pierwszego datasetu)
+  const xLabels: string[] = (datasets[0]?.data || []).map((p: any) =>
+    String(p.x),
+  );
+  // Kategorie (słowa, nie liczby) bez podanego typu rysujemy słupkami — linia
+  // łącząca „mieszkanie" z „żywnością" sugeruje trend, którego nie ma.
+  const categorical = xLabels.some((l) => !/^-?[0-9 .,]+$/.test(l));
+  const rawType = String(cd.chartType || cd.type || "");
+  const chartType =
+    rawType === "pie"
+      ? "pie"
+      : rawType === "bar" || rawType === "stacked-bar"
+        ? "bar"
+        : rawType === "line"
+          ? "line"
+          : categorical
+            ? "bar"
+            : "line";
+
   const width = Math.min(Dimensions.get("window").width - 64, 480);
-  const height = 240;
+  const n = Math.max(1, xLabels.length);
+  const isBar = chartType === "bar";
   const padL = 44;
-  const padR = 12;
+  const padR = 16;
   const padT = 16;
-  const padB = 32;
   const plotW = width - padL - padR;
+
+  // Podpisy osi X zawijamy do szerokości „swojego" odcinka — do 18.09.2026
+  // szły w jednej linii i przy dłuższych nazwach kategorii nachodziły na siebie.
+  const slotW = isBar ? plotW / n : plotW / Math.max(1, n - 1);
+  const maxChars = Math.max(6, Math.floor((slotW - 4) / 5));
+  const wrapped = xLabels.map((l) => wrapLabel(l, maxChars, 3));
+  const labelLines = Math.max(1, ...wrapped.map((w) => w.length));
+  const padB = 18 + labelLines * 11;
+  const height = 208 + padB;
   const plotH = height - padT - padB;
 
   // Wszystkie punkty
@@ -54,38 +199,51 @@ function ChartMaterial({ mat, theme, isDark }: MaterialProps) {
       </Text>
     );
   }
-  // X labels (z pierwszego datasetu)
-  const xLabels: string[] = (datasets[0]?.data || []).map((p: any) =>
-    String(p.x),
-  );
-  // Y range
+  if (chartType === "pie") {
+    return (
+      <PieMaterial
+        data={datasets[0]?.data || []}
+        width={width}
+        theme={theme}
+        isDark={isDark}
+      />
+    );
+  }
+
+  // Zakres Y — „okrągłe" podziałki (0, 200, 400…), a nie 55 / 340 / 625.
+  // Słupki zawsze od zera: ucięta oś zafałszowuje proporcje.
   const yValues = allPoints.map((p: any) => Number(p.y) || 0);
   const yMin = Math.min(...yValues);
   const yMax = Math.max(...yValues);
-  const yRange = yMax - yMin || 1;
-  const yLow = yMin - yRange * 0.1;
-  const yHigh = yMax + yRange * 0.1;
+  const spanRaw = yMax - yMin || Math.abs(yMax) || 1;
+  const baseLow =
+    isBar || (yMin >= 0 && yMin < spanRaw * 0.5)
+      ? Math.min(0, yMin)
+      : yMin - spanRaw * 0.1;
+  const yStep = niceStep(yMax + spanRaw * 0.05 - baseLow, 5);
+  const yLow = Math.floor(baseLow / yStep) * yStep;
+  const yHigh = Math.max(
+    yLow + yStep,
+    Math.ceil((yMax + spanRaw * 0.02) / yStep) * yStep,
+  );
   const yToPx = (y: number) =>
     padT + plotH - ((y - yLow) / (yHigh - yLow)) * plotH;
   const xToPx = (i: number) =>
-    padL + (xLabels.length > 1 ? (i / (xLabels.length - 1)) * plotW : plotW / 2);
+    isBar
+      ? padL + slotW * (i + 0.5)
+      : padL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
 
-  // Y-axis ticks (5)
-  const yTicks = useMemo(() => {
-    const ticks: number[] = [];
-    for (let i = 0; i <= 4; i++) {
-      ticks.push(yLow + ((yHigh - yLow) * i) / 4);
-    }
-    return ticks;
-  }, [yLow, yHigh]);
+  const yTicks: number[] = [];
+  for (let v = yLow; v <= yHigh + yStep / 1000; v += yStep) yTicks.push(v);
 
   const axisColor = isDark ? "#475569" : "#cbd5e1";
   const gridColor = isDark ? "#1e293b" : "#f1f5f9";
   const textColor = isDark ? "#cbd5e1" : "#475569";
+  const barCount = Math.max(1, datasets.length);
 
   return (
     <View>
-      <ScrollView horizontal>
+      <ScrollView horizontal style={{ flexGrow: 0 }}>
         <Svg width={width} height={height}>
           {/* Grid + Y-axis ticks */}
           {yTicks.map((tv, i) => {
@@ -107,7 +265,7 @@ function ChartMaterial({ mat, theme, isDark }: MaterialProps) {
                   fill={textColor}
                   textAnchor="end"
                 >
-                  {Number.isInteger(tv) ? String(tv) : tv.toFixed(2)}
+                  {formatTick(tv, yStep)}
                 </SvgText>
               </G>
             );
@@ -122,28 +280,47 @@ function ChartMaterial({ mat, theme, isDark }: MaterialProps) {
             strokeWidth={1.5}
           />
           {/* X labels */}
-          {xLabels.map((lbl, i) => (
-            <SvgText
-              key={`x${i}`}
-              x={xToPx(i)}
-              y={padT + plotH + 14}
-              fontSize={9}
-              fill={textColor}
-              textAnchor="middle"
-            >
-              {lbl}
-            </SvgText>
-          ))}
+          {wrapped.map((lines, i) => {
+            // Skrajne podpisy wykresu liniowego kotwiczymy do krawędzi, żeby
+            // nie wychodziły poza rysunek.
+            const anchor =
+              isBar || n < 2
+                ? "middle"
+                : i === 0
+                  ? "start"
+                  : i === n - 1
+                    ? "end"
+                    : "middle";
+            const x =
+              anchor === "start"
+                ? xToPx(i) - 8
+                : anchor === "end"
+                  ? xToPx(i) + 8
+                  : xToPx(i);
+            return lines.map((ln, li) => (
+              <SvgText
+                key={`x${i}_${li}`}
+                x={x}
+                y={padT + plotH + 14 + li * 11}
+                fontSize={9}
+                fill={textColor}
+                textAnchor={anchor}
+              >
+                {ln}
+              </SvgText>
+            ));
+          })}
           {/* Datasets */}
           {datasets.map((ds: any, di: number) => {
             const color = ds.color || colors.brand[500];
             if (chartType === "bar") {
-              const barW = (plotW / xLabels.length) * 0.6;
+              const barW = (slotW * 0.7) / barCount;
               return (
                 <G key={di}>
                   {(ds.data || []).map((p: any, i: number) => {
                     const yPx = yToPx(Number(p.y) || 0);
-                    const xPx = xToPx(i);
+                    // kilka serii → słupki obok siebie w obrębie kategorii
+                    const xPx = xToPx(i) + (di - (barCount - 1) / 2) * barW;
                     return (
                       <Rect
                         key={i}
@@ -735,7 +912,7 @@ function KlimatogramMaterial({ mat, theme, isDark }: MaterialProps) {
 
   return (
     <View>
-      <ScrollView horizontal>
+      <ScrollView horizontal style={{ flexGrow: 0 }}>
         <Svg width={width} height={height}>
           {/* Grid */}
           {tTicks.map((tv, i) => {

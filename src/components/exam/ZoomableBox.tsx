@@ -35,7 +35,15 @@ function touchDistance(t: readonly { pageX: number; pageY: number }[]): number {
   return Math.hypot(t[0].pageX - t[1].pageX, t[0].pageY - t[1].pageY) || 1;
 }
 
-function ZoomStage({ children, bg }: { children: React.ReactNode; bg: string }) {
+function ZoomStage({
+  children,
+  bg,
+  contentWidth,
+}: {
+  children: React.ReactNode;
+  bg: string;
+  contentWidth?: number;
+}) {
   const { width: vw, height: vh } = useWindowDimensions();
   const scale = useRef(new Animated.Value(1)).current;
   const tx = useRef(new Animated.Value(0)).current;
@@ -43,6 +51,8 @@ function ZoomStage({ children, bg }: { children: React.ReactNode; bg: string }) 
   // Stan gestu trzymamy w refach — PanResponder tworzony jest raz.
   const s = useRef({ k: 1, x: 0, y: 0, k0: 1, x0: 0, y0: 0, d0: 1, pinch: false, moved: false, lastTap: 0 }).current;
   const size = useRef({ w: vw, h: vh * 0.5 }).current;
+  // Zmierzone wymiary sceny i treści — z nich liczymy położenie „na środku".
+  const [box, setBox] = useState({ W: 0, H: 0, w: 0, h: 0 });
 
   const apply = (k: number, x: number, y: number, animated = false) => {
     const kk = Math.max(MIN_SCALE, Math.min(MAX_SCALE, k));
@@ -110,16 +120,33 @@ function ZoomStage({ children, bg }: { children: React.ReactNode; bg: string }) 
   return (
     <View
       {...responder.panHandlers}
-      style={{ flex: 1, backgroundColor: bg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}
+      onLayout={(e) => {
+        const { width: W, height: H } = e.nativeEvent.layout;
+        setBox((b) => (b.W === W && b.H === H ? b : { ...b, W, H }));
+      }}
+      style={{ flex: 1, backgroundColor: bg, overflow: "hidden" }}
     >
       <Animated.View
         onLayout={(e) => {
-          size.w = e.nativeEvent.layout.width;
-          size.h = e.nativeEvent.layout.height;
+          const { width: w, height: h } = e.nativeEvent.layout;
+          size.w = w;
+          size.h = h;
+          setBox((b) => (b.w === w && b.h === h ? b : { ...b, w, h }));
         }}
         // Treść nie łapie dotyku — cały ekran jest powierzchnią gestów.
         pointerEvents="none"
-        style={{ transform: [{ translateX: tx }, { translateY: ty }, { scale }] }}
+        // Pozycja absolutna + środek liczony z pomiaru, a nie justifyContent:
+        // element absolutny dostaje swoją NATURALNĄ wysokość. Jako zwykłe
+        // dziecko flexa wykres z poziomym ScrollView rozciągał się na całe
+        // okno i rysunek lądował u góry, pod tytułem i „Zamknij".
+        style={{
+          position: "absolute",
+          left: Math.max(0, (box.W - box.w) / 2),
+          top: (box.H - box.h) / 2,
+          width: contentWidth ? Math.min(contentWidth, vw) : undefined,
+          opacity: box.H > 0 && box.h > 0 ? 1 : 0,
+          transform: [{ translateX: tx }, { translateY: ty }, { scale }],
+        }}
       >
         {children}
       </Animated.View>
@@ -139,6 +166,7 @@ export function ZoomableBox({
   title?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [inlineW, setInlineW] = useState(0);
   const insets = useSafeAreaInsets();
   const bg = isDark ? "#0f0f23" : "#ffffff";
 
@@ -178,7 +206,12 @@ export function ZoomableBox({
       {/* Stuknięcie w sam materiał też otwiera powiększenie. Przesunięcie palcem
           zostaje przy nadrzędnym ScrollView (Pressable nie zabiera przewijania). */}
       <Pressable onPress={() => setOpen(true)}>
-        <View pointerEvents="none">{children}</View>
+        <View
+          pointerEvents="none"
+          onLayout={(e) => setInlineW(Math.round(e.nativeEvent.layout.width))}
+        >
+          {children}
+        </View>
       </Pressable>
 
       <Modal
@@ -190,7 +223,11 @@ export function ZoomableBox({
       >
         <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={bg} />
         <View style={{ flex: 1, backgroundColor: bg }}>
-          {open && <ZoomStage bg={bg}>{children}</ZoomStage>}
+          {open && (
+            <ZoomStage bg={bg} contentWidth={inlineW || undefined}>
+              {children}
+            </ZoomStage>
+          )}
           <View
             pointerEvents="box-none"
             style={{
