@@ -36,6 +36,13 @@ export async function createSession(params: {
   topicId?: string;
   difficulty?: number;
   questionCount?: number;
+  /**
+   * Zadanie od korepetytora: serwer serwuje ZAMROŻONY zestaw z zadania
+   * (ignoruje topic/count), trwająca sesja wraca bez tworzenia nowej, a
+   * dostęp daje miejsce od korepetytora, nie Premium. Błędy: NO_SEAT,
+   * SET_NOT_READY, ASSIGNMENT_DONE, ASSIGNMENT_IS_EXAM, ASSIGNMENT_NOT_FOUND.
+   */
+  assignmentTargetId?: string;
 }): Promise<CreateSessionResponse> {
   return api<CreateSessionResponse>("/sessions/create", {
     method: "POST",

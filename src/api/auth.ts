@@ -21,6 +21,13 @@ export interface User {
   // Zgoda na maile marketingowe (art. 10 UŚUDE) — dobrowolna, odwoływalna
   // w profilu. false także dla kont sprzed jej wprowadzenia (2.09.2026).
   marketingConsent?: boolean;
+  // Strefa korepetytora: hasTutor = uczeń przyjął zaproszenie korepetytora
+  // (apka pokazuje „Zadania od korepetytora"); isTutor = ma własny panel
+  // (tylko na webie). subscriptionProvider "tutor" nie występuje — miejsce
+  // od korepetytora NIE jest Premium, sprawdzaj hasTutor/seat w /tutor/my.
+  hasTutor?: boolean;
+  isTutor?: boolean;
+  subscriptionProvider?: string | null;
   selectedSubjects?: {
     subject: {
       id: string;
@@ -162,6 +169,21 @@ export async function loginWithGoogle(
 }
 
 // ── Me ────────────────────────────────────────────────────────────────────
+// Maile serwisowe (bez zgody marketingowej, z opt-outem). emailTutorZone =
+// „nowe zadania od korepetytora" — ten sam przełącznik co na webie i w
+// stopce maila (type=tutor).
+export async function setEmailPrefs(prefs: {
+  emailReminders?: boolean;
+  emailSummary?: boolean;
+  emailTutorZone?: boolean;
+}): Promise<{
+  emailReminders: boolean;
+  emailSummary: boolean;
+  emailTutorZone: boolean;
+}> {
+  return api("/auth/email-prefs", { method: "PATCH", body: prefs });
+}
+
 export async function getMe(): Promise<User> {
   return api<User>("/auth/me");
 }

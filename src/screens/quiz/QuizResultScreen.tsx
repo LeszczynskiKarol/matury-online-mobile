@@ -27,8 +27,22 @@ export function QuizResultScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
-  const { questionsAnswered, correctAnswers, accuracy, xpEarned, totalTimeMs } =
-    route.params;
+  const {
+    questionsAnswered,
+    correctAnswers,
+    accuracy,
+    xpEarned,
+    totalTimeMs,
+    assignmentTargetId,
+  } = route.params;
+  // Zadanie od korepetytora: wynik widzi też korepetytor; zamiast „Nowy
+  // quiz" (który poszedłby w bank, a uczeń z samym miejscem tam nie wejdzie)
+  // wracamy na listę zadań.
+  const isAssignment = !!assignmentTargetId;
+  const backToAssignments = () =>
+    navigation
+      .getParent()
+      ?.navigate("HomeTab", { screen: "TutorAssignments" });
 
   const minutes = Math.floor(totalTimeMs / 60000);
   const seconds = Math.floor((totalTimeMs % 60000) / 1000);
@@ -184,16 +198,39 @@ export function QuizResultScreen() {
 
       {/* Actions */}
       <View style={{ gap: 12 }}>
-        <Button
-          title="Nowy quiz"
-          onPress={() => navigation.replace("QuizSetup")}
-          icon={<Ionicons name="refresh" size={18} color="#fff" />}
-        />
-        <Button
-          title="Wróć do panelu"
-          onPress={() => navigation.getParent()?.navigate("HomeTab")}
-          variant="ghost"
-        />
+        {isAssignment ? (
+          <>
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: "DMSans_400Regular",
+                color: theme.textSecondary,
+                textAlign: "center",
+                marginBottom: 4,
+              }}
+            >
+              Zadanie rozwiązane — korepetytor widzi Twój wynik u siebie.
+            </Text>
+            <Button
+              title="Wróć do zadań"
+              onPress={backToAssignments}
+              icon={<Ionicons name="list" size={18} color="#fff" />}
+            />
+          </>
+        ) : (
+          <>
+            <Button
+              title="Nowy quiz"
+              onPress={() => navigation.replace("QuizSetup")}
+              icon={<Ionicons name="refresh" size={18} color="#fff" />}
+            />
+            <Button
+              title="Wróć do panelu"
+              onPress={() => navigation.getParent()?.navigate("HomeTab")}
+              variant="ghost"
+            />
+          </>
+        )}
       </View>
     </View>
   );

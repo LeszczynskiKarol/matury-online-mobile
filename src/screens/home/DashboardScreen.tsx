@@ -28,6 +28,7 @@ import { ProgressBar } from "../../components/common/ProgressBar";
 import { TrialOfferCard } from "../../components/common/TrialOfferCard";
 import { FreePanel } from "../../components/common/FreePanel";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
+import { TutorHomeCard } from "../../components/tutor/TutorHomeCard";
 import { api } from "../../api/client";
 import {
   getNotifications,
@@ -169,6 +170,10 @@ export function DashboardScreen() {
             />
           </TouchableOpacity>
         </View>
+
+        {/* Uczeń z polecenia korepetytora: zadania na samej górze, reszta
+            apki (oferta, FreePanel) zostaje niżej jako zaproszenie. */}
+        {user?.hasTutor && <TutorHomeCard />}
 
         {/* Nieudana płatność — na samej górze, nad ofertą i FreePanel */}
         {paymentFailed && (
@@ -464,6 +469,8 @@ export function DashboardScreen() {
       </View>
 
       {/* Nieudana płatność — nad wszystkim innym, dopóki nie zamknie/opłaci */}
+      {user?.hasTutor && <TutorHomeCard />}
+
       {paymentFailed && (
         <PaymentFailedBanner
           notification={paymentFailed}

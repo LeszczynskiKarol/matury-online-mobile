@@ -72,7 +72,10 @@ export function ExamPlayerScreen() {
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
   const route = useRoute<any>();
-  const { examId } = route.params as { examId: string };
+  // `attempt` = nonce z zadania korepetytora: ten sam examId otwarty drugi
+  // raz (np. po błędzie dostępu) ma zrobić świeży start, a nie pokazywać
+  // zapamiętany stan ekranu, który został w stosie ExamTab.
+  const { examId, attempt } = route.params as { examId: string; attempt?: number };
 
   const scrollRef = useRef<ScrollView>(null);
 
@@ -120,6 +123,7 @@ export function ExamPlayerScreen() {
 
   // ── Load exam ──────────────────────────────────────────────────────
   useEffect(() => {
+    setError(null);
     (async () => {
       try {
         const examData = await startExam(examId);
@@ -144,7 +148,7 @@ export function ExamPlayerScreen() {
         setError(err.message || "Nie udało się rozpocząć egzaminu.");
       }
     })();
-  }, [examId]);
+  }, [examId, attempt]);
 
   // ── Timer ──────────────────────────────────────────────────────────
   useEffect(() => {

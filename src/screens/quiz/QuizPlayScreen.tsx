@@ -126,13 +126,20 @@ export function QuizPlayScreen() {
     subjectName,
     subjectId,
     questionTypes: initialTypes,
+    assignmentTargetId,
+    assignmentTitle,
   } = route.params as {
     sessionId: string;
     questions: Question[];
     subjectName: string;
     subjectId: string;
     questionTypes?: string[];
+    assignmentTargetId?: string;
+    assignmentTitle?: string;
   };
+  // Zadanie od korepetytora: zestaw jest zamrożony po stronie serwera —
+  // żadnych filtrów ani dociągania z banku, po ostatnim pytaniu wynik.
+  const isAssignment = !!assignmentTargetId;
 
   // ── Core state ──────────────────────────────────────────────────────────
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
@@ -225,7 +232,7 @@ export function QuizPlayScreen() {
 
   // Load filter options once
   useEffect(() => {
-    if (subjectId) {
+    if (subjectId && !isAssignment) {
       getFilterOptions(subjectId).then(setFilterOptions).catch(console.error);
     }
   }, [subjectId]);
@@ -577,6 +584,10 @@ export function QuizPlayScreen() {
     }
 
     if (isLastQuestion) {
+      if (isAssignment) {
+        goToResults();
+        return;
+      }
       if (hasActiveFilters) {
         loadFilteredQuestions(filters);
       } else {
@@ -651,6 +662,10 @@ export function QuizPlayScreen() {
     }
 
     if (isLastQuestion) {
+      if (isAssignment) {
+        goToResults();
+        return;
+      }
       if (hasActiveFilters) {
         loadFilteredQuestions(filters);
         return;
@@ -715,6 +730,7 @@ export function QuizPlayScreen() {
         accuracy: sessionResult.accuracy,
         xpEarned: sessionResult.totalXpEarned,
         totalTimeMs: sessionResult.totalTimeMs,
+        assignmentTargetId,
       });
     } catch {
       navigation.replace("QuizResult", {
@@ -727,6 +743,7 @@ export function QuizPlayScreen() {
             : 0,
         xpEarned: stats.totalXp,
         totalTimeMs: 0,
+        assignmentTargetId,
       });
     }
   };
@@ -898,7 +915,8 @@ export function QuizPlayScreen() {
           paddingBottom: 90,
         }}
       >
-        {/* ── LIVE FILTER BAR ──────────────────────────────────────────── */}
+        {/* ── LIVE FILTER BAR (nie w zadaniu od korepetytora) ─────────── */}
+        {!isAssignment && (
         <LiveFilterBar
           filters={filters}
           onFiltersChange={handleFiltersChange}
@@ -910,6 +928,7 @@ export function QuizPlayScreen() {
           loading={loadingMore}
           theme={theme}
         />
+        )}
 
         {/* Loading overlay */}
         {(loadingMore || listeningLoading) && (

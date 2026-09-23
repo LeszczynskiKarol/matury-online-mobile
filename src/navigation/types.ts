@@ -25,6 +25,9 @@ export type HomeStackParamList = {
   Dashboard: undefined;
   SessionHistory: undefined;
   ListeningHub: undefined;
+  // Strefa korepetytora (uczeń): lista zadań i uruchomienie jednego.
+  TutorAssignments: undefined;
+  TutorAssignment: { targetId: string };
 };
 
 export type SubjectsStackParamList = {
@@ -40,6 +43,10 @@ export type QuizStackParamList = {
     subjectName: string;
     subjectId: string; // ← NEW: needed for live filters
     questionTypes?: string[]; // ← NEW: initial category types from setup
+    // Zadanie od korepetytora: zamrożony zestaw — bez filtrów i bez
+    // dociągania kolejnych pytań z banku; po ostatnim od razu wynik.
+    assignmentTargetId?: string;
+    assignmentTitle?: string;
   };
   QuizResult: {
     sessionId: string;
@@ -48,6 +55,7 @@ export type QuizStackParamList = {
     accuracy: number;
     xpEarned: number;
     totalTimeMs: number;
+    assignmentTargetId?: string;
   };
 };
 
@@ -69,7 +77,8 @@ export type RootStackParamList = {
 // ── Exam Stack ────────────────────────────────────────────────────────────
 export type ExamStackParamList = {
   ExamSelector: undefined;
-  ExamPlay: { examId: string; subjectId: string };
+  // attempt: nonce wymuszający świeży start (zadanie od korepetytora).
+  ExamPlay: { examId: string; subjectId: string; attempt?: number };
   ExamResults: { attemptId: string };
   ExamHistory: undefined;
 };
