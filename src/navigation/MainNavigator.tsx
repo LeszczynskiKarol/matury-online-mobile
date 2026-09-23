@@ -32,6 +32,7 @@ import { TutorAssignmentsScreen } from "../screens/tutor/TutorAssignmentsScreen"
 import { TutorAssignmentScreen } from "../screens/tutor/TutorAssignmentScreen";
 import { SubjectsScreen } from "../screens/subjects/SubjectsScreen";
 import { SubjectDetailScreen } from "../screens/subjects/SubjectDetailScreen";
+import { DiagnosisScreen } from "../screens/home/DiagnosisScreen";
 import { QuizSetupScreen } from "../screens/quiz/QuizSetupScreen";
 import { QuizPlayScreen } from "../screens/quiz/QuizPlayScreen";
 import { QuizResultScreen } from "../screens/quiz/QuizResultScreen";
@@ -65,6 +66,11 @@ function HomeStackNav() {
       <HomeStack.Screen
         name="TutorAssignment"
         component={TutorAssignmentScreen}
+      />
+      <HomeStack.Screen
+        name="Diagnosis"
+        component={DiagnosisScreen}
+        options={{ animation: "slide_from_right" }}
       />
     </HomeStack.Navigator>
   );

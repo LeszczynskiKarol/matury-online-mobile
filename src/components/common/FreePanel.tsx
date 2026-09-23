@@ -13,12 +13,11 @@
 
 import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import * as WebBrowser from "expo-web-browser";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { radius } from "../../theme";
-import { api, API_BASE_URL } from "../../api/client";
+import { api } from "../../api/client";
 import { getTrialStatus, type TrialStatus } from "../../api/premium";
 
 interface DiagnosisRow {
@@ -81,14 +80,9 @@ export function FreePanel() {
 
   if (diagnoses === null) return null;
 
-  // ?app=1 mówi stronie, że otwiera ją aplikacja mobilna — wtedy nie
-  // pokazuje CTA prowadzącego do płatności na stronie. Google Play zabrania
-  // wyprowadzania użytkownika apki do zakupu poza swoim systemem, a diagnoza
-  // to jedyne miejsce, w którym apka w ogóle otwiera przeglądarkę.
-  const openWeb = (path: string) => {
-    const url = `${API_BASE_URL}${path}${path.includes("?") ? "&" : "?"}app=1`;
-    WebBrowser.openBrowserAsync(url).catch(() => {});
-  };
+  // Diagnoza ma natywny ekran (screens/home/DiagnosisScreen) na tym samym
+  // backendzie co /diagnoza na webie — do 23.09.2026 kafel otwierał
+  // przeglądarkę systemową i uczeń wypadał z apki.
 
   const goExams = () =>
     navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
@@ -156,7 +150,7 @@ export function FreePanel() {
               13 pytań z wybranego przedmiotu. Dowiesz się, czy przekraczasz
               próg 30% i które działy leżą najbardziej.
             </Text>
-            <TouchableOpacity style={cta} onPress={() => openWeb("/diagnoza")}>
+            <TouchableOpacity style={cta} onPress={() => navigation.navigate("Diagnosis")}>
               <Text style={ctaText}>Zrób diagnozę →</Text>
             </TouchableOpacity>
           </>
@@ -182,9 +176,7 @@ export function FreePanel() {
             <TouchableOpacity
               style={cta}
               onPress={() =>
-                openWeb(
-                  `/diagnoza/wynik?token=${encodeURIComponent(diagnoses[0].token)}`,
-                )
+                navigation.navigate("Diagnosis", { token: diagnoses[0].token })
               }
             >
               <Text style={ctaText}>Zobacz pełny wynik →</Text>

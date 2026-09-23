@@ -28,6 +28,9 @@ export type HomeStackParamList = {
   // Strefa korepetytora (uczeń): lista zadań i uruchomienie jednego.
   TutorAssignments: undefined;
   TutorAssignment: { targetId: string };
+  // Darmowa diagnoza natywnie (ten sam backend co /diagnoza na webie).
+  // token = od razu raport zapisanego podejścia.
+  Diagnosis: { subjectSlug?: string; token?: string } | undefined;
 };
 
 export type SubjectsStackParamList = {
