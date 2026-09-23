@@ -205,7 +205,7 @@ export function DashboardScreen() {
                 marginBottom: 4,
               }}
             >
-              Odblokuj pełny dostęp
+              {user?.hasTutor ? "Ćwicz też poza zadaniami korepetytora" : "Odblokuj pełny dostęp"}
             </Text>
             <Text
               style={{
@@ -216,8 +216,9 @@ export function DashboardScreen() {
                 lineHeight: 20,
               }}
             >
-              Wszystkie przedmioty, nieograniczone pytania, AI ocena wypracowań
-              i więcej
+              {user?.hasTutor
+                ? "Zadania od korepetytora już masz. Premium dokłada cały bank pytań, arkusze z timerem i ocenę wypracowań — na własną rękę, między lekcjami."
+                : "Wszystkie przedmioty, nieograniczone pytania, AI ocena wypracowań i więcej"}
             </Text>
             {/* Odpowiednik webowego landingu „darmowy arkusz": w apce nie ma
                 strony przed logowaniem, więc pierwszym ekranem świeżego konta

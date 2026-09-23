@@ -84,10 +84,13 @@ interface StripeStatus {
   /** Tylko provider=play — np. SUBSCRIPTION_STATE_ON_HOLD. */
   playState?: string | null;
   annualOffer?: { play?: { available?: boolean } };
+  // Uczeń z polecenia korepetytora (miejsce ≠ Premium) — inne copy bramki.
+  tutor?: { hasTutor: boolean; tutorName: string | null };
 }
 
 type GateVariant =
   | { kind: "default" }
+  | { kind: "referred"; tutorName: string | null }
   | { kind: "payment_failed" }
   | { kind: "play_hold" }
   | { kind: "expired"; daysSince: number | null };
@@ -116,6 +119,8 @@ function classifyStatus(st: StripeStatus | null): GateVariant {
       : null;
     return { kind: "expired", daysSince };
   }
+  // Zadania od korepetytora już ma — paywall sprzedaje RESZTĘ, nie „dostęp".
+  if (st.tutor?.hasTutor) return { kind: "referred", tutorName: st.tutor.tutorName ?? null };
   return { kind: "default" };
 }
 
@@ -132,6 +137,18 @@ function variantCopy(
   v: Exclude<GateVariant, { kind: "default" }>,
   days: number | null,
 ): { headline: string; bullets: string[]; cta: string } {
+  if (v.kind === "referred") {
+    const who = v.tutorName ? `od ${v.tutorName}` : "od korepetytora";
+    return {
+      headline: `Zadania ${who} już masz. Chcesz ćwiczyć też między lekcjami?`,
+      bullets: [
+        `Zadania ${who} rozwiązujesz bez ograniczeń — to masz w ramach miejsca`,
+        "Premium dokłada cały bank pytań, arkusze z timerem, ocenę wypracowań i słuchanie — na własną rękę",
+        maturaBullet(days),
+      ],
+      cta: "Odblokuj resztę Matury Online",
+    };
+  }
   if (v.kind === "play_hold") {
     return {
       headline: "Google Play nie pobrał płatności za Premium",
@@ -509,6 +526,16 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
           }}
           icon={<Ionicons name="diamond" size={16} color="#fff" />}
         />
+        {variant.kind === "referred" && (
+          <TouchableOpacity
+            onPress={() => navigation.getParent()?.navigate("HomeTab", { screen: "TutorAssignments" })}
+            style={{ marginTop: 14, alignItems: "center" }}
+          >
+            <Text style={{ fontSize: 13, color: theme.textSecondary, fontWeight: "600" }}>
+              ← Wróć do zadań od korepetytora
+            </Text>
+          </TouchableOpacity>
+        )}
         {/* Subtelna podpowiedź o Pakiecie Maturalnym — najbardziej opłacalna
             opcja; prowadzi do ekranu Subskrypcja, gdzie pakiet stoi na górze. */}
         {annualAvailable && variant.kind !== "play_hold" && (
