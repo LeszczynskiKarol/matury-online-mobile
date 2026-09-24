@@ -155,7 +155,11 @@ export interface DashboardData {
   recentSessions: {
     id: string;
     subject: { slug: string; name: string; icon: string | null };
+    // Temat sesji (lektura / dział), gdy uczeń ćwiczył jeden temat.
+    // Backend starszy niż 24.09.2026 nie zwraca pola.
+    topic?: { id: string; name: string; slug: string } | null;
     type: string;
+    status?: string;
     questionsAnswered: number;
     accuracy: number;
     xpEarned: number;

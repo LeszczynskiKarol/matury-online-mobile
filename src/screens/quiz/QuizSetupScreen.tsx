@@ -404,6 +404,10 @@ export function QuizSetupScreen() {
             if (match) {
               setSelectedSubject(match);
               loadSubjectDetail(match.slug);
+              // „Ćwicz dalej” z dashboardu — ten sam temat co ostatnio
+              // (nauka pod sprawdzian z jednej lektury / działu).
+              const preselectedTopic = route.params?.topicId;
+              if (preselectedTopic) setSelectedTopic(preselectedTopic);
             }
           } else {
             // Reset gdy wracamy bez preselected

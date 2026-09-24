@@ -1011,46 +1011,78 @@ export function DashboardScreen() {
             Ostatnie sesje
           </Text>
           <View style={{ gap: 8 }}>
-            {data.recentSessions.map((s) => (
-              <Card key={s.id} variant="stat">
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
+            {data.recentSessions.map((s) => {
+              // Sesja z jednego tematu (lektura / dział) = nauka pod
+              // sprawdzian. Tap wraca do kreatora z tym samym tematem.
+              const topicSubject = s.topic
+                ? subjects.find((x) => x.slug === s.subject.slug)
+                : undefined;
+              const card = (
+                <Card variant="stat">
                   <View
                     style={{
                       flexDirection: "row",
+                      justifyContent: "space-between",
                       alignItems: "center",
-                      gap: 8,
                     }}
                   >
-                    <Text style={{ fontSize: 16 }}>
-                      {s.subject.icon || "📝"}
-                    </Text>
-                    <View>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: "500",
-                          color: theme.text,
-                        }}
-                      >
-                        {s.subject.name}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <Text style={{ fontSize: 16 }}>
+                        {s.subject.icon || "📝"}
                       </Text>
-                      <Text
-                        style={{ fontSize: 12, color: theme.textSecondary }}
-                      >
-                        {s.questionsAnswered} pytań · {s.accuracy}%
-                      </Text>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "500",
+                            color: theme.text,
+                          }}
+                        >
+                          {s.topic?.name
+                            ? `${s.topic.name} · ${s.subject.name}`
+                            : s.subject.name}
+                        </Text>
+                        <Text
+                          style={{ fontSize: 12, color: theme.textSecondary }}
+                        >
+                          {s.questionsAnswered} pytań · {s.accuracy}%
+                          {topicSubject ? " · Ćwicz dalej →" : ""}
+                        </Text>
+                      </View>
                     </View>
+                    <Badge variant="xp" value={`+${s.xpEarned} XP`} />
                   </View>
-                  <Badge variant="xp" value={`+${s.xpEarned} XP`} />
-                </View>
-              </Card>
-            ))}
+                </Card>
+              );
+              return topicSubject ? (
+                <TouchableOpacity
+                  key={s.id}
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    navigation.navigate("QuizTab", {
+                      screen: "QuizSetup",
+                      params: {
+                        subjectId: topicSubject.id,
+                        topicId: s.topic!.id,
+                      },
+                    })
+                  }
+                >
+                  {card}
+                </TouchableOpacity>
+              ) : (
+                <View key={s.id}>{card}</View>
+              );
+            })}
             {/* Link do pełnej historii */}
             <TouchableOpacity
               activeOpacity={0.85}
