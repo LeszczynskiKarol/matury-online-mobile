@@ -59,6 +59,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { parseChemText } from "../../utils/chemText";
 import { CodeAwareText } from "../../components/common/CodeAwareText";
+import { QuestionText } from "../../components/quiz/QuestionText";
 import { MathEditor } from "../../components/exam/MathEditor";
 import { spacing } from "../../theme";
 import {
@@ -1537,15 +1538,9 @@ export function QuizPlayScreen() {
                 canRenderInline(content.question, content.blanks)
               ) && (
               <>
-                <CodeAwareText
+                <QuestionText
                   text={content.question || content.prompt || ""}
-                  style={{
-                    fontSize: 17,
-                    fontWeight: "500",
-                    color: theme.text,
-                    lineHeight: 26,
-                  }}
-                  containerStyle={{ marginBottom: 24 }}
+                  theme={theme}
                   isDark={isDark}
                 />
                 {/* Debug — raw question data when nothing renders */}
