@@ -43,6 +43,8 @@ export interface ExamStartData {
     };
   };
   resumed: boolean;
+  /** Arkusz z darmowej oferty — bez zegara ściennego (backend: exam-live.ts). */
+  untimed?: boolean;
   savedAnswers: Record<string, any>;
   currentTaskId: string | null;
   startedAt: string;

@@ -167,7 +167,8 @@ export function ExamPlayerScreen() {
 
   // Time up
   useEffect(() => {
-    if (remainingMs <= 0 && phase === "exam" && data) {
+    // Arkusz z darmowej oferty (untimed) nie ma czego kończyć.
+    if (!data?.untimed && remainingMs <= 0 && phase === "exam" && data) {
       setTimeUpModal(true);
     }
   }, [remainingMs, phase]);
@@ -243,8 +244,12 @@ export function ExamPlayerScreen() {
 
   const mins = Math.floor(remainingMs / 60000);
   const secs = Math.floor((remainingMs % 60000) / 1000);
-  const isWarning = remainingMs < 15 * 60000;
-  const isCritical = remainingMs < 5 * 60000;
+  // Arkusz z darmowej oferty nie ma zegara (backend: flaga `untimed`) —
+  // timer liczył się od startedAt także poza apką, więc kto nie miał od razu
+  // 170 minut, tracił jedyne darmowe podejście.
+  const untimed = !!data?.untimed;
+  const isWarning = !untimed && remainingMs < 15 * 60000;
+  const isCritical = !untimed && remainingMs < 5 * 60000;
 
   const answeredCount = allTasks.filter((t: any) => {
     const a = answers[t.id];
@@ -744,48 +749,50 @@ export function ExamPlayerScreen() {
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           {/* Timer */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 14,
-              backgroundColor: isCritical
-                ? "#fef2f2"
-                : isWarning
-                  ? "#fffbeb"
-                  : theme.inputBg,
-            }}
-          >
-            <Ionicons
-              name="time-outline"
-              size={16}
-              color={
-                isCritical
-                  ? "#ef4444"
-                  : isWarning
-                    ? "#f59e0b"
-                    : theme.textSecondary
-              }
-            />
-            <Text
+          {!untimed && (
+            <View
               style={{
-                fontSize: 16,
-                fontWeight: "800",
-                fontVariant: ["tabular-nums"],
-                color: isCritical
-                  ? "#ef4444"
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 14,
+                backgroundColor: isCritical
+                  ? "#fef2f2"
                   : isWarning
-                    ? "#f59e0b"
-                    : theme.text,
+                    ? "#fffbeb"
+                    : theme.inputBg,
               }}
             >
-              {Math.floor(mins / 60)}:{String(mins % 60).padStart(2, "0")}:
-              {String(secs).padStart(2, "0")}
-            </Text>
-          </View>
+              <Ionicons
+                name="time-outline"
+                size={16}
+                color={
+                  isCritical
+                    ? "#ef4444"
+                    : isWarning
+                      ? "#f59e0b"
+                      : theme.textSecondary
+                }
+              />
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "800",
+                  fontVariant: ["tabular-nums"],
+                  color: isCritical
+                    ? "#ef4444"
+                    : isWarning
+                      ? "#f59e0b"
+                      : theme.text,
+                }}
+              >
+                {Math.floor(mins / 60)}:{String(mins % 60).padStart(2, "0")}:
+                {String(secs).padStart(2, "0")}
+              </Text>
+            </View>
+          )}
 
           {/* Progress text */}
           <View style={{ flex: 1, alignItems: "center" }}>

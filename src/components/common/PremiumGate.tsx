@@ -396,7 +396,6 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const days = daysToMatura();
   const [diagnosis, setDiagnosis] = useState<DiagnosisSummary | null>(null);
   const [variant, setVariant] = useState<GateVariant>({ kind: "default" });
-  const [annualAvailable, setAnnualAvailable] = useState(false);
 
   useEffect(() => {
     // To samo wywołanie co w SubscriptionScreen — status z backendu decyduje,
@@ -404,7 +403,6 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
     api<StripeStatus>("/stripe/status")
       .then((st) => {
         setVariant(classifyStatus(st));
-        setAnnualAvailable(!!st?.annualOffer?.play?.available);
       })
       .catch(() => {});
 
@@ -425,7 +423,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const special = variant.kind === "default" ? null : variantCopy(variant, days);
   const headline = special?.headline ?? cfg.headline;
   const bullets = special?.bullets ?? cfg.bullets;
-  const ctaTitle = special?.cta ?? "Przejdź na Premium";
+  const ctaTitle = special?.cta ?? "Przejdź na Premium — 49 zł/mies.";
 
   return (
     <ScrollView
@@ -548,31 +546,8 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         )}
         {/* Subtelna podpowiedź o Pakiecie Maturalnym — najbardziej opłacalna
             opcja; prowadzi do ekranu Subskrypcja, gdzie pakiet stoi na górze. */}
-        {annualAvailable && variant.kind !== "play_hold" && (
-          <TouchableOpacity
-            onPress={() => {
-              logIntent("GATE_CLICK", `${mode}:annual`);
-              navigation.getParent()?.navigate("ProfileTab", { screen: "Subscription" });
-            }}
-            style={{ marginTop: 12, alignItems: "center" }}
-          >
-            <Text style={{ fontSize: 12, color: colors.brand[500], fontWeight: "600", textAlign: "center" }}>
-              💡 Pakiet Maturalny do 31 maja — ostatnie 30 dni gratis
-            </Text>
-          </TouchableOpacity>
-        )}
-        {variant.kind !== "play_hold" && (
-        <Text
-          style={{
-            fontSize: 11,
-            color: theme.textTertiary,
-            textAlign: "center",
-            marginTop: 10,
-          }}
-        >
-          Anuluj w każdej chwili · Płatność przez Google Play · Dostęp od razu
-        </Text>
-        )}
+        {/* Pod przyciskiem nic więcej: bez podpowiedzi o Pakiecie i bez
+            „Anuluj w każdej chwili…" — decyzja Karola 25.09.2026. */}
 
         {/* Oferta próbna POD ceną — kto jest gotów kupić, kupuje wyżej.
             Konto po wygaśnięciu / z nieudaną płatnością już zna produkt —

@@ -102,41 +102,14 @@ export function TrialOfferCard({
         } as const);
 
   // ── Arkusz już oddany ─────────────────────────────────────────────────
-  // Okno oferty (48 h) trwa dalej, ale arkusza nie ma już do czego „wracać":
-  // karta mówiła „Twój darmowy arkusz czeka" przy oddanym arkuszu
-  // (zgłoszenie 25.09.2026). Teraz jeden stan: wynik.
-  const examDone =
-    status.attemptStatus === "COMPLETED" || status.attemptStatus === "GRADING";
-  if (status.active && examDone && status.examAttemptId) {
-    return (
-      <View style={shell}>
-        <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text, marginBottom: 4 }}>
-          Darmowy arkusz oddany
-        </Text>
-        <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 12 }}>
-          Wynik i ocena AI zadań otwartych zostają u Ciebie na stałe.
-        </Text>
-        <TouchableOpacity
-          onPress={() =>
-            navigation.getParent()?.navigate("ExamTab", {
-              screen: "ExamResults",
-              params: { attemptId: status.examAttemptId! },
-            })
-          }
-          style={{
-            backgroundColor: colors.brand[500],
-            paddingVertical: 12,
-            borderRadius: radius.xl,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
-            Zobacz wynik →
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  // Okno oferty (48 h) trwa dalej, ale oferta jest wykorzystana: karta mówiła
+  // „Twój darmowy arkusz czeka — Wróć do arkusza" przy oddanym arkuszu
+  // (zgłoszenie 25.09.2026). Wynik jest w karcie „Za darmo" na Starcie.
+  if (
+    status.attemptStatus === "COMPLETED" ||
+    status.attemptStatus === "GRADING"
+  )
+    return null;
 
   // ── Oferta odebrana i wciąż ważna ──────────────────────────────────────
   if (status.active) {
