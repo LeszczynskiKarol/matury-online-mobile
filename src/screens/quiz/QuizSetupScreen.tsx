@@ -37,6 +37,34 @@ interface SessionCategory {
 }
 
 const SUBJECT_CATEGORIES: Record<string, SessionCategory[]> = {
+  // Lustro webowego SessionSetup — do 25.09.2026 brakowało tu biznesu, więc
+  // apka pokazywała przy nim samo „Wszystkie typy".
+  "biznes-zarzadzanie": [
+    {
+      label: "Pisanie",
+      icon: "✏️",
+      types: ["OPEN"],
+      desc: "Wyjaśnij, rozstrzygnij, zaproponuj, analiza przypadku",
+    },
+    {
+      label: "Testy i quizy",
+      icon: "🔘",
+      types: ["CLOSED", "MULTI_SELECT", "TRUE_FALSE", "FILL_IN", "MATCHING", "ORDERING"],
+      desc: "Zamknięte, wyboru, łączenia, kolejność",
+    },
+    {
+      label: "Obliczenia",
+      icon: "🧮",
+      types: ["CALCULATION"],
+      desc: "Wynagrodzenie netto, raty, próg rentowności",
+    },
+    {
+      label: "Dane i wykresy",
+      icon: "📈",
+      types: ["TABLE_DATA", "GRAPH_INTERPRET", "WIAZKA"],
+      desc: "Tabele, wykresy, wiązki z materiałem źródłowym",
+    },
+  ],
   informatyka: [
     {
       label: "Zadania otwarte",
