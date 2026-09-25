@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
+import { PremiumGate } from "../../components/common/PremiumGate";
 import { subjectsApi } from "../../api";
 import type { Subject } from "../../api/subjects";
 import { colors } from "../../theme/colors";
@@ -40,6 +42,7 @@ export function ListeningHubScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<any>();
+  const { isPremium } = useAuth();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +73,10 @@ export function ListeningHubScreen() {
       },
     });
   };
+
+  // Backend i tak odmówi (/listening/start → PREMIUM_REQUIRED), ale wtedy
+  // uczeń lądował w pustym odtwarzaczu z „To było ostatnie zadanie".
+  if (!isPremium) return <PremiumGate mode="listening" />;
 
   return (
     <ScrollView

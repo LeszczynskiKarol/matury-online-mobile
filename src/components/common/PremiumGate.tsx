@@ -17,10 +17,11 @@ import { Button } from "../ui/Button";
 import { api } from "../../api/client";
 import { logIntent } from "../../api/premium";
 import { TrialOfferCard } from "./TrialOfferCard";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 
-type GateMode = "quiz" | "exam";
+type GateMode = "quiz" | "exam" | "listening";
 
 // Pierwszy dzień matur (polski PP) — jak w webowym utils/maturaYear.
 // CKE trzyma się pierwszego tygodnia maja; aktualizacja raz w roku wystarcza.
@@ -58,6 +59,19 @@ const MODE_CONFIG: Record<
       "Powtórki, streaki i XP — nauka, która wciąga",
     ],
     personalizedVerb: "Ten tryb dobierze Ci pytania dokładnie z tego działu.",
+  },
+  // Słuchanie — backend zamyka /listening/start i /next (requireAiCredits);
+  // bez bramki user trafiał w pusty ekran „To było ostatnie zadanie", a stamtąd
+  // „Od nowa" ładowało nagrania z banku z pominięciem blokady.
+  listening: {
+    headline: "Słuchanie, które brzmi jak na maturze",
+    bullets: [
+      "Świeże nagrania z angielskiego i niemieckiego — generowane przez AI",
+      "Zadania jak w arkuszu CKE, poziom podstawowy i rozszerzony",
+      "Odsłuchujesz bez limitu, a po odpowiedzi widzisz, gdzie był błąd",
+    ],
+    personalizedVerb:
+      "Słuchanie to pewne punkty — o ile ucho jest osłuchane z tempem nagrań.",
   },
   exam: {
     headline: "Przećwicz maturę, zanim zdasz ją naprawdę",
@@ -378,6 +392,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const { colors: theme } = useTheme();
   const navigation = useNavigation<any>();
   const cfg = MODE_CONFIG[mode];
+  const insets = useSafeAreaInsets();
   const days = daysToMatura();
   const [diagnosis, setDiagnosis] = useState<DiagnosisSummary | null>(null);
   const [variant, setVariant] = useState<GateVariant>({ kind: "default" });
@@ -419,6 +434,9 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         flexGrow: 1,
         justifyContent: "center",
         padding: spacing[5],
+        // Bramka jest pierwszym ekranem zakładki — bez wcięcia karta
+        // wchodziła pod pasek statusu.
+        paddingTop: insets.top + spacing[4],
         paddingBottom: 100,
       }}
     >
@@ -482,7 +500,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         </View>
 
         <View style={{ marginBottom: 16 }}>
-          {mode === "quiz" ? <MiniQuizPreview /> : <ExamPreview />}
+          {mode === "listening" ? null : mode === "quiz" ? <MiniQuizPreview /> : <ExamPreview />}
         </View>
 
         {diagnosis && diagnosis.scorePercent !== null && (
@@ -503,14 +521,6 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
               </Text>{" "}
               masz{" "}
               <Text style={{ fontWeight: "700" }}>{diagnosis.scorePercent}%</Text>
-              {diagnosis.worstTopicName ? (
-                <>
-                  {" "}— najsłabszy dział:{" "}
-                  <Text style={{ fontWeight: "700" }}>
-                    {diagnosis.worstTopicName}
-                  </Text>
-                </>
-              ) : null}
               . {cfg.personalizedVerb}
             </Text>
           </View>

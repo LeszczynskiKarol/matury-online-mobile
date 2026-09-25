@@ -14,7 +14,7 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -25,7 +25,6 @@ import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/common/ProgressBar";
-import { TrialOfferCard } from "../../components/common/TrialOfferCard";
 import { FreePanel } from "../../components/common/FreePanel";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
 import { TutorHomeCard } from "../../components/tutor/TutorHomeCard";
@@ -55,9 +54,6 @@ export function DashboardScreen() {
     null,
   );
 
-  // Pakiet Maturalny w sprzedaży w Play (backend: annualOffer.play) — subtelna
-  // podpowiedź pod przyciskiem oferty.
-  const [annualAvailable, setAnnualAvailable] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -76,7 +72,6 @@ export function DashboardScreen() {
         getNotifications().catch(() => null),
         api<{ annualOffer?: { play?: { available?: boolean } } }>("/stripe/status").catch(() => null),
       ]);
-      setAnnualAvailable(!!stripeStatus?.annualOffer?.play?.available);
       setData(dashboardData);
       setSubjects(subjectsData.filter((s) => s.isActive));
       setProfile(profileData);
@@ -96,9 +91,14 @@ export function DashboardScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Przy każdym wejściu na Start, nie tylko przy montowaniu: zakładka żyje
+  // w tle, więc po oddaniu egzaminu wisiał baner „Egzamin w toku", a cel dnia
+  // nie szedł za tym, co uczeń zrobił (zdaj-angielski, 25.09.2026).
+  useFocusEffect(
+    useCallback(() => {
+      void fetchData();
+    }, [fetchData]),
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -183,88 +183,25 @@ export function DashboardScreen() {
           />
         )}
 
-        {/* Premium CTA — JEDEN box: przy nieudanej płatności jego rolę pełni
-            baner wyżej (ma własny przycisk „Kup Premium w aplikacji"). Dwa boxy
-            z tą samą akcją jeden pod drugim to był powód zgłoszenia 17.09.2026. */}
+        {/* JEDNA karta „Za darmo" (diagnoza, darmowy arkusz, linijka o
+            Premium). Wcześniej: duży box „Odblokuj pełny dostęp" z ofertą
+            arkusza, ceną i Pakietem, a pod nim drugi raz diagnoza i arkusz
+            (zdaj-angielski, 25.09.2026). Przy nieudanej płatności akcję
+            przejmuje baner wyżej. */}
         {!paymentFailed && (
-        <Card
-          style={{
-            marginBottom: 24,
-            borderWidth: 2,
-            borderColor: colors.brand[500],
-          }}
-        >
-          <View style={{ alignItems: "center", paddingVertical: 8 }}>
-            <Text style={{ fontSize: 32, marginBottom: 8 }}>🔒</Text>
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "700",
-                color: theme.text,
-                textAlign: "center",
-                marginBottom: 4,
-              }}
-            >
-              {user?.hasTutor ? "Ćwicz też poza zadaniami korepetytora" : "Odblokuj pełny dostęp"}
-            </Text>
-            <Text
-              style={{
-                fontSize: 13,
-                color: theme.textSecondary,
-                textAlign: "center",
-                marginBottom: 16,
-                lineHeight: 20,
-              }}
-            >
-              {user?.hasTutor
-                ? "Zadania od korepetytora już masz. Premium dokłada cały bank pytań, arkusze z timerem i ocenę wypracowań — na własną rękę, między lekcjami."
-                : "Wszystkie przedmioty, nieograniczone pytania, AI ocena wypracowań i więcej"}
-            </Text>
-            {/* Odpowiednik webowego landingu „darmowy arkusz": w apce nie ma
-                strony przed logowaniem, więc pierwszym ekranem świeżego konta
-                jest ten dashboard — i to tutaj musi stać oferta.
-                NAD ceną, bo ten user nie widział jeszcze ani jednego zadania:
-                pokazanie mu najpierw kwoty to proszenie o pieniądze na wiarę.
-                W trybach wywoływanych blokadą w trakcie nauki (PremiumGate)
-                kolejność jest odwrotna. */}
-            <View style={{ alignSelf: "stretch", marginBottom: 4 }}>
-              <TrialOfferCard trigger="dashboard" placement="above" />
-            </View>
-
-            <Button
-              title="Przejdź na Premium"
-              onPress={() =>
+          <View style={{ marginBottom: 24 }}>
+            <FreePanel
+              onPremium={() =>
                 navigation.navigate("ProfileTab", { screen: "Subscription" })
               }
-              icon={<Ionicons name="star" size={16} color="#fff" />}
+              premiumLabel={
+                user?.hasTutor
+                  ? "Cały bank pytań poza zadaniami korepetytora:"
+                  : "Wszystko bez limitu:"
+              }
             />
-            {annualAvailable && (
-              <TouchableOpacity
-                onPress={() =>
-                  navigation.navigate("ProfileTab", { screen: "Subscription" })
-                }
-                style={{ marginTop: 12 }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.brand[500],
-                    fontWeight: "600",
-                    textAlign: "center",
-                  }}
-                >
-                  💡 Pakiet Maturalny do 31 maja — ostatnie 30 dni gratis
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
-        </Card>
         )}
-
-        {/* Darmowy panel — co konto FREE faktycznie MOŻE zrobić, ze stanem.
-            Stoi zaraz pod ofertą, a nad wyszarzonymi przedmiotami: najpierw
-            to, co dostępne, dopiero potem to, co zablokowane. */}
-        <FreePanel />
 
         {/* Greyed-out subjects */}
         <Text

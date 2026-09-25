@@ -93,10 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [!!user]);
 
   // Jedna reguła dla wszystkich statusów (w tym ANNUAL) — lib/premium.ts.
-  const isPremium = isPremiumStatus(
-    user?.subscriptionStatus,
-    user?.subscriptionEnd,
-  );
+  // ADMIN jak na serwerze (isPremiumActive) — bez tego admin z wygasłą datą
+  // widział paywalle, choć serwer go wpuszczał.
+  const isPremium =
+    user?.role === "ADMIN" ||
+    isPremiumStatus(user?.subscriptionStatus, user?.subscriptionEnd);
 
   // ── Actions ─────────────────────────────────────────────────────────────
   const login = useCallback(async (email: string, password: string) => {

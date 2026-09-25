@@ -67,6 +67,7 @@ import {
 } from "../../components/common/AdminCopyButton";
 import type { QuizStackParamList } from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
+import { PremiumGate } from "../../components/common/PremiumGate";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -117,7 +118,7 @@ export function QuizPlayScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
-  const { refresh } = useAuth();
+  const { refresh, isPremium } = useAuth();
   const route = useRoute<any>();
 
   const {
@@ -196,16 +197,28 @@ export function QuizPlayScreen() {
   );
   const [listeningLoading, setListeningLoading] = useState(false);
   const [listeningInit, setListeningInit] = useState(isListeningOnly); // true = needs init
+  // Start słuchania się nie udał (brak premium, pula kredytów, sieć). Bez tej
+  // flagi ekran spadał w pusty stan „To było ostatnie zadanie", a jego
+  // „Od nowa z tej kategorii" ładował nagrania z banku przez /questions —
+  // darmowy user dostawał tryb słuchania z pominięciem bramki.
+  const [listeningFailed, setListeningFailed] = useState<string | null>(null);
+  const [listeningGate, setListeningGate] = useState(false);
 
   // Init listening session
   useEffect(() => {
     if (!isListeningOnly || !listeningInit) return;
+    if (!isPremium) {
+      setListeningGate(true);
+      setListeningInit(false);
+      return;
+    }
     (async () => {
       setListeningLoading(true);
+      setListeningFailed(null);
       try {
         const res = await startListening({ subjectId });
         if (res.error) {
-          Alert.alert("Błąd", res.error);
+          setListeningFailed(res.error);
           return;
         }
         setListeningSessionId(res.sessionId);
@@ -214,13 +227,20 @@ export function QuizPlayScreen() {
         setQuestions([q]);
         setCurrentIndex(0);
       } catch (err: any) {
-        Alert.alert("Błąd", err.message || "Nie udało się uruchomić słuchania");
+        if (err?.code === "PREMIUM_REQUIRED") {
+          refresh().catch(() => {});
+          setListeningGate(true);
+          return;
+        }
+        setListeningFailed(
+          err?.message || "Nie udało się uruchomić słuchania.",
+        );
       } finally {
         setListeningLoading(false);
         setListeningInit(false);
       }
     })();
-  }, [isListeningOnly, listeningInit]);
+  }, [isListeningOnly, listeningInit, isPremium]);
 
   // ── Answered IDs ref (never stale) ──────────────────────────────────────
   const answeredIds = useRef<Set<string>>(new Set());
@@ -772,6 +792,63 @@ export function QuizPlayScreen() {
       return "wrong";
     return "default";
   };
+
+  // ── Słuchanie bez dostępu / nieudany start ──────────────────────────────
+  if (isListeningOnly && listeningGate) {
+    return <PremiumGate mode="listening" />;
+  }
+  if (isListeningOnly && listeningFailed && !question && !listeningLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: theme.background,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <Text style={{ fontSize: 40, marginBottom: 16 }}>🎧</Text>
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "700",
+            color: theme.text,
+            textAlign: "center",
+            marginBottom: 8,
+          }}
+        >
+          Nie udało się uruchomić słuchania
+        </Text>
+        <Text
+          style={{
+            fontSize: 14,
+            color: theme.textSecondary,
+            textAlign: "center",
+            marginBottom: 24,
+            lineHeight: 21,
+            maxWidth: 300,
+          }}
+        >
+          {listeningFailed}
+        </Text>
+        <View style={{ gap: 12, width: "100%", maxWidth: 300 }}>
+          <Button
+            title="Spróbuj ponownie"
+            onPress={() => {
+              setListeningFailed(null);
+              setListeningInit(true);
+            }}
+          />
+          <Button
+            title="Wróć"
+            onPress={() => navigation.goBack()}
+            variant="outline"
+          />
+        </View>
+      </View>
+    );
+  }
 
   // ── Empty state ─────────────────────────────────────────────────────────
   if (!question && !loadingMore && !listeningLoading && !listeningInit) {

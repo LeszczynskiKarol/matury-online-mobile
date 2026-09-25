@@ -11,7 +11,7 @@
 // konta spoza Polski i rozjechałaby się z kwotą na ekranie płatności.
 // ============================================================================
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -92,7 +92,7 @@ const FEATURES = [
 export function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme } = useTheme();
-  const { isPremium, refresh } = useAuth();
+  const { isPremium, refresh, user } = useAuth();
   const navigation = useNavigation<any>();
   const billing = useBilling();
 
@@ -129,9 +129,23 @@ export function SubscriptionScreen() {
 
   // Po udanym zakupie BillingContext odświeża konto — status ekranu musi
   // pójść za tym, inaczej user widzi „Darmowy" mimo opłaconego Premium.
+  // Kluczem jest sam stan konta, nie `isPremium`: do 1.0.24 apka nie znała
+  // statusu ANNUAL, `isPremium` się nie zmieniało i po zakupie Pakietu ekran
+  // stał na „Darmowy" z ofertą, aż do ręcznego przeładowania.
   useEffect(() => {
-    if (isPremium) void fetchStatus();
-  }, [isPremium, fetchStatus]);
+    if (user) void fetchStatus();
+  }, [user?.subscriptionStatus, user?.subscriptionEnd, fetchStatus]);
+
+  // Zakup domknięty na tym ekranie → przewijamy do karty „wszystko gra",
+  // żeby user od razu zobaczył, co kupił i do kiedy.
+  const scrollRef = useRef<ScrollView>(null);
+  const wasPremium = useRef(isPremium);
+  useEffect(() => {
+    if (isPremium && !wasPremium.current) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }
+    wasPremium.current = isPremium;
+  }, [isPremium]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -236,8 +250,26 @@ export function SubscriptionScreen() {
       </View>
     );
 
+  // Opłacony dostęp (nie rola admina) — wtedy zamiast cennika karta „wszystko
+  // gra" z planem i datą. Stan z /stripe/status; do jego nadejścia z konta.
+  const paidStatus = status?.subscriptionStatus ?? user?.subscriptionStatus;
+  const paidEnd: string | null =
+    status?.subscriptionEnd ?? user?.subscriptionEnd ?? null;
+  const hasPaid =
+    isPremium && (status ? !!status.hasPaidAccess : user?.role !== "ADMIN");
+  const planName =
+    paidStatus === "ANNUAL"
+      ? annualName
+      : paidStatus === "ONE_TIME"
+        ? "Premium — 30 dni"
+        : "Premium";
+  const daysLeft = paidEnd
+    ? Math.max(0, Math.ceil((new Date(paidEnd).getTime() - Date.now()) / 86_400_000))
+    : null;
+
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1, backgroundColor: theme.background }}
       contentContainerStyle={{
         paddingTop: insets.top + 16,
@@ -278,8 +310,85 @@ export function SubscriptionScreen() {
         Subskrypcja
       </Text>
 
-      {/* Status */}
-      {status && (
+      {hasPaid && !playHold && !isPastDue && (
+        <View
+          style={{
+            marginBottom: 20,
+            borderRadius: 24,
+            padding: 22,
+            backgroundColor: colors.brand[500],
+            overflow: "hidden",
+          }}
+        >
+          <View
+            style={{
+              position: "absolute",
+              top: -40,
+              right: -40,
+              width: 160,
+              height: 160,
+              borderRadius: 80,
+              backgroundColor: "#ffffff18",
+            }}
+          />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Ionicons name="checkmark-circle" size={22} color="#fff" />
+            <Text style={{ fontSize: 12, fontWeight: "800", color: "#ffffffd0", letterSpacing: 1 }}>
+              WSZYSTKO GRA
+            </Text>
+          </View>
+          <Text style={{ fontSize: 24, fontWeight: "800", color: "#fff" }}>
+            Masz {planName}
+          </Text>
+          {paidEnd && (
+            <Text style={{ fontSize: 15, color: "#ffffffe0", marginTop: 4 }}>
+              {isCancelled
+                ? "Dostęp trwa do "
+                : paidStatus === "ACTIVE"
+                  ? "Odnowienie "
+                  : "Dostęp do "}
+              <Text style={{ fontWeight: "700", color: "#fff" }}>
+                {formatDate(paidEnd)}
+              </Text>
+            </Text>
+          )}
+          {daysLeft !== null && paidStatus !== "ACTIVE" && (
+            <View
+              style={{
+                alignSelf: "flex-start",
+                marginTop: 12,
+                backgroundColor: "#ffffff26",
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>
+                🗓️ {daysLeft === 1 ? "został 1 dzień" : `zostało ${daysLeft} dni`}
+              </Text>
+            </View>
+          )}
+          <View style={{ gap: 6, marginTop: 16 }}>
+            {[
+              "Quizy i arkusze ze wszystkich przedmiotów",
+              "Słuchanie z angielskiego i niemieckiego",
+              "Ocena wypracowań przez AI",
+              paidStatus === "ANNUAL" || paidStatus === "ONE_TIME"
+                ? "Płatność jednorazowa — bez odnowień"
+                : "Anulujesz w Sklepie Play, kiedy chcesz",
+            ].map((t) => (
+              <View key={t} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="checkmark" size={16} color="#fff" />
+                <Text style={{ fontSize: 13, color: "#fff", flex: 1 }}>{t}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Status — przy płatności jednorazowej powtarzałby kartę „wszystko
+          gra" (plan + data) bez żadnej akcji, więc go wtedy nie ma. */}
+      {status && !(hasPaid && isOneOff) && (
         <Card style={{ marginBottom: 20 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <View
@@ -857,27 +966,6 @@ export function SubscriptionScreen() {
         </View>
       )}
 
-      {isPremium && !isCancelled && status?.subscriptionStatus === "ACTIVE" && (
-        <Card
-          style={{
-            marginBottom: 20,
-            alignItems: "center",
-            paddingVertical: 24,
-          }}
-        >
-          <Text style={{ fontSize: 32, marginBottom: 8 }}>🎉</Text>
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "600",
-              color: theme.text,
-              textAlign: "center",
-            }}
-          >
-            Masz aktywne Premium!
-          </Text>
-        </Card>
-      )}
     </ScrollView>
   );
 }

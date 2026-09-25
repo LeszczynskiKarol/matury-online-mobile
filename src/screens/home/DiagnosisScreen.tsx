@@ -450,10 +450,35 @@ export function DiagnosisScreen() {
   // ── Wynik ───────────────────────────────────────────────────────────────────
   if (phase.kind === "result") {
     const r = phase.result;
-    const rows = [...(r.topicBreakdown ?? [])].sort(
-      (a, b) => a.earned / a.total - b.earned / b.total,
-    );
-    const weak = rows.filter((t) => t.earned / t.total < 0.5);
+    // 13 pytań na kilkanaście działów = zwykle JEDNO pytanie na dział, więc
+    // procent przy dziale mógł być tylko 0% albo 100% i nic nie mówił
+    // (zgłoszenie 25.09.2026). Zamiast pasków: gdzie były błędy, a gdzie nie.
+    const cleanTopic = (n: string) => n.replace(/^[IVXLC]+\.\s*/, "").trim();
+    const byTopic = new Map<string, { wrong: number; partial: number; total: number }>();
+    for (const q of r.questions ?? []) {
+      const key = cleanTopic(q.topicName || "Inne");
+      const t = byTopic.get(key) ?? { wrong: 0, partial: 0, total: 0 };
+      t.total += 1;
+      if (!q.isCorrect) {
+        if (q.score > 0) t.partial += 1;
+        else t.wrong += 1;
+      }
+      byTopic.set(key, t);
+    }
+    const weakTopics = [...byTopic.entries()]
+      .filter(([, t]) => t.wrong + t.partial > 0)
+      .sort((a, b) => b[1].wrong + b[1].partial - (a[1].wrong + a[1].partial));
+    const goodTopics = [...byTopic.entries()]
+      .filter(([, t]) => t.wrong + t.partial === 0)
+      .map(([name]) => name);
+    const correctCount = (r.questions ?? []).filter((q) => q.isCorrect).length;
+    const weak = weakTopics.map(([name]) => ({ topicName: name }));
+    const mistakesLabel = (t: { wrong: number; partial: number }) => {
+      const parts: string[] = [];
+      if (t.wrong) parts.push(t.wrong === 1 ? "1 błąd" : t.wrong < 5 ? `${t.wrong} błędy` : `${t.wrong} błędów`);
+      if (t.partial) parts.push(t.partial === 1 ? "1 częściowo" : `${t.partial} częściowo`);
+      return parts.join(" · ");
+    };
     const hasThreshold = r.passThreshold !== null && r.passThreshold !== undefined;
     const rp = hasThreshold ? null : recruitPoints(r.scorePercent, r.subject.slug);
     const ringSub = hasThreshold
@@ -487,28 +512,60 @@ export function DiagnosisScreen() {
         </Text>
 
         <Card style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12 }}>
-            Twoje działy — od najsłabszego
+          <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>
+            Dobrze: {correctCount} z {r.questions?.length ?? 0} pytań
           </Text>
-          <View style={{ gap: 10 }}>
-            {rows.map((t) => {
-              const pct = Math.round((t.earned / t.total) * 100);
-              const color = pct < 40 ? colors.red[500] : pct < 70 ? "#f59e0b" : colors.brand[500];
-              return (
-                <View key={t.topicId}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                    <Text style={{ flex: 1, fontSize: 13, color: theme.text }} numberOfLines={1}>
-                      {t.topicName}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: theme.textSecondary, marginLeft: 8 }}>{pct}%</Text>
+          <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 4, lineHeight: 17 }}>
+            13 pytań to za mało, żeby oceniać każdy dział osobno — pokazujemy,
+            gdzie pojawiły się błędy.
+          </Text>
+
+          {weakTopics.length > 0 && (
+            <>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginTop: 16, marginBottom: 8 }}>
+                Do powtórki
+              </Text>
+              <View style={{ gap: 8 }}>
+                {weakTopics.map(([name, t]) => (
+                  <View key={name} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: t.wrong ? colors.red[500] : "#f59e0b",
+                      }}
+                    />
+                    <Text style={{ flex: 1, fontSize: 14, color: theme.text }}>{name}</Text>
+                    <Text style={{ fontSize: 12, color: theme.textSecondary }}>{mistakesLabel(t)}</Text>
                   </View>
-                  <View style={{ height: 8, borderRadius: 4, backgroundColor: theme.border, overflow: "hidden" }}>
-                    <View style={{ height: "100%", width: `${Math.max(pct, 4)}%`, backgroundColor: color }} />
+                ))}
+              </View>
+            </>
+          )}
+
+          {goodTopics.length > 0 && (
+            <>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginTop: 16, marginBottom: 8 }}>
+                Poszło dobrze
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {goodTopics.map((name) => (
+                  <View
+                    key={name}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      backgroundColor: "#10b98122",
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#10b981" }}>✓ {name}</Text>
                   </View>
-                </View>
-              );
-            })}
-          </View>
+                ))}
+              </View>
+            </>
+          )}
         </Card>
 
         <Card style={{ marginBottom: 16, backgroundColor: colors.brand[500] + "14", borderColor: colors.brand[500] }}>

@@ -1,24 +1,27 @@
 // ============================================================================
-// FreePanel — „co mam za darmo" dla konta bez Premium (port z webu)
+// FreePanel — jedyna karta na pulpicie darmowego konta
 // src/components/common/FreePanel.tsx
 //
-// Darmowe konto w apce widziało wyłącznie zablokowany panel, wyszarzone
-// przedmioty i cenę — czyli ścianę. Ten panel zbiera obie darmowe rzeczy i
-// pokazuje ICH STAN, dzięki czemu darmowy tier staje się ścieżką zamiast muru.
-//
-// Diagnoza nie ma jeszcze natywnego ekranu, więc otwieramy ją w przeglądarce
-// w systemie — sesja jest ta sama (cookie), a API diagnozy jest w całości
-// serwerowe. To świadomy etap pośredni, nie docelowy kształt.
+// Do 25.09.2026 darmowe konto widziało na górze dwa bloki mówiące to samo:
+// niebieski „PEŁNY DOSTĘP / Odblokuj cały angielski" z ofertą arkusza w środku,
+// ceną i Pakietem, a pod nim „Za darmo na Twoim koncie" znowu z arkuszem
+// i diagnozą. „PEŁNY DOSTĘP" z gwiazdką czytało się jak „masz już dostęp".
+// Teraz jest JEDNA karta: dwie darmowe rzeczy, każda z jednym zdaniem stanu
+// i jednym przyciskiem, a pod nimi jedna linijka o Premium.
 // ============================================================================
 
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { radius } from "../../theme";
 import { api } from "../../api/client";
-import { getTrialStatus, type TrialStatus } from "../../api/premium";
+import {
+  getTrialStatus,
+  claimTrial,
+  type TrialStatus,
+} from "../../api/premium";
 
 interface DiagnosisRow {
   subjectSlug: string;
@@ -28,41 +31,25 @@ interface DiagnosisRow {
   token: string;
 }
 
-type Tone = "done" | "active" | "todo";
-
-function StatusPill({ label, tone }: { label: string; tone: Tone }) {
-  const bg =
-    tone === "done"
-      ? "#10b98122"
-      : tone === "active"
-        ? colors.brand[500] + "22"
-        : "#71717a22";
-  const fg =
-    tone === "done" ? "#10b981" : tone === "active" ? colors.brand[500] : "#a1a1aa";
-  return (
-    <View
-      style={{
-        backgroundColor: bg,
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 999,
-      }}
-    >
-      <Text style={{ fontSize: 10, fontWeight: "800", color: fg }}>{label}</Text>
-    </View>
-  );
+function hoursLeft(ms: number): string {
+  const h = Math.max(0, Math.floor(ms / 3_600_000));
+  return h === 1 ? "1 godzinę" : h >= 2 && h <= 4 ? `${h} godziny` : `${h} godzin`;
 }
 
-export function FreePanel() {
+export function FreePanel({
+  onPremium,
+  premiumLabel = "Wszystko bez limitu:",
+}: {
+  onPremium: () => void;
+  premiumLabel?: string;
+}) {
   const { colors: theme } = useTheme();
   const navigation = useNavigation<any>();
   const [diagnoses, setDiagnoses] = useState<DiagnosisRow[] | null>(null);
   const [trial, setTrial] = useState<TrialStatus | null>(null);
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
-  // useFocusEffect, nie useEffect: diagnoza otwiera się w przeglądarce
-  // systemowej, więc user wraca do apki z NOWYM stanem po stronie serwera.
-  // Pobranie tylko przy montowaniu zostawiałoby go z widokiem „Do zrobienia"
-  // tuż po tym, jak diagnozę zrobił.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
@@ -80,187 +67,160 @@ export function FreePanel() {
 
   if (diagnoses === null) return null;
 
-  // Diagnoza ma natywny ekran (screens/home/DiagnosisScreen) na tym samym
-  // backendzie co /diagnoza na webie — do 23.09.2026 kafel otwierał
-  // przeglądarkę systemową i uczeń wypadał z apki.
-
   const goExams = () =>
     navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
 
+  const claim = async () => {
+    setClaiming(true);
+    setClaimError(null);
+    try {
+      setTrial(await claimTrial("dashboard"));
+      goExams();
+    } catch (e: any) {
+      setClaimError(e?.message || "Nie udało się odebrać arkusza.");
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  // ── Diagnoza: jedno zdanie + jeden przycisk ──────────────────────────────
+  const diag = diagnoses[0];
+  const diagText = diag
+    ? // Bez „najsłabszego działu" — przy 13 pytaniach to zwykle jedno pytanie.
+      `Twój wynik: ${diag.scorePercent ?? 0}%.`
+    : "13 pytań, ok. 10 minut.";
+  const diagCta = diag ? "Zobacz wynik" : "Zrób diagnozę";
+  const onDiag = () =>
+    navigation.navigate("Diagnosis", diag ? { token: diag.token } : undefined);
+
+  // ── Darmowy arkusz ───────────────────────────────────────────────────────
   const examDone =
     trial?.attemptStatus === "COMPLETED" || trial?.attemptStatus === "GRADING";
+  let examText: string;
+  let examCta: string | null = null;
+  let onExam: (() => void) | null = null;
+  if (examDone) {
+    examText = "Oddany. Wynik zostaje na stałe.";
+    examCta = "Zobacz wynik";
+    onExam = () =>
+      navigation.getParent()?.navigate("ExamTab", {
+        screen: "ExamResults",
+        params: { attemptId: trial!.examAttemptId! },
+      });
+  } else if (trial?.examId) {
+    examText = "Zaczęty — dokończ i oddaj.";
+    examCta = "Wróć do arkusza";
+    onExam = goExams;
+  } else if (trial?.active) {
+    examText = `Wybierz arkusz — masz na to ${hoursLeft(trial.remainingMs)}.`;
+    examCta = "Wybierz arkusz";
+    onExam = goExams;
+  } else if (trial?.eligible) {
+    examText = "Pełny arkusz z oceną AI.";
+    examCta = "Odbierz arkusz";
+    onExam = claim;
+  } else {
+    examText = "Już wykorzystany.";
+  }
 
-  const card = {
-    backgroundColor: theme.card,
-    borderRadius: radius["2xl"],
-    borderWidth: 1,
-    borderColor: theme.cardBorder,
-    padding: 16,
-    marginBottom: 10,
-  } as const;
-
-  const cta = {
-    backgroundColor: colors.brand[500],
-    paddingVertical: 11,
-    borderRadius: radius.xl,
-    alignItems: "center",
-    marginTop: 12,
-  } as const;
-
-  const ctaText = { color: "#fff", fontWeight: "800", fontSize: 13 } as const;
-  const body = {
-    fontSize: 13,
-    color: theme.textSecondary,
-    lineHeight: 19,
-  } as const;
+  const row = (
+    icon: string,
+    title: string,
+    text: string,
+    cta: string | null,
+    onPress: (() => void) | null,
+    busy = false,
+  ) => (
+    <View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Text style={{ fontSize: 22 }}>{icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
+            {title}
+          </Text>
+          <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 1 }}>
+            {text}
+          </Text>
+        </View>
+      </View>
+      {cta && onPress && (
+        <TouchableOpacity
+          onPress={onPress}
+          disabled={busy}
+          style={{
+            backgroundColor: colors.brand[500],
+            paddingVertical: 11,
+            borderRadius: radius.xl,
+            alignItems: "center",
+            marginTop: 12,
+          }}
+        >
+          {busy ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
+              {cta}
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 
   return (
-    <View style={{ marginBottom: 24 }}>
-      <Text style={{ fontSize: 18, fontWeight: "800", color: theme.text }}>
-        Za darmo na Twoim koncie
+    <View
+      style={{
+        backgroundColor: theme.card,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: theme.cardBorder,
+        padding: 18,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 18,
+          fontWeight: "800",
+          color: theme.text,
+          marginBottom: 14,
+        }}
+      >
+        Za darmo
       </Text>
-      <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 14 }}>
-        Dwie rzeczy bez żadnej opłaty. Wyniki zostają u Ciebie na stałe.
-      </Text>
 
-      {/* ── Diagnoza ────────────────────────────────────────────────── */}
-      <View style={card}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 8,
-          }}
+      {row("📊", "Diagnoza", diagText, diagCta, onDiag)}
+      <View
+        style={{ height: 1, backgroundColor: theme.border, marginVertical: 14 }}
+      />
+      {row("📝", "Darmowy arkusz", examText, examCta, onExam, claiming)}
+      {claimError && (
+        <Text style={{ fontSize: 12, color: colors.red[500], marginTop: 8 }}>
+          {claimError}
+        </Text>
+      )}
+
+      <TouchableOpacity
+        onPress={onPremium}
+        style={{
+          marginTop: 16,
+          paddingTop: 14,
+          borderTopWidth: 1,
+          borderTopColor: theme.border,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text style={{ fontSize: 13, color: theme.textSecondary, flex: 1 }}>
+          {premiumLabel}{" "}
+          <Text style={{ fontWeight: "800", color: theme.text }}>Premium</Text>
+        </Text>
+        <Text
+          style={{ fontSize: 13, fontWeight: "800", color: colors.brand[500] }}
         >
-          <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
-            📊 Diagnoza
-          </Text>
-          {/* Diagnoza jest JEDNA na konto — bez liczników i bez zachęty do
-              kolejnych przedmiotów. */}
-          <StatusPill
-            label={diagnoses.length > 0 ? "Zrobiona" : "Do zrobienia"}
-            tone={diagnoses.length > 0 ? "done" : "todo"}
-          />
-        </View>
-
-        {diagnoses.length === 0 ? (
-          <>
-            <Text style={body}>
-              13 pytań z wybranego przedmiotu. Dowiesz się, czy przekraczasz
-              próg 30% i które działy leżą najbardziej.
-            </Text>
-            <TouchableOpacity style={cta} onPress={() => navigation.navigate("Diagnosis")}>
-              <Text style={ctaText}>Zrób diagnozę →</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <Text style={body}>
-              <Text style={{ fontWeight: "800", color: theme.text }}>
-                {diagnoses[0].subjectName}
-              </Text>{" "}
-              —{" "}
-              <Text
-                style={{
-                  fontWeight: "800",
-                  color: (diagnoses[0].scorePercent ?? 0) >= 30 ? "#10b981" : "#ef4444",
-                }}
-              >
-                {diagnoses[0].scorePercent ?? 0}%
-              </Text>
-              {diagnoses[0].worstTopicName
-                ? ` · najsłabszy dział: ${diagnoses[0].worstTopicName}`
-                : ""}
-            </Text>
-            <TouchableOpacity
-              style={cta}
-              onPress={() =>
-                navigation.navigate("Diagnosis", { token: diagnoses[0].token })
-              }
-            >
-              <Text style={ctaText}>Zobacz pełny wynik →</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
-      {/* ── Darmowy arkusz ──────────────────────────────────────────── */}
-      <View style={card}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 8,
-          }}
-        >
-          <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
-            📝 Darmowy arkusz
-          </Text>
-          <StatusPill
-            label={
-              examDone
-                ? "Zrobione"
-                : trial?.examId
-                  ? "W trakcie"
-                  : trial?.active
-                    ? "Odblokowane"
-                    : "Do odebrania"
-            }
-            tone={examDone ? "done" : trial?.examId || trial?.active ? "active" : "todo"}
-          />
-        </View>
-
-        {examDone ? (
-          <>
-            <Text style={body}>
-              {trial?.exam?.title ?? "Arkusz"} — oddany. Wynik i feedback AI
-              zostają na stałe.
-            </Text>
-            <TouchableOpacity
-              style={cta}
-              onPress={() =>
-                navigation.getParent()?.navigate("ExamTab", {
-                  screen: "ExamResults",
-                  params: { attemptId: trial!.examAttemptId! },
-                })
-              }
-            >
-              <Text style={ctaText}>Zobacz wynik →</Text>
-            </TouchableOpacity>
-          </>
-        ) : trial?.examId ? (
-          <>
-            <Text style={body}>
-              {trial.exam?.title ?? "Arkusz"} — zaczęty, jeszcze nieoddany.
-            </Text>
-            <TouchableOpacity style={cta} onPress={goExams}>
-              <Text style={ctaText}>Wróć do arkusza →</Text>
-            </TouchableOpacity>
-          </>
-        ) : trial?.active ? (
-          <>
-            <Text style={body}>
-              Masz odblokowany jeden pełny arkusz i {trial.credits} kredytów AI.
-              Wybór jest jednorazowy.
-            </Text>
-            <TouchableOpacity style={cta} onPress={goExams}>
-              <Text style={ctaText}>Wybierz arkusz →</Text>
-            </TouchableOpacity>
-          </>
-        ) : trial?.eligible ? (
-          <Text style={body}>
-            Pełny arkusz maturalny z timerem i oceną AI. Odbierz go na karcie
-            powyżej — bez karty, jednorazowo.
-          </Text>
-        ) : (
-          <Text style={body}>
-            Darmowy arkusz przysługuje raz na konto i został wykorzystany.
-            Kolejne arkusze — bez limitu — są w Premium.
-          </Text>
-        )}
-      </View>
+          od 49 zł/mies. →
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
