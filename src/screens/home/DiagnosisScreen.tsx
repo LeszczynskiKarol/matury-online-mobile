@@ -657,9 +657,8 @@ export function DiagnosisScreen() {
           })}
         </View>
 
-        <TouchableOpacity onPress={() => void loadSubjects()} style={{ alignItems: "center", paddingVertical: 8 }}>
-          <Text style={{ fontSize: 13, color: theme.textSecondary }}>Powtórz diagnozę — inny zestaw pytań →</Text>
-        </TouchableOpacity>
+        {/* Bez „Powtórz diagnozę": serwer pozwala na jedną diagnozę na osobę,
+            więc link robił pętlę do tego samego wyniku (25.09.2026). */}
       </ScrollView>
     );
   }
