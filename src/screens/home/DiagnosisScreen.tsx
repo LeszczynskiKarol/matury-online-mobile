@@ -25,6 +25,7 @@
 // niczego markowego.
 // ============================================================================
 
+import { QuestionText } from "../../components/quiz/QuestionText";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -218,7 +219,7 @@ function ScoreRing({ percent, sub, theme }: { percent: number; sub?: string; the
 
 export function DiagnosisScreen() {
   const insets = useSafeAreaInsets();
-  const { colors: theme } = useTheme();
+  const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const params = (route.params ?? {}) as { subjectSlug?: string; token?: string };
@@ -729,9 +730,7 @@ export function DiagnosisScreen() {
       </View>
 
       <Card style={{ marginBottom: 14 }}>
-        <Text style={{ fontSize: 16, color: theme.text, lineHeight: 24, marginBottom: 14 }}>
-          {parseChemText(q.content.question)}
-        </Text>
+        <QuestionText text={q.content.question} theme={theme} isDark={isDark} />
         {q.content.imageUrl ? (
           <Image
             source={{ uri: q.content.imageUrl }}
