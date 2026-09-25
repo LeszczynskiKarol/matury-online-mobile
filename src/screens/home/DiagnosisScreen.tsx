@@ -878,10 +878,12 @@ export function DiagnosisScreen() {
           style={{ flex: 1 }}
         />
         {idx < questions.length - 1 ? (
+          // Bez blokady: pytanie można pominąć i wrócić do niego później
+          // (do 25.09.2026 trzeba było coś zaznaczyć, żeby iść dalej).
           <Button
-            title="Następne →"
+            title={answered ? "Następne →" : "Pomiń →"}
             onPress={() => setIdx((i) => i + 1)}
-            disabled={!answered}
+            variant={answered ? "primary" : "outline"}
             style={{ flex: 1 }}
           />
         ) : (
@@ -892,6 +894,17 @@ export function DiagnosisScreen() {
           />
         )}
       </View>
+
+      {idx < questions.length - 1 && !confirmFinish && (
+        <TouchableOpacity
+          onPress={() => (incompleteNums.length > 0 ? setConfirmFinish(true) : void submit())}
+          style={{ alignSelf: "center", marginTop: 12, padding: 8 }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
+            Zakończ teraz i pokaż wynik
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {confirmFinish && (
         <Card style={{ marginTop: 14, borderColor: "#f59e0b" }}>
