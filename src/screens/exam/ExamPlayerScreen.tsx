@@ -811,66 +811,31 @@ export function ExamPlayerScreen() {
             </View>
           )}
 
-          {/* Progress text */}
-          <View style={{ flex: 1, alignItems: "center" }}>
-            {/* Który to arkusz: przedmiot + poziom (od backendu 2.09.2026;
-                starszy backend nie przysyła pól — linia po prostu znika).
-                Dwa Texty w rzędzie: przy ciasnym środku paska skraca się
-                NAZWA przedmiotu, a poziom (PP/PR) zostaje zawsze widoczny. */}
+          {/* Postęp — dwie zwarte linie zamiast czterech w słupku (Karol
+              26.09.2026: pasek był za wysoki i rozciągnięty). Bez zegara
+              (darmowy arkusz) tekst trzyma się lewej krawędzi. */}
+          <View style={{ flex: 1, alignItems: untimed ? "flex-start" : "center", minWidth: 0 }}>
             {data.exam.subjectName ? (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  maxWidth: "100%",
-                }}
-              >
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    flexShrink: 1,
-                    fontSize: 11,
-                    fontWeight: "700",
-                    color: theme.text,
-                  }}
-                >
+              <View style={{ flexDirection: "row", alignItems: "center", maxWidth: "100%" }}>
+                <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, fontWeight: "800", color: theme.text }}>
                   {data.exam.subjectName}
                 </Text>
                 {data.exam.level ? (
-                  <Text
-                    style={{ fontSize: 11, fontWeight: "700", color: theme.text }}
-                  >
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: theme.text }}>
                     {` · ${data.exam.level === "ROZSZERZONY" ? "PR" : "PP"}`}
                   </Text>
                 ) : null}
               </View>
             ) : null}
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: "600",
-                color: theme.textSecondary,
-              }}
-            >
-              {currentIndex + 1} / {allTasks.length}
+            <Text numberOfLines={1} style={{ fontSize: 11, color: theme.textSecondary, marginTop: 1 }}>
+              {currentIndex + 1}/{allTasks.length} · {answeredCount}{" "}
+              {answeredCount === 1 ? "odpowiedź" : "odpowiedzi"}
+              {saveFailed ? (
+                <Text style={{ color: "#ef4444", fontWeight: "700" }}> · ⚠ zapis nieudany</Text>
+              ) : lastSavedAt ? (
+                ` · ✓ ${lastSavedAt.toLocaleTimeString("pl", { hour: "2-digit", minute: "2-digit" })}`
+              ) : null}
             </Text>
-            <Text style={{ fontSize: 10, color: theme.textTertiary }}>
-              {answeredCount} {answeredCount === 1 ? "odpowiedź" : "odpowiedzi"}
-            </Text>
-            {/* Status autosave — uczeń musi widzieć, że praca jest zapisana */}
-            {saveFailed ? (
-              <Text style={{ fontSize: 9, color: "#ef4444", fontWeight: "700" }}>
-                ⚠ zapis nieudany
-              </Text>
-            ) : lastSavedAt ? (
-              <Text style={{ fontSize: 9, color: theme.textTertiary }}>
-                ✓ zapisano{" "}
-                {lastSavedAt.toLocaleTimeString("pl", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-            ) : null}
           </View>
 
           {/* Nav + Submit */}
