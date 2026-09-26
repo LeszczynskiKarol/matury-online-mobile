@@ -543,6 +543,73 @@ export function SubscriptionScreen() {
         </Card>
       )}
 
+      {/* ═══ Przedłuż dostęp — konto z dostępem jednorazowym (30 dni) ═══
+          „Przedłuż dostęp” z pulpitu prowadził tu, a oferta pokazywała się
+          tylko kontom bez Premium — nie było czego kupić (Karol 26.09.2026).
+          Jak na webie: Pakiet wyróżniony, +30 dni, subskrypcja. W Google Play
+          „30 dni” dokleja się do obecnego końca, Pakiet nie skraca opłaconych
+          dni; subskrypcji Play nie da się odroczyć — mówimy to wprost. */}
+      {isOneTime && status?.hasPaidAccess && !playHold && (
+        <View style={{ gap: 14, marginBottom: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text }}>
+            Przedłuż dostęp
+          </Text>
+          {showAnnual && annualPlay && (
+            <Card style={{ borderWidth: 2, borderColor: colors.brand[500] }}>
+              <Text style={{ fontSize: 10, fontWeight: "800", color: colors.brand[500], letterSpacing: 0.6 }}>
+                POLECANY · 🎁 30 DNI GRATIS
+              </Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: theme.text, marginTop: 6 }}>
+                {annualName}{annualPrice ? ` — ${annualPrice}` : ""}
+              </Text>
+              <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, marginBottom: 12 }}>
+                Dostęp do {formatDate(annualPlay.endDate)}, jedna wpłata, bez odnowień. Obecne dni nie przepadają.
+              </Text>
+              <Button
+                title={billing.pending === SKU_ANNUAL ? "Otwieranie..." : `Biorę pakiet${annualPrice ? ` — ${annualPrice}` : ""}`}
+                onPress={() => billing.buy(SKU_ANNUAL)}
+                loading={billing.pending === SKU_ANNUAL}
+                disabled={billing.pending !== null}
+              />
+            </Card>
+          )}
+          <Card style={showAnnual ? undefined : { borderWidth: 2, borderColor: colors.brand[500] }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: theme.text }}>
+              +30 dni{oneTimePrice ? ` — ${oneTimePrice}` : ""}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, marginBottom: 12 }}>
+              {paidEnd
+                ? `Doklejamy 30 dni do obecnego dostępu — będziesz mieć Premium do ${formatDate(new Date(new Date(paidEnd).getTime() + 30 * 86_400_000).toISOString())}.`
+                : "Doklejamy 30 dni do obecnego dostępu."}{" "}
+              Bez subskrypcji.
+            </Text>
+            <Button
+              title={billing.pending === SKU_PREMIUM_30DAYS ? "Otwieranie..." : "Przedłuż o 30 dni"}
+              onPress={() => billing.buy(SKU_PREMIUM_30DAYS)}
+              loading={billing.pending === SKU_PREMIUM_30DAYS}
+              disabled={!billing.hasProduct(SKU_PREMIUM_30DAYS) || billing.pending !== null}
+              variant={showAnnual ? "outline" : undefined}
+            />
+          </Card>
+          <Card>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: theme.text }}>
+              Premium{monthlyPrice ? ` — ${monthlyPrice} / miesiąc` : " — subskrypcja miesięczna"}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, marginBottom: 12 }}>
+              Subskrypcja odnawiana co miesiąc, anulujesz kiedy chcesz. W Google Play płatność rusza od razu
+              {daysLeft ? ` — pozostałe ${daysLeft} ${daysLeft === 1 ? "dzień" : "dni"} obecnego dostępu nie doliczą się do subskrypcji` : ""}.
+            </Text>
+            <Button
+              title={billing.pending === SKU_PREMIUM_MONTHLY ? "Otwieranie..." : "Subskrybuj"}
+              onPress={() => billing.buy(SKU_PREMIUM_MONTHLY)}
+              loading={billing.pending === SKU_PREMIUM_MONTHLY}
+              disabled={!billing.hasProduct(SKU_PREMIUM_MONTHLY) || billing.pending !== null}
+              variant="outline"
+            />
+          </Card>
+        </View>
+      )}
+
       {/* AI Credits */}
       {isPremium && credits && (
         <Card style={{ marginBottom: 20 }}>
@@ -558,7 +625,15 @@ export function SubscriptionScreen() {
               Kredyty AI
             </Text>
             <Text style={{ fontSize: 11, color: theme.textTertiary }}>
-              Odnowienie co miesiąc
+              {/* Jak na webie: ONE_TIME jedno doładowanie, pakiet co 30 dni,
+                  anulowana już się nie odnowi. */}
+              {isOneTime
+                ? "Pula na opłacone 30 dni · bez odnawiania"
+                : isAnnual
+                  ? "Odnowienie co 30 dni do końca pakietu"
+                  : isCancelled
+                    ? "Bez odnowienia — subskrypcja anulowana"
+                    : "Odnowienie co miesiąc"}
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
