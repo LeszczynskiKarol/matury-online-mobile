@@ -52,6 +52,8 @@ import {
   startExam,
   saveExamAnswers,
   submitExam,
+  discardExam,
+  estimateExam,
   type ExamStartData,
 } from "../../api/exams";
 import {
@@ -66,6 +68,20 @@ import { ReportButton } from "../../components/quiz/ReportQuestion";
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
 // ══════════════════════════════════════════════════════════════════════════
+
+// Jak answerIsNonEmpty w backendzie (routes/exam-live.ts).
+function isFilled(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v === "string") return v.trim().length > 0;
+  if (Array.isArray(v)) return v.some(isFilled);
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    if ("text" in o || "writing" in o || "content" in o)
+      return isFilled(o.text ?? o.writing ?? o.content);
+    return Object.values(o).some(isFilled);
+  }
+  return true;
+}
 
 export function ExamPlayerScreen() {
   const insets = useSafeAreaInsets();
@@ -99,6 +115,14 @@ export function ExamPlayerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState(false);
   const [timeUpModal, setTimeUpModal] = useState(false);
+  // Wycena oceny AI dla bieżących odpowiedzi (modal „Zakończ i sprawdź”).
+  const [estimate, setEstimate] = useState<{
+    credits: number;
+    remaining: number;
+    enough: boolean;
+  } | null>(null);
+  const [timeUpSubmitting, setTimeUpSubmitting] = useState(false);
+  const handleSubmitRef = useRef<(() => void) | null>(null);
   const [showNav, setShowNav] = useState(false);
   // Ekran przed pierwszym zadaniem darmowego arkusza (jak na webie): co to
   // jest, ile zajmuje, że nie ma zegara i od której części zacząć. Wraca
@@ -155,6 +179,12 @@ export function ExamPlayerScreen() {
         );
         setPhase("exam");
       } catch (err: any) {
+        // Arkusz już oddany (np. oddał się sam po czasie albo na webie) —
+        // prosto do wyniku zamiast ekranu błędu.
+        if (err?.status === 409 && err?.data?.attemptId) {
+          navigation.replace("ExamResults", { attemptId: err.data.attemptId });
+          return;
+        }
         setError(err.message || "Nie udało się rozpocząć egzaminu.");
       }
     })();
@@ -179,7 +209,10 @@ export function ExamPlayerScreen() {
   useEffect(() => {
     // Arkusz z darmowej oferty (untimed) nie ma czego kończyć.
     if (!data?.untimed && remainingMs <= 0 && phase === "exam" && data) {
-      setTimeUpModal(true);
+      // Koniec czasu → arkusz oddaje się sam (bez wyboru trybu oceny;
+      // pusty jest porzucany).
+      setTimeUpSubmitting(true);
+      handleSubmitRef.current?.();
     }
   }, [remainingMs, phase]);
 
@@ -261,13 +294,12 @@ export function ExamPlayerScreen() {
   const isWarning = !untimed && remainingMs < 15 * 60000;
   const isCritical = !untimed && remainingMs < 5 * 60000;
 
-  const answeredCount = allTasks.filter((t: any) => {
-    const a = answers[t.id];
-    if (a === null || a === undefined) return false;
-    if (typeof a === "string") return a.trim().length > 0;
-    if (typeof a === "object") return Object.keys(a).length > 0;
-    return true;
-  }).length;
+  // Jak answerIsNonEmpty w backendzie: temat bez tekstu czy mapa pustych
+  // luk to wciąż brak odpowiedzi.
+  const answeredCount = allTasks.filter((t: any) => isFilled(answers[t.id])).length;
+  const openAnswered = allTasks.filter(
+    (t: any) => t.gradingType !== "deterministic" && isFilled(answers[t.id]),
+  ).length;
 
   // ── Helpers ────────────────────────────────────────────────────────
   const setAnswer = useCallback((taskId: string, value: any) => {
@@ -297,9 +329,27 @@ export function ExamPlayerScreen() {
   }, [currentIndex, allTasks, goToTask]);
 
   // ── Submit ─────────────────────────────────────────────────────────
+  // Porzucenie: arkusz wraca na listę do rozwiązania, bez wyniku i kredytów.
+  const discardAttempt = useCallback(async () => {
+    if (!data) return;
+    setConfirmModal(false);
+    setPhase("submitting");
+    try {
+      await discardExam(data.attemptId);
+    } catch {}
+    navigation.replace("ExamSelector", { noAutoOpen: true });
+  }, [data, navigation]);
+
+  // „Zakończ i sprawdź” — zamknięte od razu, otwarte ocenia AI automatycznie
+  // (bez kredytów backend oddaje wynik częściowy). `skipAi` zostaje w
+  // sygnaturze tylko dla zgodności — nowy UI go nie używa.
   const handleSubmit = useCallback(
-    async (skipAi: boolean) => {
+    async (skipAi: boolean = false) => {
       if (!data) return;
+      if (answeredCount === 0) {
+        discardAttempt();
+        return;
+      }
       setPhase("submitting");
       setConfirmModal(false);
       setTimeUpModal(false);
@@ -308,8 +358,13 @@ export function ExamPlayerScreen() {
           answers,
           timeSpentMs: Date.now() - examStartedAtRef.current,
           timeLeftMs: remainingMs,
-          skipAiGrading: skipAi,
+          skipAiGrading: skipAi || undefined,
+          discardIfEmpty: true,
         });
+        if (res?.status === "ABANDONED") {
+          navigation.replace("ExamSelector", { noAutoOpen: true });
+          return;
+        }
         navigation.replace("ExamResults", { attemptId: data.attemptId });
       } catch (err: any) {
         if (handlePremiumError(err, navigation)) return;
@@ -317,8 +372,18 @@ export function ExamPlayerScreen() {
         setPhase("exam");
       }
     },
-    [data, answers, remainingMs, navigation],
+    [data, answers, remainingMs, navigation, answeredCount, discardAttempt],
   );
+  handleSubmitRef.current = () => handleSubmit(false);
+
+  const openConfirm = useCallback(() => {
+    setConfirmModal(true);
+    setEstimate(null);
+    if (!data || answeredCount === 0) return;
+    estimateExam(data.attemptId, answers)
+      .then((e) => setEstimate(e))
+      .catch(() => {});
+  }, [data, answers, answeredCount]);
 
   // ── Error / Loading ────────────────────────────────────────────────
   if (error) {
@@ -387,7 +452,7 @@ export function ExamPlayerScreen() {
             marginTop: 16,
           }}
         >
-          Przesyłanie egzaminu...
+          {timeUpSubmitting ? "Czas minął — oddaję arkusz…" : "Przesyłanie egzaminu..."}
         </Text>
       </View>
     );
@@ -445,7 +510,7 @@ export function ExamPlayerScreen() {
           <View style={{ gap: 8, marginBottom: 22 }}>
             <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>⏸ Możesz rozwiązywać na raty — wyjdź w dowolnym momencie, odpowiedzi zapisują się same.</Text>
             <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>🧭 Zadania rozwiązujesz w dowolnej kolejności — lista wszystkich jest pod przyciskiem ☰.</Text>
-            <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>✅ Oddać możesz w każdej chwili — zobaczysz wynik z tego, co rozwiązałeś, i z całego arkusza, z oceną AI.</Text>
+            <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>✅ Oddać możesz w każdej chwili — zobaczysz wynik z rozwiązanych zadań, i z całego arkusza, z oceną AI.</Text>
           </View>
         )}
         <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, letterSpacing: 1, marginBottom: 10 }}>
@@ -488,118 +553,7 @@ export function ExamPlayerScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      {/* ═══ TIME UP MODAL ═══ */}
-      <Modal visible={timeUpModal} transparent animationType="fade">
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.6)",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: theme.card,
-              borderRadius: 24,
-              padding: 28,
-              width: "100%",
-              maxWidth: 380,
-            }}
-          >
-            <Text
-              style={{ fontSize: 40, textAlign: "center", marginBottom: 12 }}
-            >
-              ⏰
-            </Text>
-            <Text
-              style={{
-                fontSize: 20,
-                fontWeight: "800",
-                color: theme.text,
-                textAlign: "center",
-                marginBottom: 8,
-              }}
-            >
-              Czas minął!
-            </Text>
-            <Text
-              style={{
-                fontSize: 13,
-                color: theme.textSecondary,
-                textAlign: "center",
-                marginBottom: 24,
-              }}
-            >
-              Wybierz sposób oceny:
-            </Text>
-            <TouchableOpacity
-              onPress={() => handleSubmit(false)}
-              style={{
-                backgroundColor: "#7c3aed",
-                borderRadius: 16,
-                paddingVertical: 16,
-                marginBottom: 10,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>
-                🤖 Oceń z AI
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  marginTop: 4,
-                }}
-              >
-                <View
-                  style={{
-                    backgroundColor: "#fff",
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                    borderRadius: 99,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      fontWeight: "700",
-                      color: "#7c3aed",
-                    }}
-                  >
-                    💎 15 kredytów
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
-                  • ~3-5 min
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleSubmit(true)}
-              style={{
-                backgroundColor: theme.inputBg,
-                borderRadius: 16,
-                paddingVertical: 14,
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: theme.border,
-              }}
-            >
-              <Text
-                style={{ fontSize: 14, fontWeight: "600", color: theme.text }}
-              >
-                ⚡ Bez AI (0 kredytów)
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ═══ CONFIRM SUBMIT MODAL ═══ */}
+      {/* ═══ ZAKOŃCZ I SPRAWDŹ ═══ */}
       <Modal visible={confirmModal} transparent animationType="fade">
         <View
           style={{
@@ -614,124 +568,69 @@ export function ExamPlayerScreen() {
             style={{
               backgroundColor: theme.card,
               borderRadius: 24,
-              padding: 28,
+              padding: 26,
               width: "100%",
               maxWidth: 380,
             }}
           >
-            <Text
-              style={{ fontSize: 40, textAlign: "center", marginBottom: 12 }}
-            >
-              📝
-            </Text>
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "700",
-                color: theme.text,
-                textAlign: "center",
-                marginBottom: 8,
-              }}
-            >
-              {untimed ? "Oddać arkusz i zobaczyć wynik?" : "Zakończyć egzamin?"}
-            </Text>
-            <Text
-              style={{
-                fontSize: 13,
-                color: theme.textSecondary,
-                textAlign: "center",
-                marginBottom: 4,
-              }}
-            >
-              Odpowiedziałeś na {answeredCount} z {allTasks.length} pytań.
-            </Text>
-            {answeredCount < allTasks.length && (
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: "#f59e0b",
-                  textAlign: "center",
-                  marginBottom: 16,
-                }}
-              >
-                ⚠ {allTasks.length - answeredCount} bez odpowiedzi → 0 pkt
-              </Text>
-            )}
-            {untimed && (
-              <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: "center", marginBottom: 14 }}>
-                Arkusz nie ma limitu czasu. Po oddaniu zobaczysz wynik z rozwiązanych zadań i z całego arkusza.
-              </Text>
-            )}
-            <TouchableOpacity
-              onPress={() => handleSubmit(false)}
-              style={{
-                backgroundColor: colors.brand[500],
-                borderRadius: 16,
-                paddingVertical: 14,
-                marginBottom: 8,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>
-                🤖 {untimed ? "Oddaj i oceń z AI" : "Zakończ i oceń z AI"}
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  marginTop: 4,
-                }}
-              >
-                <View
-                  style={{
-                    backgroundColor: "#fff",
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                    borderRadius: 99,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      fontWeight: "700",
-                      color: colors.brand[700],
-                    }}
-                  >
-                    💎 15 kredytów
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
-                  • ~3-5 min
+            {answeredCount === 0 ? (
+              <>
+                <Text style={{ fontSize: 40, textAlign: "center", marginBottom: 12 }}>📄</Text>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text, textAlign: "center", marginBottom: 8 }}>
+                  Nie masz jeszcze żadnej odpowiedzi
                 </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleSubmit(true)}
-              style={{
-                backgroundColor: theme.inputBg,
-                borderRadius: 16,
-                paddingVertical: 12,
-                marginBottom: 8,
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: theme.border,
-              }}
-            >
-              <Text
-                style={{ fontSize: 13, fontWeight: "600", color: theme.text }}
-              >
-                ⚡ Bez AI (0 kredytów)
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setConfirmModal(false)}
-              style={{ paddingVertical: 10, alignItems: "center" }}
-            >
-              <Text style={{ fontSize: 13, color: theme.textTertiary }}>
-                ← Wróć do egzaminu
-              </Text>
-            </TouchableOpacity>
+                <Text style={{ fontSize: 13, color: theme.textSecondary, textAlign: "center", marginBottom: 20, lineHeight: 19 }}>
+                  Pusty arkusz nie ma czego ocenić. Możesz wrócić do zadań albo porzucić arkusz — wróci na listę do rozwiązania, bez wyniku.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setConfirmModal(false)}
+                  style={{ backgroundColor: colors.brand[500], borderRadius: 16, paddingVertical: 14, marginBottom: 8, alignItems: "center" }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>← Wróć do arkusza</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={discardAttempt}
+                  style={{ backgroundColor: theme.inputBg, borderRadius: 16, paddingVertical: 12, alignItems: "center", borderWidth: 1, borderColor: theme.border }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: theme.text }}>Porzuć arkusz</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={{ fontSize: 40, textAlign: "center", marginBottom: 12 }}>📝</Text>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text, textAlign: "center", marginBottom: 8 }}>
+                  {untimed ? "Oddać arkusz i zobaczyć wynik?" : "Zakończyć i sprawdzić?"}
+                </Text>
+                <Text style={{ fontSize: 13, color: theme.textSecondary, textAlign: "center", marginBottom: 6, lineHeight: 19 }}>
+                  Masz odpowiedzi w {answeredCount} z {allTasks.length}{" "}
+                  {allTasks.length === 1 ? "zadania" : "zadań"}.
+                  {answeredCount < allTasks.length
+                    ? ` Zadania bez odpowiedzi (${allTasks.length - answeredCount}) dostaną 0 pkt.`
+                    : ""}
+                </Text>
+                <Text style={{ fontSize: 12, color: theme.textTertiary, textAlign: "center", marginBottom: 18, lineHeight: 17 }}>
+                  {openAnswered === 0
+                    ? "Wynik zobaczysz od razu."
+                    : estimate && !estimate.enough
+                      ? `Zadania zamknięte ocenimy od razu. Na ocenę zadań otwartych brakuje kredytów AI (masz ${estimate.remaining}, potrzeba ok. ${estimate.credits}) — ocenisz je później z ekranu wyniku.`
+                      : `Zadania zamknięte ocenimy od razu, a ${openAnswered} ${openAnswered === 1 ? "zadanie otwarte" : openAnswered % 10 >= 2 && openAnswered % 10 <= 4 && (openAnswered % 100 < 10 || openAnswered % 100 >= 20) ? "zadania otwarte" : "zadań otwartych"} oceni AI${estimate ? ` (ok. ${estimate.credits} ${estimate.credits === 1 ? "kredyt" : estimate.credits % 10 >= 2 && estimate.credits % 10 <= 4 && (estimate.credits % 100 < 10 || estimate.credits % 100 >= 20) ? "kredyty" : "kredytów"})` : ""} — wynik po 1–3 min.`}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => handleSubmit(false)}
+                  style={{ backgroundColor: colors.brand[500], borderRadius: 16, paddingVertical: 14, marginBottom: 6, alignItems: "center" }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>
+                    {untimed ? "Oddaj i sprawdź" : "Zakończ i sprawdź"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setConfirmModal(false)}
+                  style={{ paddingVertical: 10, alignItems: "center" }}
+                >
+                  <Text style={{ fontSize: 13, color: theme.textTertiary }}>← Wróć do arkusza</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -940,7 +839,7 @@ export function ExamPlayerScreen() {
               {currentIndex + 1} / {allTasks.length}
             </Text>
             <Text style={{ fontSize: 10, color: theme.textTertiary }}>
-              {answeredCount} odpowiedzi
+              {answeredCount} {answeredCount === 1 ? "odpowiedź" : "odpowiedzi"}
             </Text>
             {/* Status autosave — uczeń musi widzieć, że praca jest zapisana */}
             {saveFailed ? (
@@ -970,7 +869,7 @@ export function ExamPlayerScreen() {
             />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => setConfirmModal(true)}
+            onPress={openConfirm}
             style={{
               paddingHorizontal: 14,
               paddingVertical: 8,
@@ -1222,7 +1121,7 @@ export function ExamPlayerScreen() {
         ) : (
           <Button
             title={untimed ? "Oddaj ✓" : "Zakończ ✓"}
-            onPress={() => setConfirmModal(true)}
+            onPress={openConfirm}
             size="sm"
           />
         )}

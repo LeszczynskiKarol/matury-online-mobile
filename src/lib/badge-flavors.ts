@@ -34,7 +34,7 @@ export const BADGE_FLAVOR: Record<string, string> = {
   q_1000:
     "Tysiąc pytań. To więcej niż połowa ludzi przeczyta w życiu. Respekt totalny.",
   q_5000:
-    "5000 pytań. Odpowiedziałeś na więcej pytań niż CKE zadało w ostatnich 3 latach.",
+    "5000 pytań. To więcej pytań, niż CKE zadało w ostatnich 3 latach.",
   q_10000:
     "Dziesięć tysięcy. Oficjalnie nie masz życia i obie strony to akceptują. Legenda.",
   essay_5:

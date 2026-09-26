@@ -51,8 +51,26 @@ export interface ExamStartData {
   timeSpentMs: number;
 }
 
+/** Arkusz w toku (od 26.09.2026 może ich być kilka naraz). */
+export interface InProgressAttempt {
+  attemptId: string;
+  examId: string;
+  examTitle: string;
+  subjectSlug: string | null;
+  subjectName: string | null;
+  subjectIcon: string | null;
+  level: string;
+  timeMinutes: number;
+  untimed?: boolean;
+  remainingMs: number;
+  remainingMinutes: number;
+  answeredCount: number;
+}
+
 export interface ActiveExamData {
   active: boolean;
+  /** Wszystkie arkusze w toku; pola wyżej/niżej = najnowszy (zgodność). */
+  attempts?: InProgressAttempt[];
   expired?: boolean;
   attemptId?: string;
   examId?: string;
@@ -118,12 +136,29 @@ export async function submitExam(
     timeSpentMs?: number;
     timeLeftMs?: number;
     skipAiGrading?: boolean;
+    /** Pusty arkusz → porzucony (ABANDONED) zamiast pustego wyniku. */
+    discardIfEmpty?: boolean;
   },
 ): Promise<{ attemptId: string; status: string; alreadySubmitted?: boolean }> {
   return api(`/exams/${attemptId}/submit`, {
     method: "POST",
     body: data,
   });
+}
+
+/** Porzuć arkusz — wraca na listę do rozwiązania, bez wyniku i kredytów. */
+export async function discardExam(
+  attemptId: string,
+): Promise<{ attemptId: string; status: string }> {
+  return api(`/exams/${attemptId}/discard`, { method: "POST", body: {} });
+}
+
+/** Ile kredytów zejdzie za ocenę AI przy tych odpowiedziach i czy starczy. */
+export async function estimateExam(
+  attemptId: string,
+  answers: Record<string, any>,
+): Promise<{ credits: number; remaining: number; enough: boolean; answered: number }> {
+  return api(`/exams/${attemptId}/estimate`, { method: "POST", body: { answers } });
 }
 
 export async function gradeExamWithAI(

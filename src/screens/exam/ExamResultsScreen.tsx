@@ -175,10 +175,14 @@ export function ExamResultsScreen() {
       .catch(() => {});
   }, [attemptId]);
 
-  // Fetch with polling
+  // Fetch with polling. `reloadKey` — po „Oceń z AI” polling startuje od nowa
+  // (wcześniej interwał był już wyczyszczony i ekran oceniania wisiał).
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     let poll: ReturnType<typeof setInterval> | null = null;
     let off = false;
+    // Chwilowe błędy sieci / restart serwera w trakcie oceniania — ponawiamy.
+    let transient = 0;
 
     const go = async () => {
       try {
@@ -193,16 +197,27 @@ export function ExamResultsScreen() {
           return;
         }
         if (poll) clearInterval(poll);
+        // Porzucony (pusty) arkusz nie ma wyniku — wracamy do listy arkuszy.
+        if (r.status === "ABANDONED") {
+          navigation.replace("ExamSelector", { noAutoOpen: true });
+          return;
+        }
+        transient = 0;
         setError(null);
         setData(r);
         setLoading(false);
         setCurrentTaskId("__summary__");
       } catch (e: any) {
-        if (!off) {
-          if (poll) clearInterval(poll);
-          setError(e.message);
-          setLoading(false);
+        if (off) return;
+        const fatal = typeof e?.status === "number" && e.status >= 400 && e.status < 500;
+        if (!fatal && transient < 12) {
+          transient++;
+          if (!poll) poll = setInterval(go, 5000);
+          return;
         }
+        if (poll) clearInterval(poll);
+        setError(fatal ? e.message : "Nie udało się pobrać wyniku — sprawdź połączenie i spróbuj ponownie.");
+        setLoading(false);
       }
     };
     go();
@@ -210,7 +225,7 @@ export function ExamResultsScreen() {
       off = true;
       if (poll) clearInterval(poll);
     };
-  }, [attemptId]);
+  }, [attemptId, reloadKey]);
 
   // In-app review: moment maksymalnej satysfakcji — dobrze zdany egzamin.
   // Cała logika progu/throttlingu w maybeAskForReview (lib/reviewPrompt).
@@ -248,13 +263,11 @@ export function ExamResultsScreen() {
   if (error === "GRADING") {
     const steps = [
       "Zadania zamknięte",
-      "Zadania otwarte",
-      "Notatka",
-      "Wypracowanie",
-      "Feedback",
+      "Zadania otwarte — ocena AI",
+      "Podsumowanie i rekomendacje",
       "Finalizacja",
     ];
-    const cur = Math.floor(gradingProgress / 18);
+    const cur = Math.floor(gradingProgress / 25);
     return (
       <View
         style={{
@@ -275,7 +288,7 @@ export function ExamResultsScreen() {
             marginBottom: 16,
           }}
         >
-          AI ocenia egzamin...
+          AI ocenia arkusz...
         </Text>
         <View
           style={{
@@ -751,7 +764,7 @@ export function ExamResultsScreen() {
                     {got}/{max} pkt ({pct}%)
                   </Text>
                   <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, lineHeight: 18 }}>
-                    Rozwiązałeś {done.length} z {ts.length} zadań. Niżej wynik z całego arkusza — zadania bez odpowiedzi liczą się w nim za 0 pkt.
+                    Masz odpowiedzi w {done.length} z {ts.length} zadań. Niżej wynik z całego arkusza — zadania bez odpowiedzi liczą się w nim za 0 pkt.
                   </Text>
                 </View>
               );
@@ -832,9 +845,9 @@ export function ExamResultsScreen() {
                 onPress={async () => {
                   try {
                     await gradeExamWithAI(attemptId);
-                    setLoading(true);
                     setError("GRADING");
                     setGradingProgress(0);
+                    setReloadKey((k) => k + 1);
                   } catch (err: any) {
                     Alert.alert("Błąd", err.message);
                   }
@@ -857,7 +870,9 @@ export function ExamResultsScreen() {
                     marginBottom: 8,
                   }}
                 >
-                  ⚡ Zadania otwarte nie zostały ocenione.
+                  {(feedback as any).noCredits
+                    ? "⚡ Zadania otwarte czekają na ocenę AI (zabrakło kredytów przy oddaniu)."
+                    : "⚡ Zadania otwarte nie zostały ocenione."}
                 </Text>
                 <View
                   style={{

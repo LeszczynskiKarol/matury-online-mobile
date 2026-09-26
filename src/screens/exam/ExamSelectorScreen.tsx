@@ -22,6 +22,8 @@ import {
   getActiveExam,
   getAvailableExams,
   type ActiveExamData,
+  type InProgressAttempt,
+  discardExam,
   type ExamInfo,
   type SubjectExamAvailability,
 } from "../../api/exams";
@@ -52,6 +54,12 @@ export function ExamSelectorScreen() {
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
   const [activeExam, setActiveExam] = useState<ActiveExamData | null>(null);
+  // Wszystkie arkusze w toku — od 26.09.2026 wolno kilka naraz (jak na webie),
+  // lista „W toku” nad katalogiem zamiast blokady.
+  const [inProgress, setInProgress] = useState<InProgressAttempt[]>([]);
+  // „Porzuć” wymaga drugiego dotknięcia.
+  const [discardArmed, setDiscardArmed] = useState<string | null>(null);
+  const [discarding, setDiscarding] = useState<string | null>(null);
   const [examInfos, setExamInfos] = useState<SubjectExamInfo[]>([]);
   const [selectedSubject, setSelectedSubject] =
     useState<SubjectExamInfo | null>(null);
@@ -89,11 +97,9 @@ export function ExamSelectorScreen() {
           // Active exam
           const active = await getActiveExam();
           if (cancelled) return;
-          if (active.active) {
-            setActiveExam(active);
-            setLoading(false);
-            return;
-          }
+          setInProgress(
+            active.attempts ?? (active.active ? [active as any] : []),
+          );
           if (active.expired) {
             setActiveExam({ ...active, expired: true } as any);
           }
@@ -159,6 +165,17 @@ export function ExamSelectorScreen() {
   );
 
   const handleSubjectClick = async (info: SubjectExamInfo) => {
+    // Ten przedmiot i poziom ma już arkusz w toku → wracamy do niego.
+    const running = inProgress.find(
+      (a) => a.subjectSlug === info.subjectSlug && a.level === info.level,
+    );
+    if (running) {
+      navigation.navigate("ExamPlay", {
+        examId: running.examId,
+        subjectId: info.subjectId,
+      });
+      return;
+    }
     setLoadingExams(true);
     try {
       const data = await getAvailableExams(info.subjectId, info.level);
@@ -190,6 +207,24 @@ export function ExamSelectorScreen() {
       Alert.alert("Błąd", err.message);
     } finally {
       setLoadingExams(false);
+    }
+  };
+
+  const onDiscard = async (attemptId: string) => {
+    if (discardArmed !== attemptId) {
+      setDiscardArmed(attemptId);
+      setTimeout(() => setDiscardArmed((v) => (v === attemptId ? null : v)), 4000);
+      return;
+    }
+    setDiscarding(attemptId);
+    try {
+      await discardExam(attemptId);
+      setInProgress((l) => l.filter((a) => a.attemptId !== attemptId));
+    } catch (err: any) {
+      Alert.alert("Błąd", err.message);
+    } finally {
+      setDiscarding(null);
+      setDiscardArmed(null);
     }
   };
 
@@ -417,69 +452,92 @@ export function ExamSelectorScreen() {
         </View>
       )}
 
-      {/* Active exam */}
-      {activeExam?.active && !activeExam.expired && (
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("ExamPlay", {
-              examId: activeExam.examId!,
-              subjectId: "",
-            })
-          }
-          style={{
-            padding: 20,
-            borderRadius: 20,
-            backgroundColor: "#fef3c7",
-            borderWidth: 2,
-            borderColor: "#fbbf24",
-            marginBottom: 20,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
-            <View
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 5,
-                backgroundColor: "#ef4444",
-              }}
-            />
-            <Text style={{ fontSize: 12, fontWeight: "700", color: "#dc2626" }}>
-              EGZAMIN W TOKU
+      {/* W toku — rozpoczęte arkusze (może być kilka) */}
+      {inProgress.length > 0 && (
+        <View style={{ marginBottom: 20 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: "#ef4444" }} />
+            <Text style={{ fontSize: 12, fontWeight: "800", color: "#dc2626", letterSpacing: 0.5 }}>
+              W TOKU ({inProgress.length})
             </Text>
           </View>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "700",
-              color: "#92400e",
-              marginBottom: 4,
-            }}
-          >
-            {activeExam.examTitle}
+          {inProgress.map((a) => {
+            const h = Math.floor(a.remainingMinutes / 60);
+            const time = a.untimed
+              ? "bez limitu czasu"
+              : `⏱ zostało ${h > 0 ? `${h} godz. ` : ""}${a.remainingMinutes % 60} min`;
+            const n = a.answeredCount;
+            const answers =
+              n === 0
+                ? "bez odpowiedzi"
+                : `${n} ${n === 1 ? "odpowiedź" : "odpowiedzi"}`;
+            const armed = discardArmed === a.attemptId;
+            return (
+              <View
+                key={a.attemptId}
+                style={{
+                  padding: 14,
+                  borderRadius: 16,
+                  backgroundColor: "#fef3c7",
+                  borderWidth: 1.5,
+                  borderColor: "#fbbf24",
+                  marginBottom: 10,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate("ExamPlay", { examId: a.examId, subjectId: "" })
+                  }
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                >
+                  <Text style={{ fontSize: 24 }}>{a.subjectIcon || "📝"}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: "700", color: "#92400e" }}>
+                      {a.examTitle}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: !a.untimed && a.remainingMinutes < 30 ? "#dc2626" : "#78350f",
+                        marginTop: 2,
+                      }}
+                    >
+                      {time} · {answers}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+                  <TouchableOpacity
+                    onPress={() => onDiscard(a.attemptId)}
+                    disabled={discarding === a.attemptId}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      backgroundColor: armed ? "#dc2626" : "transparent",
+                      opacity: discarding === a.attemptId ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: armed ? "#fff" : "#a16207" }}>
+                      {discarding === a.attemptId ? "Porzucam…" : armed ? "Na pewno porzucić?" : "Porzuć"}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() =>
+                      navigation.navigate("ExamPlay", { examId: a.examId, subjectId: "" })
+                    }
+                    style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#f59e0b" }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }}>Kontynuuj →</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
+          <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+            Odpowiedzi zapisują się same. Gdy czas arkusza minie, zostanie oddany i oceniony automatycznie.
           </Text>
-          <Text style={{ fontSize: 13, color: "#78350f" }}>
-            ⏱ {activeExam.remainingMinutes} min • {activeExam.answeredCount}{" "}
-            odpowiedzi
-          </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "700",
-              color: "#d97706",
-              marginTop: 12,
-            }}
-          >
-            Kontynuuj →
-          </Text>
-        </TouchableOpacity>
+        </View>
       )}
 
       {/* Expired exam */}
@@ -511,8 +569,7 @@ export function ExamSelectorScreen() {
               lineHeight: 20,
             }}
           >
-            Zadania zamknięte oceniono automatycznie. Ocenę AI uruchomisz w
-            wynikach.
+            Arkusz został oddany automatycznie — wynik czeka w wynikach.
           </Text>
           <Text
             style={{
@@ -527,8 +584,8 @@ export function ExamSelectorScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Don't show rest if active exam */}
-      {activeExam?.active && !activeExam.expired ? null : (
+      {/* Katalog zawsze widoczny — arkusze w toku go nie blokują */}
+      {(
         <>
           {/* Subject selection */}
           {!selectedSubject && (

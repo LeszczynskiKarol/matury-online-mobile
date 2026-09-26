@@ -29,6 +29,7 @@ import { FreePanel } from "../../components/common/FreePanel";
 import { AccountNote } from "../../components/common/AccountNote";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
 import { TutorHomeCard } from "../../components/tutor/TutorHomeCard";
+import { SprawdzianLektura } from "../../components/common/SprawdzianLektura";
 import { api } from "../../api/client";
 import {
   getNotifications,
@@ -44,10 +45,12 @@ export function DashboardScreen() {
   const navigation = useNavigation<any>();
 
   const [data, setData] = useState<DashboardData | null>(null);
-  const [showHidden, setShowHidden] = useState(false);
-  // Kafelek przedmiotu schowany przez ucznia (przytrzymanie → „Ukryj”).
-  // Backend zapamiętuje to na koncie (SubjectProgress.hiddenAt), więc web
-  // i apka widzą to samo; kafelek wraca sam po kolejnym ćwiczeniu.
+  // „＋ Dodaj przedmiot” — rozwinięta lista przedmiotów spoza panelu.
+  const [addOpen, setAddOpen] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  // Przedmiot usunięty z panelu (przytrzymanie) wraca do puli „＋ Dodaj
+  // przedmiot” — jak na webie od 26.09.2026, bez osobnej listy „Ukryte”.
+  // Backend: SubjectProgress.hiddenAt; kafelek wraca też sam po ćwiczeniu.
   const setSubjectHidden = (slug: string, hidden: boolean) => {
     setData((d) =>
       d
@@ -410,8 +413,8 @@ export function DashboardScreen() {
               Alert.alert(
                 "Seria nauki 🔥",
                 streak > 0
-                  ? `Twoja seria: ${streak} ${streak === 1 ? "dzień" : "dni"} z rzędu.\n\nSeria to liczba kolejnych dni, w których rozwiązałeś choć jedno pytanie. Rośnie o 1 każdego dnia nauki i wraca do zera, jeśli opuścisz dzień.\n\nWystarczy jedno pytanie dziennie, żeby ją utrzymać.`
-                  : "Seria to liczba kolejnych dni, w których rozwiązałeś choć jedno pytanie.\n\nRozwiąż dziś jedno pytanie, a licznik ruszy. Opuszczony dzień zeruje serię — i o to właśnie chodzi: regularność robi wynik na maturze bardziej niż zrywy.",
+                  ? `Twoja seria: ${streak} ${streak === 1 ? "dzień" : "dni"} z rzędu.\n\nSeria to liczba kolejnych dni, z choć jednym rozwiązanym pytaniem. Rośnie o 1 każdego dnia nauki i wraca do zera, jeśli opuścisz dzień.\n\nWystarczy jedno pytanie dziennie, żeby ją utrzymać.`
+                  : "Seria to liczba kolejnych dni, z choć jednym rozwiązanym pytaniem.\n\nRozwiąż dziś jedno pytanie, a licznik ruszy. Opuszczony dzień zeruje serię — i o to właśnie chodzi: regularność robi wynik na maturze bardziej niż zrywy.",
                 [{ text: "Jasne" }],
               );
             }}
@@ -452,10 +455,17 @@ export function DashboardScreen() {
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() =>
-            navigation.navigate("ExamTab", {
-              screen: "ExamPlay",
-              params: { examId: activeExam.examId!, subjectId: "" },
-            })
+            // Kilka arkuszy w toku (od 26.09.2026) → lista „W toku”
+            // zamiast wybierania za ucznia jednego z nich.
+            (activeExam.attempts?.length ?? 1) > 1
+              ? navigation.navigate("ExamTab", {
+                  screen: "ExamSelector",
+                  params: { noAutoOpen: true },
+                })
+              : navigation.navigate("ExamTab", {
+                  screen: "ExamPlay",
+                  params: { examId: activeExam.examId!, subjectId: "" },
+                })
           }
           style={{
             marginBottom: 16,
@@ -490,7 +500,9 @@ export function DashboardScreen() {
                 letterSpacing: 0.5,
               }}
             >
-              EGZAMIN W TOKU
+              {(activeExam.attempts?.length ?? 1) > 1
+                ? `${activeExam.attempts!.length} ${activeExam.attempts!.length % 10 >= 2 && activeExam.attempts!.length % 10 <= 4 && (activeExam.attempts!.length % 100 < 10 || activeExam.attempts!.length % 100 >= 20) ? "ARKUSZE" : "ARKUSZY"} W TOKU`
+                : "EGZAMIN W TOKU"}
             </Text>
           </View>
           <Text
@@ -909,14 +921,8 @@ export function DashboardScreen() {
                   onLongPress={() => {
                     // Ostatniego widocznego nie chowamy — panel nie może być pusty.
                     if (data.subjectProgress.filter((x) => !x.hidden).length <= 1) return;
-                    Alert.alert(
-                      `Ukryć „${sp.subject.name}” z panelu?`,
-                      "Postęp i wyniki zostają. Przedmiot wróci sam, gdy znów w nim poćwiczysz — albo przywrócisz go z listy „Ukryte” niżej.",
-                      [
-                        { text: "Anuluj", style: "cancel" },
-                        { text: "Ukryj", onPress: () => setSubjectHidden(sp.subject.slug, true) },
-                      ],
-                    );
+                    // Bez potwierdzenia — cofa się jednym dotknięciem w „＋ Dodaj przedmiot”.
+                    setSubjectHidden(sp.subject.slug, true);
                   }}
                   onPress={() => {
                     if (subjectObj) {
@@ -979,53 +985,85 @@ export function DashboardScreen() {
             })}
           </View>
           {(() => {
-            const hiddenList = data.subjectProgress.filter((sp) => sp.hidden);
+            const shown = new Set(
+              data.subjectProgress.filter((sp) => !sp.hidden).map((sp) => sp.subject.slug),
+            );
+            const others = subjects.filter((s) => !shown.has(s.slug));
+            if (others.length === 0) return null;
+            const add = async (slug: string) => {
+              setAdding(slug);
+              try {
+                await api(`/dashboard/subjects/${encodeURIComponent(slug)}/add`, {
+                  method: "POST",
+                  body: {},
+                });
+                setAddOpen(false);
+                await fetchData();
+              } catch (err: any) {
+                Alert.alert("Błąd", err.message || "Nie udało się dodać przedmiotu.");
+              } finally {
+                setAdding(null);
+              }
+            };
             return (
-              <>
-                {hiddenList.length > 0 && (
-                  <View style={{ marginTop: 10 }}>
-                    <TouchableOpacity onPress={() => setShowHidden((v) => !v)} hitSlop={8}>
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
-                        {showHidden ? "▾" : "▸"} Ukryte ({hiddenList.length})
-                      </Text>
-                    </TouchableOpacity>
-                    {showHidden && (
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                        {hiddenList.map((sp) => (
-                          <TouchableOpacity
-                            key={sp.subject.slug}
-                            onPress={() => setSubjectHidden(sp.subject.slug, false)}
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 6,
-                              paddingHorizontal: 12,
-                              paddingVertical: 8,
-                              borderRadius: 12,
-                              backgroundColor: theme.inputBg,
-                            }}
-                          >
-                            <Text>{sp.subject.icon || "📚"}</Text>
-                            <Text style={{ fontSize: 13, color: theme.text }}>{sp.subject.name}</Text>
-                            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand[500] }}>
-                              + Przywróć
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
+              <View style={{ marginTop: 12 }}>
+                <TouchableOpacity
+                  onPress={() => setAddOpen((v) => !v)}
+                  style={{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    borderWidth: 1.5,
+                    borderStyle: "dashed",
+                    borderColor: theme.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: theme.textSecondary }}>
+                    {addOpen ? "− Zamknij" : "＋ Dodaj przedmiot"}
+                  </Text>
+                </TouchableOpacity>
+                {addOpen && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                    {others.map((s) => (
+                      <TouchableOpacity
+                        key={s.slug}
+                        disabled={adding !== null}
+                        onPress={() => add(s.slug)}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          paddingHorizontal: 12,
+                          paddingVertical: 9,
+                          borderRadius: 12,
+                          backgroundColor: theme.inputBg,
+                          opacity: adding !== null && adding !== s.slug ? 0.5 : 1,
+                        }}
+                      >
+                        <Text>{s.icon || "📚"}</Text>
+                        <Text style={{ fontSize: 13, color: theme.text }}>
+                          {adding === s.slug ? "Dodaję…" : s.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
-                {data.subjectProgress.filter((sp) => !sp.hidden).length > 1 && hiddenList.length === 0 && (
+                {!addOpen && data.subjectProgress.filter((sp) => !sp.hidden).length > 1 && (
                   <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 8 }}>
-                    Przytrzymaj przedmiot, żeby ukryć go z panelu.
+                    Przytrzymaj przedmiot, żeby usunąć go z panelu — wróci przez „＋ Dodaj przedmiot”.
                   </Text>
                 )}
-              </>
+              </View>
             );
           })()}
         </View>
       )}
+
+      {/* Sprawdzian z lektury / epoki — pod przedmiotami, jak na webie */}
+      <SprawdzianLektura
+        subject={subjects.find((s) => s.slug === "polski") as any}
+        navigation={navigation}
+      />
 
       {/* Recent sessions */}
       {data?.recentSessions && data.recentSessions.length > 0 && (

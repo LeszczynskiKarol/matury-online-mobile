@@ -1023,8 +1023,8 @@ export function QuizPlayScreen() {
           }}
         >
           {hasActiveFilters
-            ? "Rozwiązałeś wszystkie pytania z wybranej kategorii. Co teraz?"
-            : "Rozwiązałeś wszystkie dostępne pytania. Co teraz?"}
+            ? "Wszystkie pytania z wybranej kategorii są już rozwiązane. Co teraz?"
+            : "Wszystkie dostępne pytania są już rozwiązane. Co teraz?"}
         </Text>
         <View style={{ gap: 12, width: "100%", maxWidth: 300 }}>
           {hasActiveFilters && (
