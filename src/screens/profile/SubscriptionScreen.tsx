@@ -727,8 +727,10 @@ export function SubscriptionScreen() {
                 }}
               >
                 {pk.best && (
-                  <View style={{ position: "absolute", top: -10, backgroundColor: colors.brand[500], paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99 }}>
-                    <Text style={{ fontSize: 9, fontWeight: "800", color: "#fff" }}>NAJLEPSZY</Text>
+                  <View style={{ position: "absolute", top: -10, left: -6, right: -6, alignItems: "center" }}>
+                    <View style={{ backgroundColor: colors.brand[500], paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99 }}>
+                      <Text numberOfLines={1} style={{ fontSize: 9, fontWeight: "800", color: "#fff" }}>NAJLEPSZY</Text>
+                    </View>
                   </View>
                 )}
                 <Text style={{ fontSize: 22, fontWeight: "800", color: theme.text }}>{pk.credits}</Text>
