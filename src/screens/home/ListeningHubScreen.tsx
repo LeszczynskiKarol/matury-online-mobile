@@ -222,8 +222,7 @@ export function ListeningHubScreen() {
               }}
             >
               Każde zadanie ma świeże, unikalne nagranie generowane przez AI.
-              Możesz odsłuchać każde zadanie maks. 2 razy — jak na prawdziwej
-              maturze.
+              Odsłuchujesz je bez limitu, aż zrozumiesz.
             </Text>
           </View>
         </View>
