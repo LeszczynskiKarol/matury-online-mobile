@@ -104,10 +104,10 @@ function formatDuration(ms: number): string {
   if (sec < 60) return `${sec}s`;
   const min = Math.floor(sec / 60);
   const s = sec % 60;
-  if (min < 60) return s > 0 ? `${min}min ${s}s` : `${min}min`;
+  if (min < 60) return s > 0 ? `${min} min ${s} s` : `${min} min`;
   const h = Math.floor(min / 60);
   const m = min % 60;
-  return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  return m > 0 ? `${h} godz. ${m} min` : `${h} godz.`;
 }
 
 function formatDate(iso: string): string {

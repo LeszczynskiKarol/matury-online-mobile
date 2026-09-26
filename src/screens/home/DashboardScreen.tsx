@@ -510,8 +510,11 @@ export function DashboardScreen() {
               marginBottom: 8,
             }}
           >
-            ⏱ {Math.floor((activeExam.remainingMinutes || 0) / 60)}h{" "}
-            {(activeExam.remainingMinutes || 0) % 60}min •{" "}
+            ⏱{" "}
+            {Math.floor((activeExam.remainingMinutes || 0) / 60) > 0
+              ? `${Math.floor((activeExam.remainingMinutes || 0) / 60)} godz. `
+              : ""}
+            {(activeExam.remainingMinutes || 0) % 60} min •{" "}
             {activeExam.answeredCount || 0} odpowiedzi
           </Text>
           <Text
