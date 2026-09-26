@@ -83,6 +83,31 @@ function isFilled(v: unknown): boolean {
   return true;
 }
 
+// Część arkuszy (np. bio_abcd) trzyma opcje jako mapę {"A": "…", "B": "…"},
+// a renderery apki robią `options.map` — zadanie wywalało się z „Nie udało
+// się wyświetlić: treść zadania” (26.09.2026). Web ma renderery tolerujące
+// oba kształty; tu prostujemy dane raz, przy wczytaniu arkusza.
+const OPTION_KEYS = ["options", "answerOptions", "justificationOptions", "justifications"];
+function toOptionList(v: any): any {
+  if (!v || Array.isArray(v) || typeof v !== "object") return v;
+  return Object.entries(v).map(([id, text]) =>
+    text && typeof text === "object" ? { id, ...(text as object) } : { id, text },
+  );
+}
+function normalizeOptionMaps<T extends { exam: { content: { parts: any[] } } }>(d: T): T {
+  for (const part of d?.exam?.content?.parts ?? []) {
+    for (const task of part?.tasks ?? []) {
+      for (const holder of [task, task?.content]) {
+        if (!holder || typeof holder !== "object") continue;
+        for (const key of OPTION_KEYS) {
+          if (key in holder) holder[key] = toOptionList(holder[key]);
+        }
+      }
+    }
+  }
+  return d;
+}
+
 export function ExamPlayerScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
@@ -154,7 +179,7 @@ export function ExamPlayerScreen() {
     setError(null);
     (async () => {
       try {
-        const examData = await startExam(examId);
+        const examData = normalizeOptionMaps(await startExam(examId));
         setData(examData);
         setAnswers(examData.savedAnswers || {});
         if (

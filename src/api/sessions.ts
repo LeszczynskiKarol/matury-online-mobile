@@ -134,8 +134,15 @@ export interface DashboardData {
     questionsAnswered: number;
     accuracy: number;
     adaptiveDifficulty: number;
-    // Kafelek schowany przez ucznia (web: ✕, apka: przytrzymanie).
+    // Kafelek schowany przez ucznia (✕ na kaflu, jak na webie).
     hidden?: boolean;
+    // Postęp do następnego poziomu (XP z Quizu, arkuszy, słówek).
+    levelProgress?: { current: number; next: number; progress: number; maxed: boolean };
+    // Statystyki samego Quizu (celność liczona tylko z Quizu).
+    quiz?: { answered: number; accuracy: number | null; lastAnsweredAt: string | null };
+    lastSessionAt?: string | null;
+    // Dodany z pulpitu, jeszcze bez ćwiczeń — na górę listy.
+    addedAt?: string | null;
   }[];
   // Stan konta liczony w backendzie (services/account-state.ts).
   account?: import("../components/common/AccountNote").AccountInfo;

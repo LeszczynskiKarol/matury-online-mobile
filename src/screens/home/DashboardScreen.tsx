@@ -30,6 +30,7 @@ import { AccountNote } from "../../components/common/AccountNote";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
 import { TutorHomeCard } from "../../components/tutor/TutorHomeCard";
 import { SprawdzianLektura } from "../../components/common/SprawdzianLektura";
+import { SubjectTile } from "../../components/common/SubjectTile";
 import { api } from "../../api/client";
 import {
   getNotifications,
@@ -676,7 +677,10 @@ export function DashboardScreen() {
             // przedmiotu i typu sesji. Wcześniej kafel prowadził na listę
             // przedmiotów (SubjectsTab), czyli w zupełnie inny przepływ.
             onPress={() =>
-              navigation.navigate("QuizTab", { screen: "QuizSetup" })
+              // Jak zakładka Quiz i link „Quiz” na webie: trwający quiz
+              // wraca, a bez niego — ekran nowej sesji (Karol 26.09.2026:
+              // kafel zawsze zaczynał nowy quiz, zakładka wznawiała).
+              navigation.navigate("QuizTab")
             }
             style={{
               flex: 1,
@@ -714,6 +718,169 @@ export function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Twoje przedmioty — zaraz pod trybami, nad statystykami (jak na webie) */}
+      {data?.subjectProgress && data.subjectProgress.length > 0 && (
+        <View style={{ marginBottom: 20 }}>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "600",
+              color: theme.text,
+              marginBottom: 12,
+            }}
+          >
+            Twoje przedmioty
+          </Text>
+          <View style={{ gap: 12 }}>
+            {(() => {
+              // Sortuj po recentSessions (jak na webie)
+              const orderMap = new Map<string, number>();
+              (data.recentSessions || []).forEach((s) => {
+                if (!orderMap.has(s.subject.slug)) {
+                  orderMap.set(s.subject.slug, orderMap.size);
+                }
+              });
+              // Ostatnio ćwiczone (albo świeżo dodane) na górze — jak na webie.
+              const at = (x: any) =>
+                Math.max(
+                  0,
+                  ...[x.quiz?.lastAnsweredAt, x.lastSessionAt, x.addedAt]
+                    .filter(Boolean)
+                    .map((d: string) => new Date(d).getTime()),
+                );
+              return data.subjectProgress.filter((sp) => !sp.hidden).sort((a, b) => {
+                const d = at(b) - at(a);
+                if (d !== 0) return d;
+                const aO = orderMap.get(a.subject.slug) ?? 999;
+                const bO = orderMap.get(b.subject.slug) ?? 999;
+                if (aO !== bO) return aO - bO;
+                return b.questionsAnswered - a.questionsAnswered;
+              });
+            })().map((sp) => {
+              // Znajdź subject ID z listy subjects
+              const subjectObj = subjects.find(
+                (s) => s.slug === sp.subject.slug,
+              );
+              return (
+                <SubjectTile
+                  key={sp.subject.slug}
+                  sp={sp as any}
+                  canRemove={data.subjectProgress.filter((x) => !x.hidden).length > 1}
+                  onRemove={() => setSubjectHidden(sp.subject.slug, true)}
+                  onQuiz={() => {
+                    if (subjectObj) {
+                      navigation.navigate("QuizTab", {
+                        screen: "QuizSetup",
+                        params: { subjectId: subjectObj.id },
+                      });
+                    }
+                  }}
+                  onExam={() =>
+                    navigation.navigate("ExamTab", {
+                      screen: "ExamSelector",
+                      params: { subjectSlug: sp.subject.slug },
+                    })
+                  }
+                  onListening={
+                    subjectObj && ["angielski", "niemiecki"].includes(sp.subject.slug)
+                      ? () =>
+                          navigation.navigate("QuizTab", {
+                            screen: "QuizPlay",
+                            params: {
+                              sessionId: "__listening__",
+                              questions: [],
+                              subjectName: subjectObj.name,
+                              subjectId: subjectObj.id,
+                              questionTypes: ["LISTENING"],
+                            },
+                          })
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </View>
+          {(() => {
+            const shown = new Set(
+              data.subjectProgress.filter((sp) => !sp.hidden).map((sp) => sp.subject.slug),
+            );
+            const others = subjects.filter((s) => !shown.has(s.slug));
+            if (others.length === 0) return null;
+            const add = async (slug: string) => {
+              setAdding(slug);
+              try {
+                await api(`/dashboard/subjects/${encodeURIComponent(slug)}/add`, {
+                  method: "POST",
+                  body: {},
+                });
+                setAddOpen(false);
+                await fetchData();
+              } catch (err: any) {
+                Alert.alert("Błąd", err.message || "Nie udało się dodać przedmiotu.");
+              } finally {
+                setAdding(null);
+              }
+            };
+            return (
+              <View style={{ marginTop: 12 }}>
+                <TouchableOpacity
+                  onPress={() => setAddOpen((v) => !v)}
+                  style={{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    borderWidth: 1.5,
+                    borderStyle: "dashed",
+                    borderColor: theme.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: theme.textSecondary }}>
+                    {addOpen ? "− Zamknij" : "＋ Dodaj przedmiot"}
+                  </Text>
+                </TouchableOpacity>
+                {addOpen && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                    {others.map((s) => (
+                      <TouchableOpacity
+                        key={s.slug}
+                        disabled={adding !== null}
+                        onPress={() => add(s.slug)}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          paddingHorizontal: 12,
+                          paddingVertical: 9,
+                          borderRadius: 12,
+                          backgroundColor: theme.inputBg,
+                          opacity: adding !== null && adding !== s.slug ? 0.5 : 1,
+                        }}
+                      >
+                        <Text>{s.icon || "📚"}</Text>
+                        <Text style={{ fontSize: 13, color: theme.text }}>
+                          {adding === s.slug ? "Dodaję…" : s.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                {!addOpen && data.subjectProgress.filter((sp) => !sp.hidden).length > 1 && (
+                  <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 8 }}>
+                    ✕ usuwa przedmiot z panelu — wróci przez „＋ Dodaj przedmiot”.
+                  </Text>
+                )}
+              </View>
+            );
+          })()}
+        </View>
+      )}
+
+      {/* Sprawdzian z lektury / epoki — pod przedmiotami, jak na webie */}
+      <SprawdzianLektura
+        subject={subjects.find((s) => s.slug === "polski") as any}
+        navigation={navigation}
+      />
 
       {/* Stats row */}
       <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
@@ -879,191 +1046,6 @@ export function DashboardScreen() {
           </Card>
         </TouchableOpacity>
       )}
-
-      {/* Subject progress — sorted by recent sessions */}
-      {data?.subjectProgress && data.subjectProgress.length > 0 && (
-        <View style={{ marginBottom: 20 }}>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "600",
-              color: theme.text,
-              marginBottom: 12,
-            }}
-          >
-            Ostatnie przedmioty
-          </Text>
-          <View style={{ gap: 12 }}>
-            {(() => {
-              // Sortuj po recentSessions (jak na webie)
-              const orderMap = new Map<string, number>();
-              (data.recentSessions || []).forEach((s) => {
-                if (!orderMap.has(s.subject.slug)) {
-                  orderMap.set(s.subject.slug, orderMap.size);
-                }
-              });
-              return data.subjectProgress.filter((sp) => !sp.hidden).sort((a, b) => {
-                const aO = orderMap.get(a.subject.slug) ?? 999;
-                const bO = orderMap.get(b.subject.slug) ?? 999;
-                if (aO !== bO) return aO - bO;
-                return b.questionsAnswered - a.questionsAnswered;
-              });
-            })().map((sp) => {
-              // Znajdź subject ID z listy subjects
-              const subjectObj = subjects.find(
-                (s) => s.slug === sp.subject.slug,
-              );
-              return (
-                <TouchableOpacity
-                  key={sp.subject.slug}
-                  activeOpacity={0.85}
-                  delayLongPress={450}
-                  onLongPress={() => {
-                    // Ostatniego widocznego nie chowamy — panel nie może być pusty.
-                    if (data.subjectProgress.filter((x) => !x.hidden).length <= 1) return;
-                    // Bez potwierdzenia — cofa się jednym dotknięciem w „＋ Dodaj przedmiot”.
-                    setSubjectHidden(sp.subject.slug, true);
-                  }}
-                  onPress={() => {
-                    if (subjectObj) {
-                      navigation.navigate("QuizTab", {
-                        screen: "QuizSetup",
-                        params: { subjectId: subjectObj.id },
-                      });
-                    }
-                  }}
-                >
-                  <Card variant="stat">
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 12,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: radius.lg,
-                          backgroundColor:
-                            (sp.subject.color || "#6366f1") + "1A",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text style={{ fontSize: 20 }}>
-                          {sp.subject.icon || "📚"}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={{
-                            fontSize: 15,
-                            fontWeight: "600",
-                            color: theme.text,
-                          }}
-                        >
-                          {sp.subject.name}
-                        </Text>
-                        <Text
-                          style={{ fontSize: 12, color: theme.textSecondary }}
-                        >
-                          Poz. {sp.level} · {sp.questionsAnswered} pytań ·{" "}
-                          {sp.accuracy}% trafność
-                        </Text>
-                      </View>
-                      <Ionicons
-                        name="play-circle"
-                        size={24}
-                        color={colors.brand[500]}
-                      />
-                    </View>
-                  </Card>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          {(() => {
-            const shown = new Set(
-              data.subjectProgress.filter((sp) => !sp.hidden).map((sp) => sp.subject.slug),
-            );
-            const others = subjects.filter((s) => !shown.has(s.slug));
-            if (others.length === 0) return null;
-            const add = async (slug: string) => {
-              setAdding(slug);
-              try {
-                await api(`/dashboard/subjects/${encodeURIComponent(slug)}/add`, {
-                  method: "POST",
-                  body: {},
-                });
-                setAddOpen(false);
-                await fetchData();
-              } catch (err: any) {
-                Alert.alert("Błąd", err.message || "Nie udało się dodać przedmiotu.");
-              } finally {
-                setAdding(null);
-              }
-            };
-            return (
-              <View style={{ marginTop: 12 }}>
-                <TouchableOpacity
-                  onPress={() => setAddOpen((v) => !v)}
-                  style={{
-                    paddingVertical: 14,
-                    borderRadius: 16,
-                    borderWidth: 1.5,
-                    borderStyle: "dashed",
-                    borderColor: theme.border,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: theme.textSecondary }}>
-                    {addOpen ? "− Zamknij" : "＋ Dodaj przedmiot"}
-                  </Text>
-                </TouchableOpacity>
-                {addOpen && (
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                    {others.map((s) => (
-                      <TouchableOpacity
-                        key={s.slug}
-                        disabled={adding !== null}
-                        onPress={() => add(s.slug)}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 6,
-                          paddingHorizontal: 12,
-                          paddingVertical: 9,
-                          borderRadius: 12,
-                          backgroundColor: theme.inputBg,
-                          opacity: adding !== null && adding !== s.slug ? 0.5 : 1,
-                        }}
-                      >
-                        <Text>{s.icon || "📚"}</Text>
-                        <Text style={{ fontSize: 13, color: theme.text }}>
-                          {adding === s.slug ? "Dodaję…" : s.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-                {!addOpen && data.subjectProgress.filter((sp) => !sp.hidden).length > 1 && (
-                  <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 8 }}>
-                    Przytrzymaj przedmiot, żeby usunąć go z panelu — wróci przez „＋ Dodaj przedmiot”.
-                  </Text>
-                )}
-              </View>
-            );
-          })()}
-        </View>
-      )}
-
-      {/* Sprawdzian z lektury / epoki — pod przedmiotami, jak na webie */}
-      <SprawdzianLektura
-        subject={subjects.find((s) => s.slug === "polski") as any}
-        navigation={navigation}
-      />
 
       {/* Recent sessions */}
       {data?.recentSessions && data.recentSessions.length > 0 && (
