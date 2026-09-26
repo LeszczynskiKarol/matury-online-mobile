@@ -208,7 +208,7 @@ export function LoginScreen() {
                 color: colors.brand[500],
               }}
             >
-              Zapomniałem hasła
+              Nie pamiętam hasła
             </Text>
           </TouchableOpacity>
 

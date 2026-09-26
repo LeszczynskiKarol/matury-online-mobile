@@ -62,7 +62,7 @@ const STATES: Partial<
   mailbox_full_before: {
     tone: 'warn',
     title: 'Poprzedni kod nie doszedł — skrzynka była pełna',
-    text: 'Jeśli zrobiłeś już miejsce, ten kod powinien dotrzeć. Jeśli nie — usuń kilka maili i stuknij „Wyślij ponownie”, wejdź przez Google albo podaj inny adres (niżej).',
+    text: 'Jeśli miejsce jest już zwolnione, ten kod powinien dotrzeć. Jeśli nie — usuń kilka maili i stuknij „Wyślij ponownie”, wejdź przez Google albo podaj inny adres (niżej).',
   },
   delayed: {
     tone: 'warn',
