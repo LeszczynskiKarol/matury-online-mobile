@@ -162,10 +162,17 @@ export function ExamSelectorScreen() {
     setLoadingExams(true);
     try {
       const data = await getAvailableExams(info.subjectId, info.level);
-      // Weź pierwszy niewidziany, fallback na pierwszy z listy (jak desktop)
+      // Weź pierwszy niewidziany, fallback na pierwszy z listy (jak desktop).
+      // Darmowy arkusz z oferty: NAJNOWSZY (nowe arkusze są najlepsze), a nie #1,
+      // który dostawał każdy uczeń z oferty.
+      const pool: any[] = data.exams || [];
+      const unseen = pool.filter((e: any) => !e.completed);
+      const newest = (list: any[]) =>
+        list.reduce((m: any, e: any) => (!m || (e.examNumber ?? 0) > (m.examNumber ?? 0) ? e : m), null);
       const exam =
-        (data.exams || []).find((e: any) => !(e as any).completed) ||
-        data.exams?.[0];
+        isPremium === false && trial?.active
+          ? newest(unseen) || newest(pool)
+          : unseen[0] || pool[0];
 
       if (exam) {
         navigation.navigate("ExamPlay", {
@@ -268,7 +275,7 @@ export function ExamSelectorScreen() {
           {trial.exam && (
             <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 2 }}>
               {trial.exam.subjectName} · poziom {trial.exam.level.toLowerCase()} ·{" "}
-              {trial.exam.timeMinutes} min · {trial.exam.maxPoints} pkt
+              bez limitu czasu · {trial.exam.maxPoints} pkt
             </Text>
           )}
 
@@ -378,7 +385,9 @@ export function ExamSelectorScreen() {
           lineHeight: 21,
         }}
       >
-        Pełny symulator matury. Timer, arkusz, feedback AI.
+        {isPremium === false && !!trial && (trial.active || !!trial.examId)
+          ? "Pełny arkusz maturalny z punktacją wg klucza i feedbackiem AI. Twój darmowy arkusz nie ma limitu czasu."
+          : "Pełny symulator matury. Timer, arkusz, feedback AI."}
       </Text>
 
       {/* Oferta ważna, arkusz jeszcze nie wybrany. Ostrzeżenie jest istotne:

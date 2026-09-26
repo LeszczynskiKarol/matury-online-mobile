@@ -726,6 +726,36 @@ export function ExamResultsScreen() {
         {/* ── SUMMARY ── */}
         {isSummary && (
           <View>
+            {/* „Oddaj to, co masz": przy niepełnym arkuszu osobno wynik z zadań,
+                na które była odpowiedź — procent z całości nic wtedy nie mówi. */}
+            {(() => {
+              const has = (v: any): boolean => {
+                if (v === null || v === undefined) return false;
+                if (typeof v === "string") return v.trim().length > 0;
+                if (Array.isArray(v)) return v.length > 0;
+                if (typeof v === "object") return Object.values(v).some(has);
+                return true;
+              };
+              const ts: any[] = grading.tasks;
+              const done = ts.filter((t) => has(t.userResponse));
+              if (done.length === 0 || done.length === ts.length) return null;
+              const got = done.reduce((a, t) => a + (t.pointsEarned || 0), 0);
+              const max = done.reduce((a, t) => a + (t.maxPoints || 0), 0);
+              const pct = max > 0 ? Math.round((got / max) * 100) : 0;
+              return (
+                <View style={{ borderRadius: 20, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: colors.brand[500], backgroundColor: isDark ? "rgba(59,130,246,0.12)" : "#eff6ff" }}>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.brand[500], letterSpacing: 1, marginBottom: 4 }}>
+                    WYNIK Z ROZWIĄZANYCH ZADAŃ
+                  </Text>
+                  <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text }}>
+                    {got}/{max} pkt ({pct}%)
+                  </Text>
+                  <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, lineHeight: 18 }}>
+                    Rozwiązałeś {done.length} z {ts.length} zadań. Niżej wynik z całego arkusza — zadania bez odpowiedzi liczą się w nim za 0 pkt.
+                  </Text>
+                </View>
+              );
+            })()}
             {/* Score card */}
             <View
               style={{

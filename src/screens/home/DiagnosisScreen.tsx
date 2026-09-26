@@ -2,30 +2,23 @@
 // DiagnosisScreen — darmowa diagnoza NATYWNIE w apce
 // src/screens/home/DiagnosisScreen.tsx
 //
-// Do 23.09.2026 kafel „Zrób diagnozę” na pulpicie otwierał przeglądarkę
-// systemową z /diagnoza na webie — uczeń wypadał z apki, logował się drugi raz
-// i wracał do niej ręcznie. Ten ekran robi to samo na tym samym backendzie
-// (routes/diagnosis.ts), którego używa web:
+// Od 26.09.2026 diagnoza v2 (jak na webie): 13 zadań różnego typu, każde
+// oceniane od razu (zadania otwarte — AI), tylko dla zalogowanych, jedna na
+// konto. Ten ekran robi wybór przedmiotu, wznowienie i raport; samo
+// rozwiązywanie gra na ekranie Quizu (trasa DiagnosisPlay, QuizPlayScreen
+// z parametrem `diagnosis`) — te same renderery, etykiety i blok oceny AI.
 //
-//   /diagnosis/subjects → wybór przedmiotu z gotową pulą
-//   /diagnosis/start    → 13 pytań zamkniętych (bez kluczy), token podejścia
-//   /diagnosis/submit   → ocena po stronie serwera
-//   /diagnosis/claim    → przypięcie podejścia do konta (w apce user JEST
-//                         zalogowany, więc claim idzie od razu po ocenie)
-//   /diagnosis/result   → pełny raport: działy, klucze, wyjaśnienia
+//   /diagnosis/v2/current → rozpoczęta/ukończona diagnoza konta (wznowienie)
+//   /diagnosis/v2/subjects → przedmioty z gotową pulą
+//   /diagnosis/v2/start    → token + pytania (409 = już jest → wracamy do niej)
+//   /diagnosis/v2/state    → pytania + zapisane odpowiedzi (wznowienie)
+//   /diagnosis/result      → raport (v2: pytania z odpowiedzią i oceną)
 //
-// Odpowiedzi mają dokładnie kształt, którego oczekuje gradeOne() w backendzie:
-// CLOSED = id opcji, MULTI_SELECT = id[], TRUE_FALSE = boolean[],
-// MATCHING = { lewa: prawa }. Lustro webowego DiagnosisPlayer/DiagnosisResult.
-//
-// Ramy wyniku dobiera BACKEND (passThreshold/examKind): matura ma próg 30%
-// i „zdana/niezdana”, egzamin ósmoklasisty progu nie ma — wynik przelicza się
-// na punkty rekrutacyjne (język ×0,3; polski i matematyka ×0,35). Ten sam plik
-// żyje w apkach matury / zdaj-angielski / ósmoklasisty — nie wpisywać tu
-// niczego markowego.
+// Stare podejścia v1 (4 typy zamknięte, sprzed 1.0.28) nadal otwierają raport.
+// Ramy wyniku dobiera BACKEND (passThreshold/examKind). Ten sam plik żyje
+// w apkach matury / zdaj-angielski / ósmoklasisty — nic markowego.
 // ============================================================================
 
-import { QuestionText } from "../../components/quiz/QuestionText";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -33,7 +26,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -43,32 +36,18 @@ import { useTheme } from "../../context/ThemeContext";
 import { api, ApiError } from "../../api/client";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
-import { OptionCard } from "../../components/quiz/OptionCard";
+import { TYPE_LABELS } from "../quiz/QuizPlayScreen";
+import { difficultyLabel, difficultyColor } from "../../lib/difficulty";
+import { getTrialStatus, claimTrial, type TrialStatus } from "../../api/premium";
 import { colors } from "../../theme/colors";
 import { radius, spacing } from "../../theme";
 import { parseChemText } from "../../utils/chemText";
-
-type DiagType = "CLOSED" | "MULTI_SELECT" | "TRUE_FALSE" | "MATCHING";
 
 interface DiagSubject {
   slug: string;
   name: string;
   icon: string;
   color: string;
-}
-
-interface DiagQuestion {
-  id: string;
-  type: DiagType;
-  topicName: string;
-  content: {
-    question: string;
-    imageUrl?: string;
-    options?: { id: string; text: string }[];
-    statements?: { text: string }[];
-    left?: string[];
-    right?: string[];
-  };
 }
 
 interface TopicRow {
@@ -86,17 +65,23 @@ interface ResultQuestion {
   yourAnswer: any;
   score: number;
   isCorrect: boolean;
-  correctAnswer: any;
-  explanation: string | null;
+  // v1
+  correctAnswer?: any;
+  explanation?: string | null;
+  // v2
+  difficulty?: number;
+  answered?: boolean;
+  feedback?: any;
 }
 
 interface FullResult {
+  version?: number;
   subject: { slug: string; name: string };
   scorePercent: number;
   /** null = egzamin bez progu zdawalności (ósmoklasista). */
   passed: boolean | null;
   passThreshold: number | null;
-  examKind?: "OSMOKLASISTA" | "MATURA";
+  examKind?: "OSMOKLASISTA" | "MATURA" | "FCE" | "CAE";
   topicBreakdown: TopicRow[];
   questions: ResultQuestion[];
 }
@@ -104,30 +89,12 @@ interface FullResult {
 type Phase =
   | { kind: "pick"; subjects: DiagSubject[] | null; error?: string }
   | { kind: "loading"; label: string }
-  | { kind: "playing"; subject: DiagSubject; token: string; questions: DiagQuestion[] }
-  | { kind: "result"; result: FullResult }
+  | { kind: "result"; result: FullResult; token: string }
   | { kind: "error"; message: string };
 
 /** „Język polski — egzamin ósmoklasisty” → „Język polski”. */
-const shortName = (name: string) => name.split(" — ")[0].split(" (")[0].trim();
-
-/** Czy pytanie ma KOMPLETNĄ odpowiedź (T/F i dobieranie wymagają wszystkich pozycji). */
-function isComplete(q: DiagQuestion, a: any): boolean {
-  if (a === undefined) return false;
-  switch (q.type) {
-    case "TRUE_FALSE":
-      return (
-        Array.isArray(a) &&
-        (q.content.statements ?? []).every((_s, i) => typeof a[i] === "boolean")
-      );
-    case "MATCHING":
-      return (q.content.left ?? []).every((l) => !!a?.[l]);
-    case "MULTI_SELECT":
-      return Array.isArray(a) && a.length > 0;
-    default:
-      return true;
-  }
-}
+const shortName = (name: string, _slug?: string) =>
+  name.split(" — ")[0].split(" (")[0].trim();
 
 /** Punkty rekrutacyjne z wyniku diagnozy E8 — te same mnożniki co na webie. */
 function recruitPoints(scorePercent: number, slug: string): { pts: string; max: number } {
@@ -225,44 +192,58 @@ export function DiagnosisScreen() {
   const params = (route.params ?? {}) as { subjectSlug?: string; token?: string };
 
   const [phase, setPhase] = useState<Phase>({ kind: "loading", label: "Ładuję…" });
-  const [idx, setIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
-  const [confirmFinish, setConfirmFinish] = useState(false);
   const [openQ, setOpenQ] = useState<string | null>(null);
+  const [trial, setTrial] = useState<TrialStatus | null>(null);
+  const [claiming, setClaiming] = useState(false);
 
-  // ── Pełny raport: claim + result (user w apce jest zalogowany) ────────────
+  // ── Raport ──────────────────────────────────────────────────────────────────
   const loadResult = useCallback(async (token: string) => {
     setPhase({ kind: "loading", label: "Ładuję raport…" });
     try {
-      try {
-        await api("/diagnosis/claim", { method: "POST", body: { token } });
-      } catch (e) {
-        // Konto ma już inną diagnozę — pokazujemy TĘ zapisaną (jedna na konto).
-        if (e instanceof ApiError && e.status === 409 && e.data?.token) {
-          token = e.data.token as string;
-        } else if (e instanceof ApiError && e.status === 403) {
-          setPhase({ kind: "error", message: "To podejście jest przypisane do innego konta." });
-          return;
-        } else {
-          throw e;
-        }
-      }
       const result = await api<FullResult>(`/diagnosis/result/${encodeURIComponent(token)}`);
       setOpenQ(null);
-      setPhase({ kind: "result", result });
-    } catch {
+      setPhase({ kind: "result", result, token });
+      getTrialStatus().then(setTrial).catch(() => {});
+    } catch (e) {
       setPhase({
         kind: "error",
-        message: "Nie udało się pobrać raportu. Spróbuj ponownie za chwilę.",
+        message:
+          e instanceof ApiError && e.status === 403
+            ? "To podejście jest przypisane do innego konta."
+            : "Nie udało się pobrać raportu. Spróbuj ponownie za chwilę.",
       });
     }
   }, []);
+
+  // ── Rozwiązywanie na ekranie Quizu (nowa albo wznowiona diagnoza) ─────────
+  const openPlay = useCallback(
+    async (token: string) => {
+      setPhase({ kind: "loading", label: "Wczytuję diagnozę…" });
+      try {
+        const st = await api<any>(`/diagnosis/v2/state/${encodeURIComponent(token)}`);
+        if (st.completed) {
+          await loadResult(token);
+          return;
+        }
+        navigation.replace("DiagnosisPlay", {
+          sessionId: "",
+          subjectId: "",
+          subjectName: st.subject?.name ?? "",
+          questions: st.questions,
+          diagnosis: { token, mode: "play", answered: st.answered ?? {} },
+        });
+      } catch {
+        setPhase({ kind: "error", message: "Nie udało się wczytać diagnozy. Spróbuj ponownie." });
+      }
+    },
+    [loadResult, navigation],
+  );
 
   // ── Wybór przedmiotu ────────────────────────────────────────────────────────
   const loadSubjects = useCallback(async () => {
     setPhase({ kind: "pick", subjects: null });
     try {
-      const d = await api<{ subjects: DiagSubject[] }>("/diagnosis/subjects", { auth: false });
+      const d = await api<{ subjects: DiagSubject[] }>("/diagnosis/v2/subjects", { auth: false });
       setPhase({ kind: "pick", subjects: d?.subjects ?? [] });
     } catch {
       setPhase({
@@ -278,9 +259,18 @@ export function DiagnosisScreen() {
       void loadResult(params.token);
       return;
     }
-    // Diagnoza jest jedna na konto: jeśli już jest, od razu raport.
+    // Diagnoza jest jedna na konto: rozpoczęta → wracamy do niej, ukończona →
+    // raport, stara (v1) ukończona → jej raport.
     (async () => {
       try {
+        const cur = await api<{ current: { token: string; completed: boolean } | null }>(
+          "/diagnosis/v2/current",
+        );
+        if (cur?.current) {
+          if (cur.current.completed) await loadResult(cur.current.token);
+          else await openPlay(cur.current.token);
+          return;
+        }
         const mine = await api<{ diagnoses: { token: string }[] }>("/diagnosis/mine");
         const t = mine?.diagnoses?.[0]?.token;
         if (t) {
@@ -290,26 +280,27 @@ export function DiagnosisScreen() {
       } catch {}
       await loadSubjects();
     })();
-  }, [params.token, loadResult, loadSubjects]);
-
-  // Panel „zakończ mimo braków” traci aktualność przy każdej zmianie.
-  useEffect(() => {
-    setConfirmFinish(false);
-  }, [idx, answers]);
+  }, [params.token, loadResult, loadSubjects, openPlay]);
 
   const start = async (subject: DiagSubject) => {
-    setPhase({ kind: "loading", label: "Losuję pytania…" });
+    setPhase({ kind: "loading", label: "Losuję zadania…" });
     try {
-      const d = await api<{ token: string; questions: DiagQuestion[] }>("/diagnosis/start", {
+      const d = await api<any>("/diagnosis/v2/start", {
         method: "POST",
         body: { subject: subject.slug },
       });
-      setIdx(0);
-      setAnswers({});
-      setPhase({ kind: "playing", subject, token: d.token, questions: d.questions });
+      navigation.replace("DiagnosisPlay", {
+        sessionId: "",
+        subjectId: "",
+        subjectName: d.subject?.name ?? subject.name,
+        questions: d.questions,
+        diagnosis: { token: d.token, mode: "play", answered: {} },
+      });
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && e.data?.token) {
-        await loadResult(e.data.token as string);
+        const t = e.data.token as string;
+        if (e.data.code === "DIAGNOSIS_IN_PROGRESS") await openPlay(t);
+        else await loadResult(t);
         return;
       }
       setPhase({
@@ -324,15 +315,35 @@ export function DiagnosisScreen() {
     }
   };
 
-  const submit = async () => {
-    if (phase.kind !== "playing") return;
-    const token = phase.token;
-    setPhase({ kind: "loading", label: "Oceniam…" });
+  // Przegląd pytania z raportu: ekran Quizu w trybie „po ocenie” — Twoja
+  // odpowiedź, klucz i komentarz AI dokładnie tak, jak przy rozwiązywaniu.
+  const review = (r: FullResult, token: string, index: number) => {
+    const answered: Record<string, { response: any; feedback: any }> = {};
+    for (const q of r.questions) {
+      answered[q.id] = {
+        response: q.yourAnswer,
+        // Bez odpowiedzi: pokazujemy klucz jak po „Pokaż odpowiedź”, bez „źle”.
+        feedback: q.answered === false ? { ...q.feedback, revealed: true } : q.feedback,
+      };
+    }
+    navigation.navigate("DiagnosisPlay", {
+      sessionId: "",
+      subjectId: "",
+      subjectName: r.subject.name,
+      questions: r.questions,
+      diagnosis: { token, mode: "review", answered, startIndex: index },
+    });
+  };
+
+  const claim = async () => {
+    setClaiming(true);
     try {
-      await api("/diagnosis/submit", { method: "POST", body: { token, answers } });
-      await loadResult(token);
-    } catch {
-      setPhase({ kind: "error", message: "Nie udało się ocenić diagnozy. Spróbuj ponownie." });
+      setTrial(await claimTrial("diagnosis"));
+      navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
+    } catch (e: any) {
+      Alert.alert("Nie udało się", e?.message || "Nie udało się odebrać arkusza.");
+    } finally {
+      setClaiming(false);
     }
   };
 
@@ -395,11 +406,12 @@ export function DiagnosisScreen() {
       <ScrollView style={container} contentContainerStyle={content}>
         <Header title="Darmowa diagnoza" />
         <Text style={{ fontSize: 26, fontWeight: "800", color: theme.text, marginBottom: 6 }}>
-          Jak poszedłby Ci dziś egzamin?
+          Sprawdź za darmo swoją wiedzę i działanie apki
         </Text>
         <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, marginBottom: 18 }}>
-          13 pytań z różnych działów — w ~10 minut zobaczysz, które działy masz
-          opanowane, a które wymagają pracy. Bez opłat, wynik od razu.
+          Tak wygląda nauka w apce: 13 zadań różnego typu z wybranego egzaminu,
+          jak w Quizie — z oceną i wyjaśnieniem po każdym, a zadania otwarte
+          ocenia AI. Możesz przerwać i wrócić. Jedna darmowa diagnoza na konto.
         </Text>
         {phase.subjects === null ? (
           <ActivityIndicator color={colors.brand[500]} />
@@ -432,10 +444,10 @@ export function DiagnosisScreen() {
                   <Text style={{ fontSize: 28 }}>{s.icon}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>
-                      {shortName(s.name)}
+                      {shortName(s.name, s.slug)}
                     </Text>
                     <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
-                      13 pytań · ok. 10 minut
+                      13 zadań · ok. 15 minut
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
@@ -451,42 +463,45 @@ export function DiagnosisScreen() {
   // ── Wynik ───────────────────────────────────────────────────────────────────
   if (phase.kind === "result") {
     const r = phase.result;
+    const isV2 = r.version === 2;
     // 13 pytań na kilkanaście działów = zwykle JEDNO pytanie na dział, więc
     // procent przy dziale mógł być tylko 0% albo 100% i nic nie mówił
     // (zgłoszenie 25.09.2026). Zamiast pasków: gdzie były błędy, a gdzie nie.
     const cleanTopic = (n: string) => n.replace(/^[IVXLC]+\.\s*/, "").trim();
-    const byTopic = new Map<string, { wrong: number; partial: number; total: number }>();
+    const byTopic = new Map<string, { wrong: number; partial: number; skipped: number; total: number }>();
     for (const q of r.questions ?? []) {
       const key = cleanTopic(q.topicName || "Inne");
-      const t = byTopic.get(key) ?? { wrong: 0, partial: 0, total: 0 };
+      const t = byTopic.get(key) ?? { wrong: 0, partial: 0, skipped: 0, total: 0 };
       t.total += 1;
-      if (!q.isCorrect) {
+      if (q.answered === false) t.skipped += 1;
+      else if (!q.isCorrect) {
         if (q.score > 0) t.partial += 1;
         else t.wrong += 1;
       }
       byTopic.set(key, t);
     }
     const weakTopics = [...byTopic.entries()]
-      .filter(([, t]) => t.wrong + t.partial > 0)
-      .sort((a, b) => b[1].wrong + b[1].partial - (a[1].wrong + a[1].partial));
+      .filter(([, t]) => t.wrong + t.partial + t.skipped > 0)
+      .sort((a, b) => b[1].wrong + b[1].partial - (a[1].wrong + a[1].partial) || b[1].skipped - a[1].skipped);
     const goodTopics = [...byTopic.entries()]
-      .filter(([, t]) => t.wrong + t.partial === 0)
+      .filter(([, t]) => t.wrong + t.partial + t.skipped === 0)
       .map(([name]) => name);
     const correctCount = (r.questions ?? []).filter((q) => q.isCorrect).length;
     const weak = weakTopics.map(([name]) => ({ topicName: name }));
-    const mistakesLabel = (t: { wrong: number; partial: number }) => {
+    const mistakesLabel = (t: { wrong: number; partial: number; skipped: number }) => {
       const parts: string[] = [];
       if (t.wrong) parts.push(t.wrong === 1 ? "1 błąd" : t.wrong < 5 ? `${t.wrong} błędy` : `${t.wrong} błędów`);
       if (t.partial) parts.push(t.partial === 1 ? "1 częściowo" : `${t.partial} częściowo`);
+      if (t.skipped) parts.push(t.skipped === 1 ? "1 bez odpowiedzi" : `${t.skipped} bez odpowiedzi`);
       return parts.join(" · ");
     };
     const hasThreshold = r.passThreshold !== null && r.passThreshold !== undefined;
     const rp = hasThreshold ? null : recruitPoints(r.scorePercent, r.subject.slug);
     const ringSub = hasThreshold
-      ? r.passed
-        ? `zdana (próg ${r.passThreshold}%)`
-        : `poniżej progu ${r.passThreshold}%`
-      : `${rp!.pts} pkt z ${rp!.max}`;
+        ? r.passed
+          ? `zdana (próg ${r.passThreshold}%)`
+          : `poniżej progu ${r.passThreshold}%`
+        : `${rp!.pts} pkt z ${rp!.max}`;
     const headline = hasThreshold
       ? r.passed
         ? r.scorePercent >= 70
@@ -498,7 +513,7 @@ export function DiagnosisScreen() {
         : "Wiesz już, od czego zacząć.";
     return (
       <ScrollView style={container} contentContainerStyle={content}>
-        <Header title={`Diagnoza · ${shortName(r.subject.name)}`} />
+        <Header title={`Diagnoza · ${shortName(r.subject.name, r.subject.slug)}`} />
         <ScoreRing percent={r.scorePercent} sub={ringSub} theme={theme} />
         <Text
           style={{
@@ -514,10 +529,10 @@ export function DiagnosisScreen() {
 
         <Card style={{ marginBottom: 16 }}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>
-            Dobrze: {correctCount} z {r.questions?.length ?? 0} pytań
+            Dobrze: {correctCount} z {r.questions?.length ?? 0} zadań
           </Text>
           <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 4, lineHeight: 17 }}>
-            13 pytań to za mało, żeby oceniać każdy dział osobno — pokazujemy,
+            13 zadań to za mało, żeby oceniać każdy dział osobno — pokazujemy,
             gdzie pojawiły się błędy.
           </Text>
 
@@ -534,7 +549,7 @@ export function DiagnosisScreen() {
                         width: 8,
                         height: 8,
                         borderRadius: 4,
-                        backgroundColor: t.wrong ? colors.red[500] : "#f59e0b",
+                        backgroundColor: t.wrong ? colors.red[500] : t.partial ? "#f59e0b" : theme.textTertiary,
                       }}
                     />
                     <Text style={{ flex: 1, fontSize: 14, color: theme.text }}>{name}</Text>
@@ -569,24 +584,69 @@ export function DiagnosisScreen() {
           )}
         </Card>
 
-        <Card style={{ marginBottom: 16, backgroundColor: colors.brand[500] + "14", borderColor: colors.brand[500] }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 6 }}>
-            {weak.length > 0 ? "Najwięcej tracisz tutaj" : "Solidna baza — teraz przełóż ją na wynik"}
-          </Text>
-          <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19, marginBottom: 12 }}>
-            {weak.length > 0
-              ? `${weak
-                  .slice(0, 3)
-                  .map((t) => t.topicName)
-                  .join(", ")}. W Premium odblokowujesz pytania z tych działów, pełne arkusze na czas i ocenę wypowiedzi pisemnych.`
-              : "Diagnoza sprawdza podstawy. O wyniku decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."}
-          </Text>
-          <Button
-            title="Odblokuj pełne quizy i arkusze →"
-            onPress={() => navigation.getParent()?.navigate("ProfileTab", { screen: "Subscription" })}
-            size="sm"
-          />
-        </Card>
+        {/* Następny krok: darmowy arkusz (póki przysługuje), potem Premium. */}
+        {trial &&
+        trial.attemptStatus !== "COMPLETED" &&
+        trial.attemptStatus !== "GRADING" &&
+        (trial.eligible || trial.active || trial.examId) ? (
+          <Card style={{ marginBottom: 16, backgroundColor: colors.brand[500] + "14", borderColor: colors.brand[500] }}>
+            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.brand[500], letterSpacing: 1, marginBottom: 4 }}>
+              NASTĘPNY KROK · ZA DARMO
+            </Text>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 6 }}>
+              {trial.examId ? "Dokończ swój darmowy arkusz" : "Sprawdź się na pełnym arkuszu"}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19, marginBottom: 12 }}>
+              {weak.length > 0
+                ? `Diagnoza pokazała, gdzie tracisz (${weak
+                    .slice(0, 2)
+                    .map((t) => t.topicName)
+                    .join(", ")}). Pełny arkusz powie, ile to kosztuje w punktach — `
+                : "Diagnoza sprawdziła wybrane działy. Pełny arkusz pokaże wynik w punktach — "}
+              z oceną AI zadań otwartych, bez limitu czasu.
+            </Text>
+            <Button
+              title={
+                trial.examId
+                  ? "Kontynuuj arkusz →"
+                  : trial.active
+                    ? "Wybierz arkusz →"
+                    : "Odbierz darmowy arkusz →"
+              }
+              loading={claiming}
+              onPress={() => {
+                if (trial.examId) {
+                  navigation.getParent()?.navigate("ExamTab", {
+                    screen: "ExamPlay",
+                    params: { examId: trial.examId, subjectId: "" },
+                  });
+                } else if (trial.active) {
+                  navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
+                } else void claim();
+              }}
+              size="sm"
+            />
+          </Card>
+        ) : (
+          <Card style={{ marginBottom: 16, backgroundColor: colors.brand[500] + "14", borderColor: colors.brand[500] }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 6 }}>
+              {weak.length > 0 ? "Najwięcej tracisz tutaj" : "Solidna baza — teraz przełóż ją na wynik"}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19, marginBottom: 12 }}>
+              {weak.length > 0
+                ? `${weak
+                    .slice(0, 3)
+                    .map((t) => t.topicName)
+                    .join(", ")}. W Premium ćwiczysz te działy w Quizie bez limitu, rozwiązujesz pełne arkusze i dostajesz ocenę wypowiedzi pisemnych.`
+                : "W Premium ćwiczysz w Quizie bez limitu, rozwiązujesz pełne arkusze na czas i dostajesz ocenę wypowiedzi pisemnych."}
+            </Text>
+            <Button
+              title="Zobacz Premium →"
+              onPress={() => navigation.getParent()?.navigate("ProfileTab", { screen: "Subscription" })}
+              size="sm"
+            />
+          </Card>
+        )}
 
         <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 10 }}>
           Pytania i odpowiedzi
@@ -594,7 +654,19 @@ export function DiagnosisScreen() {
         <View style={{ gap: 8, marginBottom: 20 }}>
           {r.questions.map((q, i) => {
             const open = openQ === q.id;
-            const badge = q.isCorrect ? colors.brand[500] : q.score > 0 ? "#f59e0b" : colors.red[500];
+            const skipped = q.answered === false;
+            const badge = skipped
+              ? theme.textTertiary
+              : q.isCorrect
+                ? colors.brand[500]
+                : q.score > 0
+                  ? "#f59e0b"
+                  : colors.red[500];
+            // Treść pytania bywa w różnych polach zależnie od typu.
+            const c = q.content ?? {};
+            const title = String(
+              c.question || c.instruction || c.prompt || c.text || c.sentence || c.context || TYPE_LABELS[q.type] || "",
+            );
             return (
               <View
                 key={q.id}
@@ -607,7 +679,10 @@ export function DiagnosisScreen() {
                 }}
               >
                 <TouchableOpacity
-                  onPress={() => setOpenQ(open ? null : q.id)}
+                  onPress={() =>
+                    // v2: przegląd na ekranie Quizu (odpowiedź, klucz, komentarz AI)
+                    isV2 ? review(r, phase.token, i) : setOpenQ(open ? null : q.id)
+                  }
                   style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14 }}
                 >
                   <View
@@ -621,15 +696,33 @@ export function DiagnosisScreen() {
                     }}
                   >
                     <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-                      {q.isCorrect ? "✓" : q.score > 0 ? "½" : "✗"}
+                      {skipped ? "–" : q.isCorrect ? "✓" : q.score > 0 ? "½" : "✗"}
                     </Text>
                   </View>
-                  <Text numberOfLines={2} style={{ flex: 1, fontSize: 13, color: theme.text }}>
-                    {i + 1}. {parseChemText(String(q.content?.question ?? ""))}
-                  </Text>
-                  <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={theme.textTertiary} />
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={2} style={{ fontSize: 13, color: theme.text }}>
+                      {i + 1}. {parseChemText(title)}
+                    </Text>
+                    {isV2 && (
+                      <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 3 }}>
+                        {TYPE_LABELS[q.type] || q.type}
+                        {q.difficulty ? " · " : ""}
+                        {q.difficulty ? (
+                          <Text style={{ color: difficultyColor(q.difficulty), fontWeight: "700" }}>
+                            {difficultyLabel(q.difficulty)}
+                          </Text>
+                        ) : null}
+                        {q.answered === false ? " · bez odpowiedzi" : ""}
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons
+                    name={isV2 ? "chevron-forward" : open ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color={theme.textTertiary}
+                  />
                 </TouchableOpacity>
-                {open && (
+                {open && !isV2 && (
                   <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8 }}>
                     <View style={{ padding: 10, borderRadius: radius.xl, backgroundColor: theme.inputBg }}>
                       <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2 }}>Twoja odpowiedź</Text>
@@ -664,277 +757,5 @@ export function DiagnosisScreen() {
     );
   }
 
-  // ── Rozwiązywanie ───────────────────────────────────────────────────────────
-  const { questions, subject } = phase;
-  const q = questions[idx];
-  const set = (value: any) => setAnswers((a) => ({ ...a, [q.id]: value }));
-  const answered = answers[q.id] !== undefined;
-  const incompleteNums = questions
-    .map((qq, i) => (isComplete(qq, answers[qq.id]) ? null : i + 1))
-    .filter((n): n is number => n !== null);
-  const cur = answers[q.id];
-
-  return (
-    <ScrollView style={container} contentContainerStyle={content} keyboardShouldPersistTaps="handled">
-      <Header title={`Diagnoza · ${shortName(subject.name)}`} />
-
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <Text style={{ fontSize: 13, color: theme.textSecondary }}>
-          Pytanie {idx + 1} z {questions.length}
-        </Text>
-        <Text
-          numberOfLines={1}
-          style={{
-            fontSize: 11,
-            color: theme.textSecondary,
-            backgroundColor: theme.inputBg,
-            paddingHorizontal: 8,
-            paddingVertical: 3,
-            borderRadius: 999,
-            maxWidth: "60%",
-          }}
-        >
-          {q.topicName}
-        </Text>
-      </View>
-      <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.border, marginBottom: 12, overflow: "hidden" }}>
-        <View style={{ height: "100%", width: `${((idx + 1) / questions.length) * 100}%`, backgroundColor: colors.brand[500] }} />
-      </View>
-
-      {/* Nawigator 1–13: skok do dowolnego pytania + widok, co jest nieuzupełnione */}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-        {questions.map((qq, i) => {
-          const complete = isComplete(qq, answers[qq.id]);
-          const current = i === idx;
-          return (
-            <TouchableOpacity
-              key={qq.id}
-              onPress={() => setIdx(i)}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 8,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: complete ? colors.brand[500] : theme.inputBg,
-                borderWidth: 2,
-                borderColor: current ? theme.text : "transparent",
-              }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "800", color: complete ? "#fff" : theme.textSecondary }}>
-                {i + 1}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <Card style={{ marginBottom: 14 }}>
-        <QuestionText text={q.content.question} theme={theme} isDark={isDark} />
-        {q.content.imageUrl ? (
-          <Image
-            source={{ uri: q.content.imageUrl }}
-            style={{ width: "100%", height: 200, borderRadius: radius.xl, marginBottom: 14 }}
-            resizeMode="contain"
-          />
-        ) : null}
-
-        {q.type === "CLOSED" && (
-          <View style={{ gap: 8 }}>
-            {(q.content.options ?? []).map((o) => (
-              <OptionCard
-                key={o.id}
-                id={o.id}
-                text={parseChemText(o.text)}
-                state={cur === o.id ? "selected" : "default"}
-                onPress={() => set(o.id)}
-              />
-            ))}
-          </View>
-        )}
-
-        {q.type === "MULTI_SELECT" && (
-          <View style={{ gap: 8 }}>
-            <Text style={{ fontSize: 11, color: theme.textTertiary }}>Zaznacz wszystkie poprawne odpowiedzi.</Text>
-            {(q.content.options ?? []).map((o) => {
-              const sel: string[] = Array.isArray(cur) ? cur : [];
-              const on = sel.includes(o.id);
-              return (
-                <OptionCard
-                  key={o.id}
-                  id={o.id}
-                  text={parseChemText(o.text)}
-                  state={on ? "selected" : "default"}
-                  onPress={() => set(on ? sel.filter((x) => x !== o.id) : [...sel, o.id])}
-                />
-              );
-            })}
-          </View>
-        )}
-
-        {q.type === "TRUE_FALSE" && (
-          <View style={{ gap: 10 }}>
-            {(q.content.statements ?? []).map((s, i) => {
-              const arr: (boolean | undefined)[] = Array.isArray(cur) ? cur : [];
-              const setStatement = (v: boolean) => {
-                const next = [...arr];
-                next[i] = v;
-                set(next);
-              };
-              return (
-                <View
-                  key={i}
-                  style={{ padding: 12, borderRadius: radius.xl, borderWidth: 1, borderColor: theme.cardBorder }}
-                >
-                  <Text style={{ fontSize: 14, color: theme.text, marginBottom: 10, lineHeight: 20 }}>
-                    {parseChemText(s.text)}
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {(
-                      [
-                        [true, "Prawda"],
-                        [false, "Fałsz"],
-                      ] as const
-                    ).map(([v, label]) => {
-                      const on = arr[i] === v;
-                      return (
-                        <TouchableOpacity
-                          key={label}
-                          onPress={() => setStatement(v)}
-                          style={{
-                            flex: 1,
-                            paddingVertical: 10,
-                            borderRadius: 14,
-                            borderWidth: 2,
-                            alignItems: "center",
-                            borderColor: on ? colors.brand[500] : theme.border,
-                            backgroundColor: on ? colors.brand[500] + "1A" : "transparent",
-                          }}
-                        >
-                          <Text style={{ fontSize: 14, fontWeight: "600", color: on ? colors.brand[600] : theme.textSecondary }}>
-                            {label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {q.type === "MATCHING" && (
-          <View style={{ gap: 10 }}>
-            <Text style={{ fontSize: 11, color: theme.textTertiary }}>
-              Do każdego elementu z lewej dobierz jeden z prawej.
-            </Text>
-            {(q.content.left ?? []).map((l) => {
-              const map: Record<string, string> = cur && typeof cur === "object" && !Array.isArray(cur) ? cur : {};
-              return (
-                <View
-                  key={l}
-                  style={{ padding: 12, borderRadius: radius.xl, borderWidth: 1, borderColor: theme.cardBorder }}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text, marginBottom: 8 }}>
-                    {parseChemText(l)}
-                  </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                    {(q.content.right ?? []).map((rgt) => {
-                      const on = map[l] === rgt;
-                      return (
-                        <TouchableOpacity
-                          key={rgt}
-                          onPress={() => set({ ...map, [l]: rgt })}
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 7,
-                            borderRadius: 12,
-                            borderWidth: 1.5,
-                            borderColor: on ? colors.brand[500] : theme.border,
-                            backgroundColor: on ? colors.brand[500] : "transparent",
-                          }}
-                        >
-                          <Text style={{ fontSize: 13, color: on ? "#fff" : theme.text }}>{parseChemText(rgt)}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </Card>
-
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <Button
-          title="← Poprzednie"
-          onPress={() => setIdx((i) => Math.max(0, i - 1))}
-          variant="outline"
-          disabled={idx === 0}
-          style={{ flex: 1 }}
-        />
-        {idx < questions.length - 1 ? (
-          // Bez blokady: pytanie można pominąć i wrócić do niego później
-          // (do 25.09.2026 trzeba było coś zaznaczyć, żeby iść dalej).
-          <Button
-            title={answered ? "Następne →" : "Pomiń →"}
-            onPress={() => setIdx((i) => i + 1)}
-            variant={answered ? "primary" : "outline"}
-            style={{ flex: 1 }}
-          />
-        ) : (
-          <Button
-            title="Zakończ i pokaż wynik"
-            onPress={() => (incompleteNums.length > 0 ? setConfirmFinish(true) : void submit())}
-            style={{ flex: 1 }}
-          />
-        )}
-      </View>
-
-      {idx < questions.length - 1 && !confirmFinish && (
-        <TouchableOpacity
-          onPress={() => (incompleteNums.length > 0 ? setConfirmFinish(true) : void submit())}
-          style={{ alignSelf: "center", marginTop: 12, padding: 8 }}
-        >
-          <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
-            Zakończ teraz i pokaż wynik
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {confirmFinish && (
-        <Card style={{ marginTop: 14, borderColor: "#f59e0b" }}>
-          <Text style={{ fontSize: 13, color: theme.text, lineHeight: 19, marginBottom: 10 }}>
-            {incompleteNums.length === 1
-              ? `Pytanie ${incompleteNums[0]} nie ma pełnej odpowiedzi.`
-              : `Pytania ${incompleteNums.join(", ")} nie mają pełnej odpowiedzi.`}{" "}
-            Nieuzupełnione pozycje liczą się jako błędne.
-          </Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Button
-              title={`Uzupełnij ${incompleteNums[0]}`}
-              onPress={() => {
-                setConfirmFinish(false);
-                setIdx(incompleteNums[0] - 1);
-              }}
-              size="sm"
-              style={{ flex: 1 }}
-            />
-            <Button
-              title="Zakończ mimo to"
-              onPress={() => {
-                setConfirmFinish(false);
-                void submit();
-              }}
-              variant="outline"
-              size="sm"
-              style={{ flex: 1 }}
-            />
-          </View>
-        </Card>
-      )}
-    </ScrollView>
-  );
+  return null;
 }

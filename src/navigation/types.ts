@@ -31,6 +31,8 @@ export type HomeStackParamList = {
   // Darmowa diagnoza natywnie (ten sam backend co /diagnoza na webie).
   // token = od razu raport zapisanego podejścia.
   Diagnosis: { subjectSlug?: string; token?: string } | undefined;
+  // Darmowa diagnoza v2 na ekranie Quizu (QuizPlayScreen, tryb diagnosis).
+  DiagnosisPlay: any;
 };
 
 export type SubjectsStackParamList = {

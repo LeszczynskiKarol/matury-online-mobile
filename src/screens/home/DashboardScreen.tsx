@@ -26,6 +26,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/common/ProgressBar";
 import { FreePanel } from "../../components/common/FreePanel";
+import { AccountNote } from "../../components/common/AccountNote";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
 import { TutorHomeCard } from "../../components/tutor/TutorHomeCard";
 import { api } from "../../api/client";
@@ -43,6 +44,26 @@ export function DashboardScreen() {
   const navigation = useNavigation<any>();
 
   const [data, setData] = useState<DashboardData | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
+  // Kafelek przedmiotu schowany przez ucznia (przytrzymanie → „Ukryj”).
+  // Backend zapamiętuje to na koncie (SubjectProgress.hiddenAt), więc web
+  // i apka widzą to samo; kafelek wraca sam po kolejnym ćwiczeniu.
+  const setSubjectHidden = (slug: string, hidden: boolean) => {
+    setData((d) =>
+      d
+        ? {
+            ...d,
+            subjectProgress: d.subjectProgress.map((sp) =>
+              sp.subject.slug === slug ? { ...sp, hidden } : sp,
+            ),
+          }
+        : d,
+    );
+    api(`/dashboard/subjects/${encodeURIComponent(slug)}/hide`, {
+      method: "POST",
+      body: { hidden },
+    }).catch(() => {});
+  };
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -182,6 +203,11 @@ export function DashboardScreen() {
             onDismissed={() => setPaymentFailed(null)}
           />
         )}
+
+        <AccountNote
+          account={data?.account}
+          onSubscription={() => navigation.navigate("ProfileTab", { screen: "Subscription" })}
+        />
 
         {/* JEDNA karta „Za darmo" (diagnoza, darmowy arkusz, linijka o
             Premium). Wcześniej: duży box „Odblokuj pełny dostęp" z ofertą
@@ -415,6 +441,11 @@ export function DashboardScreen() {
           onDismissed={() => setPaymentFailed(null)}
         />
       )}
+
+      <AccountNote
+        account={data?.account}
+        onSubscription={() => navigation.navigate("ProfileTab", { screen: "Subscription" })}
+      />
 
       {/* ═══ ACTIVE EXAM RESUME — duży amber banner ═══ */}
       {activeExam?.active && !activeExam.expired && (
@@ -856,7 +887,7 @@ export function DashboardScreen() {
                   orderMap.set(s.subject.slug, orderMap.size);
                 }
               });
-              return [...data.subjectProgress].sort((a, b) => {
+              return data.subjectProgress.filter((sp) => !sp.hidden).sort((a, b) => {
                 const aO = orderMap.get(a.subject.slug) ?? 999;
                 const bO = orderMap.get(b.subject.slug) ?? 999;
                 if (aO !== bO) return aO - bO;
@@ -871,6 +902,19 @@ export function DashboardScreen() {
                 <TouchableOpacity
                   key={sp.subject.slug}
                   activeOpacity={0.85}
+                  delayLongPress={450}
+                  onLongPress={() => {
+                    // Ostatniego widocznego nie chowamy — panel nie może być pusty.
+                    if (data.subjectProgress.filter((x) => !x.hidden).length <= 1) return;
+                    Alert.alert(
+                      `Ukryć „${sp.subject.name}” z panelu?`,
+                      "Postęp i wyniki zostają. Przedmiot wróci sam, gdy znów w nim poćwiczysz — albo przywrócisz go z listy „Ukryte” niżej.",
+                      [
+                        { text: "Anuluj", style: "cancel" },
+                        { text: "Ukryj", onPress: () => setSubjectHidden(sp.subject.slug, true) },
+                      ],
+                    );
+                  }}
                   onPress={() => {
                     if (subjectObj) {
                       navigation.navigate("QuizTab", {
@@ -931,6 +975,52 @@ export function DashboardScreen() {
               );
             })}
           </View>
+          {(() => {
+            const hiddenList = data.subjectProgress.filter((sp) => sp.hidden);
+            return (
+              <>
+                {hiddenList.length > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <TouchableOpacity onPress={() => setShowHidden((v) => !v)} hitSlop={8}>
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
+                        {showHidden ? "▾" : "▸"} Ukryte ({hiddenList.length})
+                      </Text>
+                    </TouchableOpacity>
+                    {showHidden && (
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                        {hiddenList.map((sp) => (
+                          <TouchableOpacity
+                            key={sp.subject.slug}
+                            onPress={() => setSubjectHidden(sp.subject.slug, false)}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                              paddingHorizontal: 12,
+                              paddingVertical: 8,
+                              borderRadius: 12,
+                              backgroundColor: theme.inputBg,
+                            }}
+                          >
+                            <Text>{sp.subject.icon || "📚"}</Text>
+                            <Text style={{ fontSize: 13, color: theme.text }}>{sp.subject.name}</Text>
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand[500] }}>
+                              + Przywróć
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+                {data.subjectProgress.filter((sp) => !sp.hidden).length > 1 && hiddenList.length === 0 && (
+                  <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 8 }}>
+                    Przytrzymaj przedmiot, żeby ukryć go z panelu.
+                  </Text>
+                )}
+              </>
+            );
+          })()}
         </View>
       )}
 

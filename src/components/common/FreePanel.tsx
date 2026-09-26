@@ -47,6 +47,12 @@ export function FreePanel({
   const navigation = useNavigation<any>();
   const [diagnoses, setDiagnoses] = useState<DiagnosisRow[] | null>(null);
   const [trial, setTrial] = useState<TrialStatus | null>(null);
+  // Diagnoza v2 w toku (rozpoczęta, nieukończona) — „Kontynuuj diagnozę”.
+  const [diagCur, setDiagCur] = useState<{
+    completed: boolean;
+    answeredCount: number;
+    questionCount: number;
+  } | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
 
@@ -58,6 +64,9 @@ export function FreePanel({
         .catch(() => !cancelled && setDiagnoses([]));
       getTrialStatus()
         .then((t) => !cancelled && setTrial(t))
+        .catch(() => {});
+      api<{ current: any }>("/diagnosis/v2/current")
+        .then((d) => !cancelled && setDiagCur(d?.current ?? null))
         .catch(() => {});
       return () => {
         cancelled = true;
@@ -85,11 +94,18 @@ export function FreePanel({
 
   // ── Diagnoza: jedno zdanie + jeden przycisk ──────────────────────────────
   const diag = diagnoses[0];
+  const diagInProgress = !diag && diagCur && !diagCur.completed;
   const diagText = diag
     ? // Bez „najsłabszego działu" — przy 13 pytaniach to zwykle jedno pytanie.
       `Twój wynik: ${diag.scorePercent ?? 0}%.`
-    : "13 pytań, ok. 10 minut.";
-  const diagCta = diag ? "Zobacz wynik" : "Zrób diagnozę";
+    : diagInProgress
+      ? `Zaczęta — rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
+      : "Tak wygląda nauka w apce: 13 zadań, ocena po każdym.";
+  const diagCta = diag
+    ? "Zobacz wynik"
+    : diagInProgress
+      ? "Kontynuuj diagnozę"
+      : "Zrób darmową diagnozę";
   const onDiag = () =>
     navigation.navigate("Diagnosis", diag ? { token: diag.token } : undefined);
 
@@ -108,16 +124,21 @@ export function FreePanel({
         params: { attemptId: trial!.examAttemptId! },
       });
   } else if (trial?.examId) {
-    examText = "Zaczęty — dokończ i oddaj.";
-    examCta = "Wróć do arkusza";
-    onExam = goExams;
+    examText = "Zaczęty — bez limitu czasu. Dokończ albo oddaj to, co masz.";
+    examCta = "Kontynuuj arkusz";
+    // Prosto do arkusza, nie do listy (jak na webie).
+    onExam = () =>
+      navigation.getParent()?.navigate("ExamTab", {
+        screen: "ExamPlay",
+        params: { examId: trial!.examId!, subjectId: "" },
+      });
   } else if (trial?.active) {
     examText = `Wybierz arkusz — masz na to ${hoursLeft(trial.remainingMs)}.`;
     examCta = "Wybierz arkusz";
     onExam = goExams;
   } else if (trial?.eligible) {
-    examText = "Pełny arkusz z oceną AI.";
-    examCta = "Odbierz arkusz";
+    examText = "Pełny arkusz z oceną AI, bez limitu czasu.";
+    examCta = "Odbierz darmowy arkusz";
     onExam = claim;
   } else {
     examText = "Już wykorzystany.";
@@ -188,7 +209,7 @@ export function FreePanel({
         Za darmo
       </Text>
 
-      {row("📊", "Diagnoza", diagText, diagCta, onDiag)}
+      {row("📊", "Darmowa diagnoza", diagText, diagCta, onDiag)}
       <View
         style={{ height: 1, backgroundColor: theme.border, marginVertical: 14 }}
       />

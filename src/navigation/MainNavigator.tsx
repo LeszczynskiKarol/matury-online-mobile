@@ -72,6 +72,13 @@ function HomeStackNav() {
         component={DiagnosisScreen}
         options={{ animation: "slide_from_right" }}
       />
+      {/* Diagnoza v2 gra na ekranie Quizu — te same renderery typów pytań,
+          etykiety i blok oceny AI co w nauce. */}
+      <HomeStack.Screen
+        name="DiagnosisPlay"
+        component={QuizPlayScreen}
+        options={{ animation: "slide_from_right", gestureEnabled: false }}
+      />
     </HomeStack.Navigator>
   );
 }

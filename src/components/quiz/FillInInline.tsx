@@ -90,7 +90,16 @@ export function FillInInline({
     lineHeight: 30,
   };
 
-  const parts = convertMath(text).split(MARKER_SPLIT);
+  // Treść bywa pisana z numerem luki tuż przed nią („Pojęcie (1) ______”),
+  // a pole i tak ma własny numer — wychodziło „(1) 1.”. Numer z treści
+  // przed samą luką wycinamy (jak na webie).
+  const parts = convertMath(text)
+    .split(MARKER_SPLIT)
+    .map((part, i, all) =>
+      i + 1 < all.length && /^(_{3,}|\.{3,}|…+)$/.test(all[i + 1])
+        ? part.replace(/\s*\(\d{1,2}\)\s*$/, " ")
+        : part,
+    );
   let blankIndex = -1;
   const nodes: React.ReactNode[] = [];
 

@@ -42,6 +42,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { submitAnswer, completeSession } from "../../api/sessions";
+import { api, ApiError } from "../../api/client";
 import { maybeAskForReviewOnStreak } from "../../lib/reviewPrompt";
 import {
   skipQuestion as apiSkipQuestion,
@@ -89,7 +90,7 @@ const EMPTY_FILTERS: LiveFilters = {
   sources: [],
 };
 
-const TYPE_LABELS: Record<string, string> = {
+export const TYPE_LABELS: Record<string, string> = {
   CLOSED: "Zamknięte",
   MULTI_SELECT: "Wielokrotne",
   TRUE_FALSE: "P/F",
@@ -130,6 +131,7 @@ export function QuizPlayScreen() {
     questionTypes: initialTypes,
     assignmentTargetId,
     assignmentTitle,
+    diagnosis,
   } = route.params as {
     sessionId: string;
     questions: Question[];
@@ -138,7 +140,19 @@ export function QuizPlayScreen() {
     questionTypes?: string[];
     assignmentTargetId?: string;
     assignmentTitle?: string;
+    // Darmowa diagnoza (v2) — ten sam ekran co Quiz, żeby każdy typ pytania,
+    // etykiety i blok oceny AI wyglądały identycznie jak w nauce. Odpowiedzi
+    // idą do /diagnosis/v2/answer (ocena od razu, także AI), bez sesji, XP,
+    // filtrów i „Pokaż odpowiedź”. mode "review" = przegląd po zakończeniu.
+    diagnosis?: {
+      token: string;
+      mode: "play" | "review";
+      answered?: Record<string, { response: any; feedback: any }>;
+      startIndex?: number;
+    };
   };
+  const isDiag = !!diagnosis;
+  const diagAnswered = diagnosis?.answered ?? {};
   // Zadanie od korepetytora: zestaw jest zamrożony po stronie serwera —
   // żadnych filtrów ani dociągania z banku, po ostatnim pytaniu wynik.
   const isAssignment = !!assignmentTargetId;
@@ -147,7 +161,13 @@ export function QuizPlayScreen() {
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const scrollRef = useRef<ScrollView>(null);
   // ── Matching shuffled options (must be top-level hook) ─────────────────
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    if (!diagnosis) return 0;
+    if (typeof diagnosis.startIndex === "number") return diagnosis.startIndex;
+    // Wznowienie: pierwsze pytanie bez odpowiedzi.
+    const i = initialQuestions.findIndex((q) => !diagnosis.answered?.[q.id]);
+    return i >= 0 ? i : 0;
+  });
 
   // Ten sam mechanizm co w egzaminie: zmiana pytania i wyjście z quizu
   // uciszają każdy grający odtwarzacz nagrania.
@@ -175,10 +195,18 @@ export function QuizPlayScreen() {
   const [stats, setStats] = useState({ correct: 0, totalXp: 0, answered: 0 });
   const startTime = useRef(Date.now());
   const viewedIds = useRef<Set<string>>(new Set());
-  const [resultsMap, setResultsMap] = useState<Record<string, any>>({});
+  const [resultsMap, setResultsMap] = useState<Record<string, any>>(() =>
+    Object.fromEntries(
+      Object.entries(diagAnswered).map(([id, a]) => [id, a.feedback]),
+    ),
+  );
   // Co user wpisał/wybrał przy danym pytaniu. Razem z `resultsMap` pozwala
   // wrócić do pytania i zobaczyć JEGO stan, zamiast czystego formularza.
-  const [answersMap, setAnswersMap] = useState<Record<string, any>>({});
+  const [answersMap, setAnswersMap] = useState<Record<string, any>>(() =>
+    Object.fromEntries(
+      Object.entries(diagAnswered).map(([id, a]) => [id, a.response]),
+    ),
+  );
   // ── Live filter state (identical to web) ────────────────────────────────
   const [filters, setFilters] = useState<LiveFilters>(() => ({
     ...EMPTY_FILTERS,
@@ -253,14 +281,14 @@ export function QuizPlayScreen() {
 
   // Load filter options once
   useEffect(() => {
-    if (subjectId && !isAssignment) {
+    if (subjectId && !isAssignment && !isDiag) {
       getFilterOptions(subjectId).then(setFilterOptions).catch(console.error);
     }
   }, [subjectId]);
 
   // ── Track question view (only once per question) ────────────────────────
   useEffect(() => {
-    if (!question || loadingMore || listeningLoading) return;
+    if (!question || loadingMore || listeningLoading || isDiag) return;
     if (viewedIds.current.has(question.id)) return;
     viewedIds.current.add(question.id);
     trackView(question.id, listeningSessionId || sessionId).catch(() => {});
@@ -526,6 +554,36 @@ export function QuizPlayScreen() {
     const response = getResponse();
     if (!response) return Alert.alert("Wybierz odpowiedź");
     setLoading(true);
+    if (diagnosis) {
+      try {
+        const res = await api<any>("/diagnosis/v2/answer", {
+          method: "POST",
+          body: { token: diagnosis.token, questionId: question.id, response },
+          // Ocena AI zadania otwartego trwa 10–30 s — domyślne 15 s ucinało ją
+          // w połowie (backend i tak zapisywał wynik, a uczeń widział błąd).
+          timeout: 60000,
+        });
+        setResult(res);
+        setSubmitted(true);
+        setResultsMap((prev) => ({ ...prev, [question.id]: res }));
+        setAnswersMap((prev) => ({ ...prev, [question.id]: response }));
+        setStats((prev) => ({
+          correct: prev.correct + (res.isCorrect ? 1 : 0),
+          totalXp: 0,
+          answered: prev.answered + 1,
+        }));
+      } catch (err: any) {
+        if (err instanceof ApiError && err.data?.code === "QUESTION_MALFORMED") {
+          Alert.alert("Pomijamy to pytanie", err.message);
+          handleNext();
+        } else {
+          Alert.alert("Błąd", err?.message || "Nie udało się zapisać odpowiedzi");
+        }
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     try {
       const timeSpentMs = Date.now() - startTime.current;
       const res = await submitAnswer({
@@ -582,6 +640,15 @@ export function QuizPlayScreen() {
   // ── SKIP — identical to web: loads more if pool empty ──────────────────
   const handleSkip = useCallback(() => {
     if (!question) return;
+    if (isDiag) {
+      // Pominięte pytanie można zrobić później — wraca w kolejce na końcu.
+      if (isLastQuestion) void finishDiagnosis();
+      else {
+        setCurrentIndex((i) => i + 1);
+        resetForNextQuestion();
+      }
+      return;
+    }
     apiSkipQuestion(question.id, listeningSessionId || sessionId).catch(
       console.error,
     );
@@ -649,6 +716,16 @@ export function QuizPlayScreen() {
 
   // ── NEXT — after feedback, loads more if pool empty ────────────────────
   const handleNext = useCallback(async () => {
+    if (isDiag) {
+      if (isLastQuestion) {
+        if (diagnosis!.mode === "review") navigation.goBack();
+        else await finishDiagnosis();
+      } else {
+        setCurrentIndex((i) => i + 1);
+        resetForNextQuestion();
+      }
+      return;
+    }
     // ── Listening: fetch next from AI ──────────────────────────────────
     if (isListeningOnly && listeningSessionId) {
       setListeningLoading(true);
@@ -734,6 +811,50 @@ export function QuizPlayScreen() {
   // Ostatnia seria zobaczona w odpowiedzi serwera na wysłaną odpowiedź.
   const lastStreak = useRef<number | null>(null);
 
+  // Koniec diagnozy: pytania bez odpowiedzi → zapytaj, czy wrócić do nich;
+  // potem /v2/finish i raport na ekranie diagnozy (zastępuje ten ekran).
+  const diagResultsRef = useRef(resultsMap);
+  diagResultsRef.current = resultsMap;
+  const finishDiagnosis = async (force = false) => {
+    if (!diagnosis) return;
+    // Ref, nie stan: handleNext/handleSkip to useCallback i trzymałyby
+    // starą mapę wyników.
+    const done = diagResultsRef.current;
+    const missing = questions
+      .map((q, i) => (done[q.id] ? null : i))
+      .filter((i): i is number => i !== null);
+    if (!force && missing.length > 0) {
+      Alert.alert(
+        missing.length === 1
+          ? "Jedno pytanie bez odpowiedzi"
+          : `${missing.length} pytań bez odpowiedzi`,
+        "Pytania bez odpowiedzi liczą się jako błędne. Wrócić do nich?",
+        [
+          {
+            text: "Wróć do pytań",
+            onPress: () => {
+              setCurrentIndex(missing[0]);
+              resetForNextQuestion();
+            },
+          },
+          { text: "Zakończ i pokaż wynik", onPress: () => void finishDiagnosis(true) },
+        ],
+      );
+      return;
+    }
+    setLoadingMore(true);
+    try {
+      await api("/diagnosis/v2/finish", {
+        method: "POST",
+        body: { token: diagnosis.token },
+      });
+      (navigation as any).replace("Diagnosis", { token: diagnosis.token });
+    } catch (err: any) {
+      setLoadingMore(false);
+      Alert.alert("Błąd", err?.message || "Nie udało się zakończyć diagnozy");
+    }
+  };
+
   const goToResults = async () => {
     if (isListeningOnly && listeningSessionId) {
       endListening(listeningSessionId).catch(console.error);
@@ -775,6 +896,22 @@ export function QuizPlayScreen() {
   }, [sessionId]);
 
   const handleQuit = () => {
+    if (diagnosis) {
+      if (diagnosis.mode === "review") {
+        navigation.goBack();
+        return;
+      }
+      Alert.alert(
+        "Przerwać diagnozę?",
+        "Odpowiedzi są zapisane — wrócisz do tego samego pytania z pulpitu.",
+        [
+          { text: "Zostaję", style: "cancel" },
+          { text: "Przerwij", onPress: () => navigation.goBack() },
+          { text: "Zakończ i pokaż wynik", onPress: () => void finishDiagnosis() },
+        ],
+      );
+      return;
+    }
     Alert.alert("Zakończyć?", "Twój postęp zostanie zapisany.", [
       { text: "Kontynuuj", style: "cancel" },
       {
@@ -964,6 +1101,11 @@ export function QuizPlayScreen() {
             )}
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {isDiag ? (
+              <Text style={{ fontSize: 11, color: colors.brand[500], fontWeight: "700" }}>
+                {diagnosis!.mode === "review" ? "Przegląd diagnozy" : "Darmowa diagnoza"}
+              </Text>
+            ) : (
             <Text
               style={{
                 fontSize: 11,
@@ -973,7 +1115,8 @@ export function QuizPlayScreen() {
             >
               +{stats.totalXp} XP
             </Text>
-            {stats.answered > 0 && (
+            )}
+            {!isDiag && stats.answered > 0 && (
               <TouchableOpacity onPress={endSession}>
                 <Text style={{ fontSize: 10, color: theme.textTertiary }}>
                   Zakończ
@@ -994,7 +1137,7 @@ export function QuizPlayScreen() {
         }}
       >
         {/* ── LIVE FILTER BAR (nie w zadaniu od korepetytora) ─────────── */}
-        {!isAssignment && (
+        {!isAssignment && !isDiag && (
         <LiveFilterBar
           filters={filters}
           onFiltersChange={handleFiltersChange}
@@ -1069,6 +1212,13 @@ export function QuizPlayScreen() {
                   {question.topic?.name}
                 </Text>
               </View>
+
+              {/* Powtórka z fiszek SM-2 (backend: smart-question-selector) */}
+              {(question as any).isReview && (
+                <View style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 9999, backgroundColor: isDark ? 'rgba(245,158,11,0.18)' : '#fffbeb' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#fcd34d' : '#b45309' }}>🔁 Powtórka</Text>
+                </View>
+              )}
 
               {/* Difficulty badge z label */}
               {(() => {
@@ -1164,6 +1314,12 @@ export function QuizPlayScreen() {
               {(() => {
                 const t = question.type;
                 const c = content;
+                // Diagnoza nie zużywa kredytów — backend oznacza pytania
+                // oceniane przez AI polem aiGraded.
+                if (isDiag)
+                  return (question as any).aiGraded ? (
+                    <AiBadge label="za darmo" isDark={isDark} />
+                  ) : null;
                 if (t === "LISTENING")
                   return <AiBadge label="~4 kr." isDark={isDark} />;
                 if (t === "OPEN")
@@ -1604,10 +1760,10 @@ export function QuizPlayScreen() {
                     marginBottom: 20,
                     borderColor: result.revealed
                       ? colors.navy[400]
-                      : result.isCorrect
-                        ? colors.brand[500]
-                        : result.score > 0
-                          ? "#f59e0b"
+                      : result.score > 0 && result.score < 1
+                        ? "#f59e0b"
+                        : result.isCorrect
+                          ? colors.brand[500]
                           : colors.red[500],
                     borderWidth: 2,
                   }}
@@ -1624,44 +1780,47 @@ export function QuizPlayScreen() {
                       name={
                         result.revealed
                           ? "eye"
-                          : result.isCorrect
-                            ? "checkmark-circle"
-                            : "close-circle"
+                          : result.score > 0 && result.score < 1
+                            ? "alert-circle"
+                            : result.isCorrect
+                              ? "checkmark-circle"
+                              : "close-circle"
                       }
                       size={24}
                       color={
                         result.revealed
                           ? colors.navy[400]
-                          : result.isCorrect
-                            ? colors.brand[500]
-                            : colors.red[500]
+                          : result.score > 0 && result.score < 1
+                            ? "#f59e0b"
+                            : result.isCorrect
+                              ? colors.brand[500]
+                              : colors.red[500]
                       }
                     />
                     <Text
                       style={{
                         fontSize: 16,
                         fontWeight: "700",
+                        // Wynik między 0 a 100% to „częściowo”, nawet gdy backend
+                        // zalicza go jako poprawny (≥50%) — „Brawo! 50%” myliło.
                         color: result.revealed
                           ? colors.navy[500]
-                          : result.isCorrect
-                            ? colors.brand[600]
-                            : result.score > 0
-                              ? "#d97706"
+                          : result.score > 0 && result.score < 1
+                            ? "#d97706"
+                            : result.isCorrect
+                              ? colors.brand[600]
                               : colors.red[600],
                       }}
                     >
                       {result.revealed
                         ? "Poprawna odpowiedź"
-                        : result.isCorrect
-                          ? "Brawo!"
-                          : result.score > 0
-                            ? `Częściowo — ${Math.round(result.score * 100)}%`
+                        : result.score > 0 && result.score < 1
+                          ? `Częściowo — ${Math.round(result.score * 100)}%`
+                          : result.isCorrect
+                            ? "Brawo!"
                             : "Niestety, źle"}
                     </Text>
-                    {!result.revealed &&
-                      result.score != null &&
-                      result.score !== 1 &&
-                      result.score !== 0 && (
+                    {false && (
                         <Text
                           style={{
                             fontSize: 13,
@@ -1685,28 +1844,44 @@ export function QuizPlayScreen() {
                       </Text>
                     )}
                   </View>
-                  {result.aiGrading?.feedback && (
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: theme.textSecondary,
-                        lineHeight: 21,
-                        marginBottom: 6,
-                      }}
-                    >
-                      {result.aiGrading.feedback}
-                    </Text>
-                  )}
-                  {result.explanation && !result.aiGrading?.feedback && (
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: theme.textSecondary,
-                        lineHeight: 21,
-                      }}
-                    >
-                      {parseChemText(result.explanation)}
-                    </Text>
+                  {(() => {
+                    // Jeden blok: werdykt, komentarz AI (ogólny albo jedynego
+                    // podpytania), wyjaśnienie — jak na webie.
+                    const subs = result.aiGrading?.subQuestions
+                      ? Object.values(result.aiGrading.subQuestions as Record<string, any>)
+                      : [];
+                    const aiText =
+                      result.aiGrading?.feedback ||
+                      (subs.length === 1 ? subs[0]?.feedback : null);
+                    if (!aiText) return null;
+                    return (
+                      <View style={{ marginBottom: 6 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: theme.textSecondary, letterSpacing: 1, marginBottom: 2 }}>
+                          🤖 KOMENTARZ AI
+                        </Text>
+                        <Text style={{ fontSize: 14, color: theme.text, lineHeight: 21 }}>
+                          {aiText}
+                        </Text>
+                      </View>
+                    );
+                  })()}
+                  {result.explanation && (
+                    <View style={{ marginTop: result.aiGrading ? 4 : 0 }}>
+                      {result.aiGrading && (
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: theme.textSecondary, letterSpacing: 1, marginBottom: 2 }}>
+                          WYJAŚNIENIE
+                        </Text>
+                      )}
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: theme.textSecondary,
+                          lineHeight: 21,
+                        }}
+                      >
+                        {parseChemText(result.explanation)}
+                      </Text>
+                    </View>
                   )}
                   {result.correctAnswer &&
                     !result.isCorrect &&
@@ -2932,7 +3107,9 @@ export function QuizPlayScreen() {
                             />
                           )}
                           {submitted &&
-                            result?.aiGrading?.subQuestions?.[sq.id] && (
+                            result?.aiGrading?.subQuestions?.[sq.id] &&
+                            // Jedno podpytanie: komentarz AI idzie do wspólnego bloku wyniku.
+                            Object.keys(result.aiGrading.subQuestions).length > 1 && (
                               <View
                                 style={{
                                   marginTop: 6,
@@ -2962,11 +3139,7 @@ export function QuizPlayScreen() {
                                         : colors.red[600],
                                   }}
                                 >
-                                  {result.aiGrading.subQuestions[sq.id].score >=
-                                  0.5
-                                    ? "✅"
-                                    : "❌"}{" "}
-                                  Ocena AI
+                                  🤖 Komentarz AI
                                 </Text>
                                 <Text
                                   style={{
@@ -3163,7 +3336,9 @@ export function QuizPlayScreen() {
                             />
                           )}
                           {submitted &&
-                            result?.aiGrading?.subQuestions?.[sq.id] && (
+                            result?.aiGrading?.subQuestions?.[sq.id] &&
+                            // Jedno podpytanie: komentarz AI idzie do wspólnego bloku wyniku.
+                            Object.keys(result.aiGrading.subQuestions).length > 1 && (
                               <View
                                 style={{
                                   marginTop: 6,
@@ -3193,11 +3368,7 @@ export function QuizPlayScreen() {
                                         : colors.red[600],
                                   }}
                                 >
-                                  {result.aiGrading.subQuestions[sq.id].score >=
-                                  0.5
-                                    ? "✅"
-                                    : "❌"}{" "}
-                                  Ocena AI
+                                  🤖 Komentarz AI
                                 </Text>
                                 <Text
                                   style={{
@@ -3353,7 +3524,13 @@ export function QuizPlayScreen() {
                     ? items.map((_: any, i: number) => i)
                     : items.map((s: any) => s.id);
                 if (!Array.isArray(selectedAnswer)) {
-                  setTimeout(() => setSelectedAnswer(ord), 0);
+                  // Tylko gdy nic nie ma: przy powrocie do pytania (i w przeglądzie
+                  // diagnozy) zapisana odpowiedź przychodzi w tym samym cyklu, a
+                  // bezwarunkowy set nadpisywał ją kolejnością wyjściową.
+                  setTimeout(
+                    () => setSelectedAnswer((prev: any) => (Array.isArray(prev) ? prev : ord)),
+                    0,
+                  );
                 }
                 const mv = (i: number, d: -1 | 1) => {
                   if (submitted) return;
@@ -4532,6 +4709,7 @@ export function QuizPlayScreen() {
                   </TouchableOpacity>
                 </View>
 
+                {!isDiag && (
                 <TouchableOpacity
                   disabled={revealing}
                   onPress={async () => {
@@ -4598,6 +4776,7 @@ export function QuizPlayScreen() {
                     Pokaż odpowiedź
                   </Text>
                 </TouchableOpacity>
+                )}
               </View>
               <View style={{ flex: 1, alignItems: "center" }}>
                 <Button
@@ -4672,7 +4851,13 @@ export function QuizPlayScreen() {
               )}
               <View style={{ flex: 1 }}>
                 <Button
-                  title="Następne pytanie →"
+                  title={
+                    isDiag && isLastQuestion
+                      ? diagnosis!.mode === "review"
+                        ? "Wróć do raportu"
+                        : "Zakończ i pokaż wynik"
+                      : "Następne pytanie"
+                  }
                   onPress={handleNext}
                   size="lg"
                   icon={

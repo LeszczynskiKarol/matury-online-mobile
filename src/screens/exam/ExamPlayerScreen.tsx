@@ -100,6 +100,10 @@ export function ExamPlayerScreen() {
   const [confirmModal, setConfirmModal] = useState(false);
   const [timeUpModal, setTimeUpModal] = useState(false);
   const [showNav, setShowNav] = useState(false);
+  // Ekran przed pierwszym zadaniem darmowego arkusza (jak na webie): co to
+  // jest, ile zajmuje, że nie ma zegara i od której części zacząć. Wraca
+  // z „← Części arkusza" jako przegląd części z postępem.
+  const [showIntro, setShowIntro] = useState(false);
   // Materiały (teksty źródłowe, mapy, wykresy) domyślnie ROZWINIĘTE — tak jak
   // w wersji webowej. Zwinięte na starcie zmuszały do klikania „Pokaż teksty"
   // przy każdym zadaniu z osobna, a bez materiału większości poleceń nie da
@@ -129,6 +133,12 @@ export function ExamPlayerScreen() {
         const examData = await startExam(examId);
         setData(examData);
         setAnswers(examData.savedAnswers || {});
+        if (
+          (examData as any).untimed &&
+          Object.keys(examData.savedAnswers || {}).length === 0
+        ) {
+          setShowIntro(true);
+        }
 
         const allTasks = examData.exam.content.parts.flatMap(
           (p: any) => p.tasks,
@@ -385,6 +395,93 @@ export function ExamPlayerScreen() {
 
   if (!data || !currentTask) return null;
 
+  // ── Ekran przed startem / przegląd części (darmowy arkusz) ─────────
+  if (showIntro) {
+    const parts: any[] = data.exam.content.parts.filter((p: any) => p.tasks?.length > 0);
+    const isAns = (id: string) => {
+      const a = answers[id];
+      if (a === null || a === undefined) return false;
+      if (typeof a === "string") return a.trim().length > 0;
+      if (typeof a === "object") return Object.keys(a).length > 0;
+      return true;
+    };
+    const started = answeredCount > 0;
+    // „Rozumienie tekstów pisanych" to czytanie, nie pisanie — stąd kolejność.
+    const kindOf = (name: string) =>
+      /słuch|listening/i.test(name)
+        ? "listening"
+        : /czyta|tekst|reading/i.test(name)
+          ? "reading"
+          : /pisemn|wypowied|wypracowan|writing|rozprawk/i.test(name)
+            ? "writing"
+            : "other";
+    const icon = (name: string) =>
+      ({ listening: "🎧", reading: "📖", writing: "✍️", other: "📝" } as Record<string, string>)[kindOf(name)];
+    const shortest = parts
+      .filter((p) => kindOf(p.name) !== "writing")
+      .reduce((m: any, p: any) => (!m || p.tasks.length < m.tasks.length ? p : m), null);
+    const startAt = (part: any) => {
+      const t = part.tasks.find((x: any) => !isAns(x.id)) ?? part.tasks[0];
+      setCurrentTaskId(t.id);
+      setShowIntro(false);
+    };
+    const zadan = (n: number) => (n === 1 ? "zadanie" : n < 5 ? "zadania" : "zadań");
+    return (
+      <ScrollView
+        style={{ flex: 1, backgroundColor: theme.background }}
+        contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20, paddingBottom: 60 }}
+      >
+        <Text style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: "800", color: colors.brand[500], backgroundColor: isDark ? "rgba(59,130,246,0.15)" : "#eff6ff", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, overflow: "hidden", marginBottom: 12 }}>
+          {started ? `TWÓJ DARMOWY ARKUSZ · ROZWIĄZANE ${answeredCount}/${allTasks.length}` : "TWÓJ DARMOWY ARKUSZ"}
+        </Text>
+        <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 8 }}>
+          {data.exam.title}
+        </Text>
+        <Text style={{ fontSize: 15, color: theme.textSecondary, lineHeight: 22, marginBottom: 16 }}>
+          {allTasks.length} {zadan(allTasks.length)} w {parts.length} {parts.length === 1 ? "części" : "częściach"}, {data.exam.maxPoints} pkt — tak jak na egzaminie. Na sali to {data.exam.timeMinutes} min, ale ten arkusz{" "}
+          <Text style={{ fontWeight: "800", color: theme.text }}>nie ma limitu czasu</Text>.
+        </Text>
+        {!started && (
+          <View style={{ gap: 8, marginBottom: 22 }}>
+            <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>⏸ Możesz rozwiązywać na raty — wyjdź w dowolnym momencie, odpowiedzi zapisują się same.</Text>
+            <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>🧭 Zadania rozwiązujesz w dowolnej kolejności — lista wszystkich jest pod przyciskiem ☰.</Text>
+            <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>✅ Oddać możesz w każdej chwili — zobaczysz wynik z tego, co rozwiązałeś, i z całego arkusza, z oceną AI.</Text>
+          </View>
+        )}
+        <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, letterSpacing: 1, marginBottom: 10 }}>
+          {started ? "PRZEJDŹ DO CZĘŚCI" : "OD CZEGO CHCESZ ZACZĄĆ?"}
+        </Text>
+        {parts.map((part: any) => (
+          <TouchableOpacity
+            key={part.id}
+            onPress={() => startAt(part)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.card, marginBottom: 8 }}
+          >
+            <Text style={{ fontSize: 24 }}>{icon(part.name)}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>{part.name}</Text>
+              <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                {part.tasks.length} {zadan(part.tasks.length)}
+                {part.maxPoints ? ` · ${part.maxPoints} pkt` : ""}
+                {started ? ` · rozwiązane ${part.tasks.filter((t: any) => isAns(t.id)).length}/${part.tasks.length}` : ""}
+              </Text>
+              {!started && shortest?.id === part.id && parts.length > 1 && (
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.brand[500], marginTop: 3 }}>dobry na start</Text>
+              )}
+            </View>
+            <Text style={{ fontSize: 16, color: theme.textSecondary }}>→</Text>
+          </TouchableOpacity>
+        ))}
+        <View style={{ marginTop: 12 }}>
+          <Button
+            title={started ? `Wróć do zadania ${currentTask.number} →` : "Zaczynam od początku →"}
+            onPress={() => (started ? setShowIntro(false) : parts[0] && startAt(parts[0]))}
+          />
+        </View>
+      </ScrollView>
+    );
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════════════════
@@ -536,7 +633,7 @@ export function ExamPlayerScreen() {
                 marginBottom: 8,
               }}
             >
-              Zakończyć egzamin?
+              {untimed ? "Oddać arkusz i zobaczyć wynik?" : "Zakończyć egzamin?"}
             </Text>
             <Text
               style={{
@@ -560,6 +657,11 @@ export function ExamPlayerScreen() {
                 ⚠ {allTasks.length - answeredCount} bez odpowiedzi → 0 pkt
               </Text>
             )}
+            {untimed && (
+              <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: "center", marginBottom: 14 }}>
+                Arkusz nie ma limitu czasu. Po oddaniu zobaczysz wynik z rozwiązanych zadań i z całego arkusza.
+              </Text>
+            )}
             <TouchableOpacity
               onPress={() => handleSubmit(false)}
               style={{
@@ -571,7 +673,7 @@ export function ExamPlayerScreen() {
               }}
             >
               <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>
-                🤖 Zakończ i oceń z AI
+                🤖 {untimed ? "Oddaj i oceń z AI" : "Zakończ i oceń z AI"}
               </Text>
               <View
                 style={{
@@ -877,7 +979,7 @@ export function ExamPlayerScreen() {
             }}
           >
             <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>
-              Zakończ
+              {untimed ? "Oddaj" : "Zakończ"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -917,6 +1019,13 @@ export function ExamPlayerScreen() {
               borderBottomColor: theme.borderLight,
             }}
           >
+            {untimed && (
+              <TouchableOpacity onPress={() => setShowIntro(true)} hitSlop={8}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.brand[500], marginBottom: 4 }}>
+                  ← Części arkusza
+                </Text>
+              </TouchableOpacity>
+            )}
             <Text
               style={{ fontSize: 16, fontWeight: "700", color: theme.text }}
             >
@@ -1112,7 +1221,7 @@ export function ExamPlayerScreen() {
           <Button title="Następne →" onPress={goNext} size="sm" />
         ) : (
           <Button
-            title="Zakończ ✓"
+            title={untimed ? "Oddaj ✓" : "Zakończ ✓"}
             onPress={() => setConfirmModal(true)}
             size="sm"
           />

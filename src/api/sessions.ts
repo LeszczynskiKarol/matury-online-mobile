@@ -134,7 +134,11 @@ export interface DashboardData {
     questionsAnswered: number;
     accuracy: number;
     adaptiveDifficulty: number;
+    // Kafelek schowany przez ucznia (web: ✕, apka: przytrzymanie).
+    hidden?: boolean;
   }[];
+  // Stan konta liczony w backendzie (services/account-state.ts).
+  account?: import("../components/common/AccountNote").AccountInfo;
   today: {
     questionsCompleted: number;
     xpEarned: number;
