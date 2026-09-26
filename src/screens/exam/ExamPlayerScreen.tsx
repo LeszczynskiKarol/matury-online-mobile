@@ -524,20 +524,11 @@ export function ExamPlayerScreen() {
         <Text style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: "800", color: colors.brand[500], backgroundColor: isDark ? "rgba(59,130,246,0.15)" : "#eff6ff", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, overflow: "hidden", marginBottom: 12 }}>
           {started ? `DARMOWY ARKUSZ TESTOWY · ROZWIĄZANE ${answeredCount}/${allTasks.length}` : "DARMOWY ARKUSZ TESTOWY"}
         </Text>
-        <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 8 }}>
+        <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 20 }}>
           {data.exam.title}
         </Text>
-        <Text style={{ fontSize: 15, color: theme.textSecondary, lineHeight: 22, marginBottom: 16 }}>
-          {allTasks.length} {zadan(allTasks.length)} w {parts.length} {parts.length === 1 ? "części" : "częściach"}, {data.exam.maxPoints} pkt — tak jak na egzaminie. Na sali to {data.exam.timeMinutes} min, ale ten arkusz{" "}
-          <Text style={{ fontWeight: "800", color: theme.text }}>nie ma limitu czasu</Text>.
-        </Text>
-        {!started && (
-          <View style={{ gap: 8, marginBottom: 22 }}>
-            <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>⏸ Możesz rozwiązywać na raty — wyjdź w dowolnym momencie, odpowiedzi zapisują się same.</Text>
-            <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>🧭 Zadania rozwiązujesz w dowolnej kolejności — lista wszystkich jest pod przyciskiem ☰.</Text>
-            <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}>✅ Oddać możesz w każdej chwili — zobaczysz wynik z rozwiązanych zadań, i z całego arkusza, z oceną AI.</Text>
-          </View>
-        )}
+        {/* Na mobile tylko etykieta, tytuł i „Od czego chcesz zacząć?” —
+            opis i lista punktów zajmowały cały ekran (Karol 26.09.2026). */}
         <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, letterSpacing: 1, marginBottom: 10 }}>
           {started ? "PRZEJDŹ DO CZĘŚCI" : "OD CZEGO CHCESZ ZACZĄĆ?"}
         </Text>
