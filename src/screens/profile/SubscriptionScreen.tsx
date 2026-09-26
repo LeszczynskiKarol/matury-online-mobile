@@ -35,6 +35,9 @@ import { colors } from "../../theme/colors";
 import { spacing } from "../../theme";
 import {
   SKU_PREMIUM_30DAYS,
+  SKU_CREDITS_200,
+  SKU_CREDITS_500,
+  SKU_CREDITS_1200,
   SKU_ANNUAL,
   SKU_PREMIUM_MONTHLY,
 } from "../../billing/products";
@@ -615,16 +618,14 @@ export function SubscriptionScreen() {
         <Card style={{ marginBottom: 20 }}>
           <View
             style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 8,
+              // Etykieta POD tytułem — obok wychodziła poza ekran (Karol 26.09.2026).
+              marginBottom: 10,
             }}
           >
             <Text style={{ fontSize: 15, fontWeight: "600", color: theme.text }}>
               Kredyty AI
             </Text>
-            <Text style={{ fontSize: 11, color: theme.textTertiary }}>
+            <Text style={{ fontSize: 12, color: theme.textTertiary, marginTop: 2 }}>
               {/* Jak na webie: ONE_TIME jedno doładowanie, pakiet co 30 dni,
                   anulowana już się nie odnowi. */}
               {isOneTime
@@ -652,7 +653,7 @@ export function SubscriptionScreen() {
                   {credits.remaining}
                 </Text>
                 <Text style={{ fontSize: 14, color: theme.textTertiary }}>
-                  / {credits.total}
+                  {credits.remaining > credits.total ? "kredytów (z dokupionymi)" : `/ ${credits.total}`}
                 </Text>
               </View>
               <View
@@ -671,7 +672,7 @@ export function SubscriptionScreen() {
                       credits.remaining / credits.total > 0.2
                         ? colors.brand[500]
                         : colors.red[500],
-                    width: `${Math.max(1, (credits.remaining / credits.total) * 100)}%`,
+                    width: `${Math.min(100, Math.max(1, (credits.remaining / credits.total) * 100))}%`,
                   }}
                 />
               </View>
@@ -693,6 +694,54 @@ export function SubscriptionScreen() {
               Historia zużycia →
             </Text>
           </TouchableOpacity>
+        </Card>
+      )}
+
+      {/* Dokup kredyty AI — jak na webie (3 pakiety, 500 „najlepszy”).
+          Produkty credits_* w Google Play, backend dopisuje je do puli
+          (play-billing.ts, grants: "credits"). Nie wygasają. */}
+      {isPremium && credits && (
+        <Card style={{ marginBottom: 20 }}>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: theme.text, marginBottom: 12 }}>
+            Dokup kredyty AI
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {[
+              { sku: SKU_CREDITS_200, credits: 200, fallback: "19 zł" },
+              { sku: SKU_CREDITS_500, credits: 500, fallback: "39 zł", best: true },
+              { sku: SKU_CREDITS_1200, credits: 1200, fallback: "79 zł" },
+            ].map((pk) => (
+              <TouchableOpacity
+                key={pk.sku}
+                onPress={() => billing.buy(pk.sku)}
+                disabled={!billing.hasProduct(pk.sku) || billing.pending !== null}
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  paddingHorizontal: 6,
+                  borderRadius: 16,
+                  borderWidth: 2,
+                  borderColor: pk.best ? colors.brand[500] : theme.border,
+                  alignItems: "center",
+                  opacity: !billing.hasProduct(pk.sku) ? 0.5 : billing.pending && billing.pending !== pk.sku ? 0.6 : 1,
+                }}
+              >
+                {pk.best && (
+                  <View style={{ position: "absolute", top: -10, backgroundColor: colors.brand[500], paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99 }}>
+                    <Text style={{ fontSize: 9, fontWeight: "800", color: "#fff" }}>NAJLEPSZY</Text>
+                  </View>
+                )}
+                <Text style={{ fontSize: 22, fontWeight: "800", color: theme.text }}>{pk.credits}</Text>
+                <Text style={{ fontSize: 11, color: theme.textTertiary, marginBottom: 6 }}>kredytów</Text>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>
+                  {billing.pending === pk.sku ? "…" : billing.priceOf(pk.sku) ?? pk.fallback}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={{ fontSize: 11, color: theme.textTertiary, textAlign: "center", marginTop: 10 }}>
+            Kredyty nie wygasają i dodają się do obecnej puli. Płatność przez Google Play.
+          </Text>
         </Card>
       )}
 
