@@ -82,7 +82,8 @@ export type RootStackParamList = {
 // ── Exam Stack ────────────────────────────────────────────────────────────
 export type ExamStackParamList = {
   // noAutoOpen — powrót z wyniku/porzucenia (zgodność z apką zdaj).
-  ExamSelector: { noAutoOpen?: boolean } | undefined;
+  // subjectSlug — wejście z kafla przedmiotu (filtr; jeden poziom = od razu arkusz).
+  ExamSelector: { noAutoOpen?: boolean; subjectSlug?: string } | undefined;
   // attempt: nonce wymuszający świeży start (zadanie od korepetytora).
   ExamPlay: { examId: string; subjectId: string; attempt?: number };
   ExamResults: { attemptId: string };

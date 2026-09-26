@@ -388,6 +388,10 @@ export function QuizSetupScreen() {
   const [questionCount, setQuestionCount] = useState(10);
   const [loading, setLoading] = useState(false);
   const [subjectDetail, setSubjectDetail] = useState<any>(null);
+  // Przedmioty z postępem na pulpicie („Twoje przedmioty”) — na górę wyboru.
+  const [mySlugs, setMySlugs] = useState<string[]>([]);
+  // Po wyborze przedmiotu siatka zwija się do jednej linijki „Zmień” (jak web).
+  const [subjectPickerOpen, setSubjectPickerOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -403,6 +407,10 @@ export function QuizSetupScreen() {
           if (cancelled) return;
 
           let active = subjectsData.filter((s) => s.isActive);
+          const mine: string[] = ((dashData as any)?.subjectProgress ?? [])
+            .filter((sp: any) => !sp.hidden)
+            .map((sp: any) => sp.subject.slug);
+          setMySlugs(mine);
 
           // Sortuj po ostatnich sesjach
           if (dashData?.recentSessions?.length) {
@@ -437,12 +445,25 @@ export function QuizSetupScreen() {
               const preselectedTopic = route.params?.topicId;
               if (preselectedTopic) setSelectedTopic(preselectedTopic);
             }
+            setSubjectPickerOpen(!match);
           } else {
-            // Reset gdy wracamy bez preselected
-            setSelectedSubject(null);
-            setSubjectDetail(null);
+            // Bez parametru: pierwszy z „Twoich przedmiotów”, a gdy ich nie
+            // ma — ostatnio ćwiczony (lista jest posortowana po sesjach).
+            // Zwykle wystarczy wtedy „Rozpocznij” (jak na webie).
+            const guess =
+              active.find((s) => mine.includes(s.slug)) ??
+              (dashData?.recentSessions?.length ? active[0] : null);
             setSelectedTopic(undefined);
             setSelectedCategory(null);
+            if (guess) {
+              setSelectedSubject(guess);
+              loadSubjectDetail(guess.slug);
+              setSubjectPickerOpen(false);
+            } else {
+              setSelectedSubject(null);
+              setSubjectDetail(null);
+              setSubjectPickerOpen(true);
+            }
           }
 
           setSubjects(active);
@@ -465,6 +486,7 @@ export function QuizSetupScreen() {
   };
 
   const handleSelectSubject = (s: Subject) => {
+    setSubjectPickerOpen(false);
     setSelectedSubject(s);
     setSelectedTopic(undefined);
     setSelectedCategory(null);
@@ -476,8 +498,12 @@ export function QuizSetupScreen() {
     : [];
   // Temat „XIV. Rozumienie ze słuchu" dubluje kafel kategorii „Słuchanie" —
   // zadania słuchowe mają tam swoje wejście (lustro webowego SessionSetup).
+  // Tematy z listy /subjects (mają depth / parentId / autora i liczby pytań
+  // z poddziałami), a gdyby ich brakło — ze szczegółów przedmiotu.
+  const topicSource: any[] =
+    (selectedSubject as any)?.topics ?? subjectDetail?.topics ?? [];
   const topics =
-    subjectDetail?.topics?.filter(
+    topicSource.filter(
       (t: any) =>
         t.questionCount > 0 &&
         t.slug !== "rozumienie-ze-sluchu" &&
@@ -545,266 +571,252 @@ export function QuizSetupScreen() {
     }
   };
 
+  // Hierarchia tematów jak na webie: polski (EPOCH_WORK) = epoki → lektury,
+  // matematyka = działy → szczegółowe tematy; bez poddziałów zwykła lista.
+  const hasDepth1 = topics.some((t: any) => t.depth === 1);
+  const isEpochWork = (selectedSubject as any)?.taxonomyType === "EPOCH_WORK";
+  const parents = hasDepth1 ? topics.filter((t: any) => (t.depth ?? 0) === 0) : [];
+  const children = hasDepth1 ? topics.filter((t: any) => t.depth === 1) : [];
+  const parentName = (id: string | null) => parents.find((e: any) => e.id === id)?.name;
+  const pytan = (n: number) =>
+    n === 1 ? "pytanie" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? "pytania" : "pytań";
+  const chipBg = theme.border + "66";
+  const stepTitle = (t: string) => (
+    <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text, marginBottom: 10 }}>{t}</Text>
+  );
+  const label = (t: string) => (
+    <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0.6, color: theme.textTertiary, marginBottom: 8, marginTop: 4 }}>
+      {t}
+    </Text>
+  );
+  const chip = (id: string | undefined, text: string, count?: number) => {
+    const on = selectedTopic === id;
+    return (
+      <TouchableOpacity
+        key={id ?? "__all__"}
+        onPress={() => setSelectedTopic(id)}
+        style={{
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: radius.xl,
+          backgroundColor: on ? colors.navy[500] : chipBg,
+        }}
+      >
+        <Text style={{ fontSize: 12, fontWeight: "600", color: on ? "#fff" : theme.text }}>
+          {text}
+          {count != null ? <Text style={{ opacity: 0.6 }}> ({count})</Text> : null}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+  const subjectTile = (s: Subject) => {
+    const on = selectedSubject?.id === s.id;
+    return (
+      <TouchableOpacity
+        key={s.id}
+        onPress={() => handleSelectSubject(s)}
+        style={{
+          width: "31%",
+          alignItems: "center",
+          paddingHorizontal: 6,
+          paddingVertical: 12,
+          borderRadius: radius.xl,
+          borderWidth: 2,
+          borderColor: on ? colors.brand[500] : theme.border,
+          backgroundColor: on ? colors.brand[500] + "0D" : "transparent",
+        }}
+      >
+        <Text style={{ fontSize: 24, marginBottom: 4 }}>{s.icon || "📚"}</Text>
+        <Text numberOfLines={2} style={{ fontSize: 11, fontWeight: "600", textAlign: "center", color: on ? colors.brand[600] : theme.text }}>
+          {s.name}
+        </Text>
+        <Text style={{ fontSize: 10, color: theme.textTertiary, marginTop: 2 }}>
+          {(s._count?.questions || 0).toLocaleString("pl-PL")} {pytan(s._count?.questions || 0)}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+  const mineList = mySlugs
+    .map((slug) => subjects.find((s) => s.slug === slug))
+    .filter(Boolean) as Subject[];
+  const restList = subjects.filter((s) => !mySlugs.includes(s.slug));
+  const topicName = selectedTopic
+    ? topics.find((t: any) => t.id === selectedTopic)?.name
+    : null;
+  const listeningOnly =
+    selectedCategory?.types.length === 1 && selectedCategory.types[0] === "LISTENING";
+
   return (
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
       contentContainerStyle={{
         paddingTop: insets.top + 16,
-        paddingBottom: insets.bottom + 100,
+        paddingBottom: 150,
         paddingHorizontal: spacing[5],
       }}
     >
-      <Text
-        style={{
-          fontSize: 28,
-          fontWeight: "700",
-          color: theme.text,
-          marginBottom: 4,
-        }}
-      >
+      <Text style={{ fontSize: 28, fontWeight: "700", color: theme.text, marginBottom: 4 }}>
         Nowa sesja nauki
       </Text>
-      <Text
-        style={{ fontSize: 14, color: theme.textSecondary, marginBottom: 24 }}
-      >
-        Wybierz przedmiot i typ sesji
+      <Text style={{ fontSize: 14, color: theme.textSecondary, marginBottom: 24 }}>
+        Wybierz, co chcesz ćwiczyć — resztę dobierze system.
       </Text>
 
-      <Text
-        style={{
-          fontSize: 14,
-          fontWeight: "600",
-          color: theme.text,
-          marginBottom: 10,
-        }}
-      >
-        1. Wybierz przedmiot
-      </Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ marginBottom: 24 }}
-      >
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {subjects.map((s) => (
-            <TouchableOpacity
-              key={s.id}
-              onPress={() => handleSelectSubject(s)}
-              style={{
-                alignItems: "center",
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                borderRadius: radius.xl,
-                borderWidth: 2,
-                borderColor:
-                  selectedSubject?.id === s.id
-                    ? colors.brand[500]
-                    : theme.border,
-                backgroundColor:
-                  selectedSubject?.id === s.id
-                    ? colors.brand[500] + "0D"
-                    : "transparent",
-                minWidth: 80,
-              }}
-            >
-              <Text style={{ fontSize: 24, marginBottom: 4 }}>
-                {s.icon || "📚"}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "600",
-                  color:
-                    selectedSubject?.id === s.id
-                      ? colors.brand[600]
-                      : theme.textSecondary,
-                }}
-              >
-                {s.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-
-      {selectedSubject && topics.length > 0 && (
-        <View style={{ marginBottom: 24 }}>
-          <Text
+      {/* 1. Przedmiot — zwinięty do jednej linijki po wyborze */}
+      <View style={{ marginBottom: 24 }}>
+        {stepTitle("1. Przedmiot")}
+        {selectedSubject && !subjectPickerOpen ? (
+          <View
             style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: theme.text,
-              marginBottom: 10,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              padding: 12,
+              borderRadius: 16,
+              borderWidth: 2,
+              borderColor: colors.brand[500] + "99",
+              backgroundColor: colors.brand[500] + "0D",
             }}
           >
-            2. Wybierz temat (opcjonalnie)
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              <TouchableOpacity
-                onPress={() => setSelectedTopic(undefined)}
+            <Text style={{ fontSize: 26 }}>{selectedSubject.icon || "📚"}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>{selectedSubject.name}</Text>
+              <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+                {(selectedSubject._count?.questions || 0).toLocaleString("pl-PL")}{" "}
+                {pytan(selectedSubject._count?.questions || 0)}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setSubjectPickerOpen(true)}
+              style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: chipBg }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand[500] }}>Zmień</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View>
+            {mineList.length > 0 && (
+              <>
+                {label("TWOJE PRZEDMIOTY")}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                  {mineList.map(subjectTile)}
+                </View>
+              </>
+            )}
+            {restList.length > 0 && (
+              <>
+                {mineList.length > 0 && label("POZOSTAŁE PRZEDMIOTY")}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {restList.map(subjectTile)}
+                </View>
+              </>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* 2. Temat (opcjonalnie) */}
+      {selectedSubject && topics.length > 0 && (
+        <View style={{ marginBottom: 24 }}>
+          {stepTitle("2. Wybierz temat (opcjonalnie)")}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+            {chip(undefined, "Wszystkie tematy")}
+            {!hasDepth1 && topics.map((t: any) => chip(t.id, t.name, t.questionCount))}
+          </View>
+          {hasDepth1 && parents.length > 0 && (
+            <View style={{ marginTop: 14 }}>
+              {label(isEpochWork ? "📚 EPOKI" : "📚 DZIAŁY")}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {parents.map((t: any) => chip(t.id, t.name, t.questionCount))}
+              </View>
+            </View>
+          )}
+          {hasDepth1 && children.length > 0 && (
+            <View style={{ marginTop: 14 }}>
+              {label(`${isEpochWork ? "📖 LEKTURY" : "🎯 SZCZEGÓŁOWE TEMATY"} (${children.length})`)}
+              <View
                 style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: radius.xl,
-                  backgroundColor: !selectedTopic
-                    ? colors.navy[500]
-                    : theme.inputBg,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  padding: 6,
+                  maxHeight: 320,
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "500",
-                    color: !selectedTopic ? "#fff" : theme.textSecondary,
-                  }}
-                >
-                  Wszystkie
-                </Text>
-              </TouchableOpacity>
-              {topics.map((t: any) => (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() => setSelectedTopic(t.id)}
-                  style={{
-                    paddingHorizontal: 14,
-                    paddingVertical: 8,
-                    borderRadius: radius.xl,
-                    backgroundColor:
-                      selectedTopic === t.id ? colors.navy[500] : theme.inputBg,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "500",
-                      color:
-                        selectedTopic === t.id ? "#fff" : theme.textSecondary,
-                    }}
-                  >
-                    {t.name} ({t.questionCount})
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                <ScrollView nestedScrollEnabled>
+                  {children.map((t: any) => {
+                    const on = selectedTopic === t.id;
+                    const ep = parentName(t.parentId);
+                    return (
+                      <TouchableOpacity
+                        key={t.id}
+                        onPress={() => setSelectedTopic(t.id)}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          borderRadius: 10,
+                          backgroundColor: on ? colors.navy[500] : "transparent",
+                        }}
+                      >
+                        <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "600", color: on ? "#fff" : theme.text }}>
+                          {t.name}
+                          <Text style={{ fontSize: 11, opacity: 0.6 }}> ({t.questionCount})</Text>
+                        </Text>
+                        {(t.author || ep) && (
+                          <Text numberOfLines={1} style={{ fontSize: 11, color: on ? "#ffffffb3" : theme.textSecondary }}>
+                            {[t.author, ep].filter(Boolean).join(" · ")}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
             </View>
-          </ScrollView>
+          )}
         </View>
       )}
 
+      {/* Kategoria pytań — kompaktowa siatka 2 kolumn */}
       {selectedSubject && (
         <View style={{ marginBottom: 24 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: theme.text,
-              marginBottom: 10,
-            }}
-          >
-            {topics.length > 0 ? "3" : "2"}. Kategoria pytań
-          </Text>
-          <View style={{ gap: 8 }}>
-            <TouchableOpacity
-              onPress={() => setSelectedCategory(null)}
-              activeOpacity={0.85}
-            >
-              <Card
-                variant="stat"
-                style={{
-                  borderWidth: 2,
-                  borderColor: !selectedCategory
-                    ? colors.brand[500]
-                    : isDark
-                      ? theme.cardBorder
-                      : "transparent",
-                  backgroundColor: !selectedCategory
-                    ? colors.brand[500] + "0D"
-                    : isDark
-                      ? theme.card
-                      : "#FFFFFF",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <Text style={{ fontSize: 24 }}>📚</Text>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: theme.text,
-                    }}
-                  >
-                    Wszystkie typy
-                  </Text>
-                  <Text style={{ fontSize: 11, color: theme.textSecondary }}>
-                    Mix wszystkich rodzajów pytań
-                  </Text>
-                </View>
-              </Card>
-            </TouchableOpacity>
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.label}
-                onPress={() => setSelectedCategory(cat)}
-                activeOpacity={0.85}
-              >
-                <Card
-                  variant="stat"
+          {stepTitle(`${topics.length > 0 ? "3" : "2"}. Kategoria pytań`)}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {[null, ...categories].map((cat) => {
+              const on = cat ? selectedCategory?.label === cat.label : !selectedCategory;
+              return (
+                <TouchableOpacity
+                  key={cat?.label ?? "__all__"}
+                  onPress={() => setSelectedCategory(cat)}
+                  activeOpacity={0.85}
                   style={{
+                    width: "48.5%",
+                    padding: 12,
+                    borderRadius: 14,
                     borderWidth: 2,
-                    borderColor:
-                      selectedCategory?.label === cat.label
-                        ? colors.brand[500]
-                        : isDark
-                          ? theme.cardBorder
-                          : "transparent",
-                    backgroundColor:
-                      selectedCategory?.label === cat.label
-                        ? colors.brand[500] + "0D"
-                        : isDark
-                          ? theme.card
-                          : "#FFFFFF",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
+                    borderColor: on ? colors.brand[500] : theme.border,
+                    backgroundColor: on ? colors.brand[500] + "0D" : isDark ? theme.card : "#FFFFFF",
                   }}
                 >
-                  <Text style={{ fontSize: 24 }}>{cat.icon}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: theme.text,
-                      }}
-                    >
-                      {cat.label}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: theme.textSecondary }}>
-                      {cat.desc}
-                    </Text>
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            ))}
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>{cat ? cat.icon : "📚"}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
+                    {cat ? cat.label : "Wszystkie typy"}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, lineHeight: 15 }}>
+                    {cat ? cat.desc : "Mix wszystkich rodzajów pytań"}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       )}
 
+      {/* Liczba pytań */}
       {selectedSubject && (
-        <View style={{ marginBottom: 32 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: theme.text,
-              marginBottom: 10,
-            }}
-          >
-            {topics.length > 0 ? "4" : "3"}. Liczba pytań
-          </Text>
+        <View style={{ marginBottom: 16 }}>
+          {stepTitle(`${topics.length > 0 ? "4" : "3"}. Liczba pytań`)}
           <View style={{ flexDirection: "row", gap: 8 }}>
             {QUESTION_COUNTS.map((n) => (
               <TouchableOpacity
@@ -814,18 +826,11 @@ export function QuizSetupScreen() {
                   flex: 1,
                   paddingVertical: 12,
                   borderRadius: radius.xl,
-                  backgroundColor:
-                    n === questionCount ? colors.brand[500] : theme.inputBg,
+                  backgroundColor: n === questionCount ? colors.brand[500] : chipBg,
                   alignItems: "center",
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 15,
-                    fontWeight: "600",
-                    color: n === questionCount ? "#fff" : theme.textSecondary,
-                  }}
-                >
+                <Text style={{ fontSize: 15, fontWeight: "600", color: n === questionCount ? "#fff" : theme.text }}>
                   {n}
                 </Text>
               </TouchableOpacity>
@@ -833,16 +838,64 @@ export function QuizSetupScreen() {
           </View>
         </View>
       )}
-
-      {selectedSubject && (
-        <Button
-          title={`Rozpocznij sesję (${questionCount} pytań)`}
-          onPress={handleStart}
-          loading={loading}
-          icon={<Ionicons name="play" size={18} color="#fff" />}
-          size="lg"
-        />
-      )}
     </ScrollView>
+
+    {/* Przyklejony pasek z podsumowaniem wyboru — zawsze widać, co się
+        uruchomi, bez przewijania na koniec (jak na webie). */}
+    {selectedSubject && (
+      <View
+        style={{
+          position: "absolute",
+          left: 12,
+          right: 12,
+          bottom: 12,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          padding: 12,
+          paddingLeft: 14,
+          borderRadius: 18,
+          borderWidth: 1,
+          borderColor: theme.border,
+          backgroundColor: theme.card,
+          shadowColor: "#000",
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 8,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: "700", color: theme.text }}>
+            {selectedSubject.icon || "📚"} {selectedSubject.name}
+          </Text>
+          <Text numberOfLines={1} style={{ fontSize: 11, color: theme.textSecondary }}>
+            {topicName ?? "wszystkie tematy"} ·{" "}
+            {selectedCategory ? selectedCategory.label.toLowerCase() : "wszystkie typy"}
+            {listeningOnly ? "" : ` · ${questionCount} ${pytan(questionCount)}`}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={handleStart}
+          disabled={loading}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            paddingHorizontal: 18,
+            paddingVertical: 12,
+            borderRadius: 14,
+            backgroundColor: colors.brand[500],
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "800", color: "#fff" }}>
+            {loading ? "Startuję…" : "Rozpocznij"}
+          </Text>
+          {!loading && <Ionicons name="play" size={16} color="#fff" />}
+        </TouchableOpacity>
+      </View>
+    )}
+    </View>
   );
 }

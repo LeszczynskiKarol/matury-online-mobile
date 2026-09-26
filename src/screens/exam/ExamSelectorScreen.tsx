@@ -1,6 +1,6 @@
 // src/screens/exam/ExamSelectorScreen.tsx
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
@@ -50,6 +50,20 @@ export function ExamSelectorScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
+  const route = useRoute<any>();
+  // Wejście z kafla przedmiotu na pulpicie (?przedmiot= na webie): lista
+  // zawężona do jednego przedmiotu, „Wszystkie przedmioty →” zdejmuje filtr.
+  const paramSlug: string | undefined = route.params?.subjectSlug;
+  const noAutoOpen: boolean = !!route.params?.noAutoOpen;
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(paramSlug ?? null);
+  // Auto-otwarcie arkusza przy jednym poziomie — raz na wejście z pulpitu.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    setSubjectFilter(paramSlug ?? null);
+    autoOpened.current = false;
+  }, [paramSlug]);
+  // Przedmioty, które uczeń już ćwiczy (postęp na pulpicie) — na górę.
+  const [mySlugs, setMySlugs] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
@@ -104,14 +118,20 @@ export function ExamSelectorScreen() {
             setActiveExam({ ...active, expired: true } as any);
           }
 
-          // Subjects + order równolegle
-          const [subs, orderRes] = await Promise.all([
+          // Subjects + order + moje przedmioty równolegle
+          const [subs, orderRes, dash] = await Promise.all([
             api<any[]>("/subjects"),
             api<{ order: string[] }>("/exams/subjects-order").catch(() => ({
               order: [] as string[],
             })),
+            api<any>("/dashboard").catch(() => null),
           ]);
           if (cancelled) return;
+          setMySlugs(
+            (dash?.subjectProgress ?? [])
+              .filter((sp: any) => !sp.hidden)
+              .map((sp: any) => sp.subject.slug),
+          );
 
           // Wszystkie kombinacje przedmiot × poziom równolegle
           const checks = subs.flatMap((sub: any) =>
@@ -209,6 +229,17 @@ export function ExamSelectorScreen() {
       setLoadingExams(false);
     }
   };
+
+  // Kafel przedmiotu z pulpitu, przedmiot z jednym poziomem (np. fizyka PR):
+  // nie ma czego wybierać — od razu arkusz (jak na webie).
+  useEffect(() => {
+    if (loading || autoOpened.current || noAutoOpen || !subjectFilter) return;
+    if (isPremium !== true) return;
+    const lv = examInfos.filter((i) => i.subjectSlug === subjectFilter);
+    if (lv.length !== 1) return;
+    autoOpened.current = true;
+    void handleSubjectClick(lv[0]);
+  }, [loading, examInfos, subjectFilter, noAutoOpen, isPremium]);
 
   const onDiscard = async (attemptId: string) => {
     if (discardArmed !== attemptId) {
@@ -587,42 +618,36 @@ export function ExamSelectorScreen() {
       {/* Katalog zawsze widoczny — arkusze w toku go nie blokują */}
       {(
         <>
-          {/* Subject selection */}
-          {!selectedSubject && (
-            <>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "700",
-                  color: theme.text,
-                  marginBottom: 12,
-                }}
-              >
-                Wybierz przedmiot
-              </Text>
-
-              {examInfos.length === 0 && (
+          {/* Subject selection — jedna karta na przedmiot, poziomy jako
+              przyciski w karcie; „Twoje przedmioty” na górze (jak web). */}
+          {!selectedSubject && (() => {
+            const list = subjectFilter
+              ? examInfos.filter((i) => i.subjectSlug === subjectFilter)
+              : examInfos;
+            const bySubject = new Map<string, SubjectExamInfo[]>();
+            for (const info of list) {
+              const arr = bySubject.get(info.subjectSlug) ?? [];
+              arr.push(info);
+              bySubject.set(info.subjectSlug, arr);
+            }
+            const groups = [...bySubject.values()];
+            const mine = groups.filter((g) => mySlugs.includes(g[0].subjectSlug));
+            const rest = groups.filter((g) => !mySlugs.includes(g[0].subjectSlug));
+            const arkuszy = (n: number) =>
+              n === 1
+                ? "arkusz"
+                : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)
+                  ? "arkusze"
+                  : "arkuszy";
+            const card = (g: SubjectExamInfo[]) => {
+              const head = g[0];
+              const unseen = g.reduce((a, x) => a + (x.unseenCount || 0), 0);
+              const done = g.reduce((a, x) => a + (x.completedCount || 0), 0);
+              return (
                 <View
+                  key={head.subjectSlug}
                   style={{
-                    padding: 32,
-                    alignItems: "center",
-                    backgroundColor: theme.card,
-                    borderRadius: 20,
-                  }}
-                >
-                  <Text style={{ fontSize: 40, marginBottom: 12 }}>🚧</Text>
-                  <Text style={{ fontSize: 14, color: theme.textSecondary }}>
-                    Egzamin Live będzie dostępny wkrótce.
-                  </Text>
-                </View>
-              )}
-
-              {examInfos.map((info) => (
-                <TouchableOpacity
-                  key={`${info.subjectId}-${info.level}`}
-                  onPress={() => handleSubjectClick(info)}
-                  style={{
-                    padding: 20,
+                    padding: 16,
                     borderRadius: 20,
                     backgroundColor: theme.card,
                     borderWidth: 1,
@@ -630,86 +655,118 @@ export function ExamSelectorScreen() {
                     marginBottom: 12,
                   }}
                 >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 12,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <Text style={{ fontSize: 28 }}>{info.subjectIcon}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <Text style={{ fontSize: 28 }}>{head.subjectIcon}</Text>
                     <View style={{ flex: 1 }}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                          gap: 6,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 16,
-                            fontWeight: "700",
-                            color: theme.text,
-                          }}
-                        >
-                          {info.subjectName}
-                        </Text>
-                        <View
-                          style={{
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            borderRadius: 999,
-                            backgroundColor:
-                              info.level === "ROZSZERZONY"
-                                ? "#f3e8ff"
-                                : "#e0f2fe",
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 9,
-                              fontWeight: "800",
-                              color:
-                                info.level === "ROZSZERZONY"
-                                  ? "#9333ea"
-                                  : "#0284c7",
-                              letterSpacing: 0.3,
-                            }}
-                          >
-                            {info.level}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text
-                        style={{ fontSize: 12, color: theme.textSecondary }}
-                      >
-                        {info.timeMinutes} min • {info.maxPoints} pkt
+                      <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>
+                        {head.subjectName}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: theme.textSecondary }}>
+                        {unseen} {arkuszy(unseen)} do zrobienia
+                        {done > 0 ? ` · ✓ ${done} zrobione` : ""}
                       </Text>
                     </View>
                   </View>
-                  <View style={{ flexDirection: "row", gap: 12 }}>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: colors.brand[500],
-                        fontWeight: "600",
-                      }}
-                    >
-                      {info.unseenCount} nowych
-                    </Text>
-                    {info.completedCount > 0 && (
-                      <Text style={{ fontSize: 12, color: theme.textTertiary }}>
-                        {info.completedCount} ukończonych
-                      </Text>
-                    )}
+                  <View style={{ gap: 8 }}>
+                    {g.map((info) => {
+                      const pr = info.level === "ROZSZERZONY";
+                      return (
+                        <TouchableOpacity
+                          key={info.level}
+                          disabled={loadingExams}
+                          onPress={() => handleSubjectClick(info)}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            paddingHorizontal: 14,
+                            paddingVertical: 11,
+                            borderRadius: 14,
+                            borderWidth: 1,
+                            borderColor: pr ? "#a855f766" : "#0ea5e966",
+                            backgroundColor: pr ? "#a855f714" : "#0ea5e914",
+                            opacity: loadingExams ? 0.6 : 1,
+                          }}
+                        >
+                          <Text style={{ fontSize: 14, fontWeight: "700", color: pr ? "#a855f7" : "#0ea5e9" }}>
+                            {pr ? "Rozszerzony" : "Podstawowy"}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: theme.textSecondary }}>
+                            {info.timeMinutes} min · {info.maxPoints} pkt →
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                </TouchableOpacity>
-              ))}
-            </>
-          )}
+                </View>
+              );
+            };
+            const label = (t: string) => (
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "800",
+                  letterSpacing: 0.6,
+                  color: theme.textTertiary,
+                  marginBottom: 10,
+                  marginTop: 4,
+                }}
+              >
+                {t}
+              </Text>
+            );
+            return (
+              <>
+                {subjectFilter && groups.length > 0 ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, flexShrink: 1 }}>
+                      {groups[0][0].subjectIcon} {groups[0][0].subjectName} — wybierz poziom
+                    </Text>
+                    <TouchableOpacity onPress={() => setSubjectFilter(null)} hitSlop={8}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand[500] }}>
+                        Wszystkie przedmioty →
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12 }}>
+                    Wybierz przedmiot
+                  </Text>
+                )}
+
+                {examInfos.length === 0 && (
+                  <View
+                    style={{
+                      padding: 32,
+                      alignItems: "center",
+                      backgroundColor: theme.card,
+                      borderRadius: 20,
+                    }}
+                  >
+                    <Text style={{ fontSize: 40, marginBottom: 12 }}>🚧</Text>
+                    <Text style={{ fontSize: 14, color: theme.textSecondary }}>
+                      Egzamin Live będzie dostępny wkrótce.
+                    </Text>
+                  </View>
+                )}
+
+                {subjectFilter || mine.length === 0 ? (
+                  groups.map(card)
+                ) : (
+                  <>
+                    {label("TWOJE PRZEDMIOTY")}
+                    {mine.map(card)}
+                    {rest.length > 0 && (
+                      <>
+                        {label("POZOSTAŁE PRZEDMIOTY")}
+                        {rest.map(card)}
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()}
 
           {/* Exam list */}
           {selectedSubject && (
