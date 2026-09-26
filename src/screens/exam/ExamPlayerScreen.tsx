@@ -432,7 +432,7 @@ export function ExamPlayerScreen() {
         contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20, paddingBottom: 60 }}
       >
         <Text style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: "800", color: colors.brand[500], backgroundColor: isDark ? "rgba(59,130,246,0.15)" : "#eff6ff", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, overflow: "hidden", marginBottom: 12 }}>
-          {started ? `TWÓJ DARMOWY ARKUSZ · ROZWIĄZANE ${answeredCount}/${allTasks.length}` : "TWÓJ DARMOWY ARKUSZ"}
+          {started ? `DARMOWY ARKUSZ TESTOWY · ROZWIĄZANE ${answeredCount}/${allTasks.length}` : "DARMOWY ARKUSZ TESTOWY"}
         </Text>
         <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 8 }}>
           {data.exam.title}

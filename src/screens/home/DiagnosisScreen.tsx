@@ -409,7 +409,7 @@ export function DiagnosisScreen() {
           Sprawdź za darmo swoją wiedzę i działanie apki
         </Text>
         <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, marginBottom: 18 }}>
-          Tak wygląda nauka w apce: 13 zadań różnego typu z wybranego egzaminu,
+          Tak wygląda nauka w apce: 13 zadań różnego typu z wybranego przedmiotu,
           jak w Quizie — z oceną i wyjaśnieniem po każdym, a zadania otwarte
           ocenia AI. Możesz przerwać i wrócić. Jedna darmowa diagnoza na konto.
         </Text>

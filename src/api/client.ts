@@ -11,10 +11,15 @@ import Constants from "expo-constants";
 const APP_VERSION: string = Constants.expoConfig?.version ?? "unknown";
 
 // ── Konfiguracja ──────────────────────────────────────────────────────────
-// PROD backend — ten sam co web app
-const API_BASE_URL = "https://www.matury-online.pl";
-// Lokalny backend do testów na emulatorze (wymaga `adb reverse tcp:3000 tcp:3000`):
-// const API_BASE_URL = "http://localhost:3000"; // dev-only: wymaga adb reverse tcp:3000 tcp:3000
+// PROD backend — ten sam co web app. Build release bierze ZAWSZE produkcję.
+// W trybie deweloperskim można wskazać lokalny backend zmienną Metro
+// `EXPO_PUBLIC_API_URL` (np. http://localhost:3002 + `adb reverse`) — bez
+// ręcznego odkomentowywania, które groziło wysłaniem złego adresu do Sklepu
+// (lustro zdaj-angielski-mobile/src/api/client.ts). Bez zmiennej: produkcja.
+const PROD_URL = "https://www.matury-online.pl";
+const API_BASE_URL = __DEV__
+  ? process.env.EXPO_PUBLIC_API_URL || PROD_URL
+  : PROD_URL;
 
 const TOKEN_KEY = "matury_auth_token";
 
