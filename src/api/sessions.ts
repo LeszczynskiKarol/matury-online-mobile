@@ -109,7 +109,7 @@ export async function submitAnswer(data: {
     // 15 s ucinało żądanie, backend i tak oceniał i pobierał kredyty, a uczeń
     // widział błąd i klikał „Sprawdź” jeszcze raz (27.09.2026: 3× to samo
     // pytanie, 12 kredytów).
-    timeout: 60000,
+    timeout: 120000,
   });
 }
 

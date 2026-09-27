@@ -39,7 +39,7 @@ export async function startListening(params: {
   return api<ListeningStartResponse>("/listening/start", {
     method: "POST",
     body: params,
-    timeout: 60000, // listening generation takes 20-30s
+    timeout: 120000, // listening generation takes 20-30s
   });
 }
 
@@ -51,7 +51,7 @@ export async function nextListening(params: {
   return api<ListeningNextResponse>("/listening/next", {
     method: "POST",
     body: params,
-    timeout: 60000,
+    timeout: 120000,
   });
 }
 

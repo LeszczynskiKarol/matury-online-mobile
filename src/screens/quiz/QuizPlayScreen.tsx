@@ -580,7 +580,7 @@ export function QuizPlayScreen() {
           body: { token: diagnosis.token, questionId: question.id, response },
           // Ocena AI zadania otwartego trwa 10–30 s — domyślne 15 s ucinało ją
           // w połowie (backend i tak zapisywał wynik, a uczeń widział błąd).
-          timeout: 60000,
+          timeout: 120000,
         });
         setResult(res);
         setSubmitted(true);

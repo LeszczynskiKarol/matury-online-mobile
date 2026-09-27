@@ -59,6 +59,20 @@ export class ApiError extends Error {
   }
 }
 
+// ── Limity czasu ──────────────────────────────────────────────────────────
+// Dawne 15 s dla wszystkiego ucinało ocenę AI (luki, zadania otwarte, arkusz):
+// backend i tak oceniał i pobierał kredyty, a uczeń widział błąd i klikał
+// „Sprawdź” jeszcze raz (27.09.2026). Operacje z oceną/generowaniem AI mają
+// długie limity, zwykłe zapytania 45 s. Jawne `timeout` w wywołaniu wygrywa.
+function defaultTimeoutFor(path: string): number {
+  if (/^\/exams\/[^/]+\/(submit|grade|estimate)/.test(path)) return 180000;
+  if (/^\/admin\//.test(path)) return 180000;
+  if (/^\/(answers\/submit|diagnosis\/v2\/(answer|finish)|placement\/submit|listening\/(start|next))/.test(path)) return 120000;
+  if (/^\/vocab\/(session|answer)/.test(path)) return 90000;
+  if (/^\/questions\/[^/]+\/reveal/.test(path)) return 30000;
+  return 45000;
+}
+
 // ── Generic request ───────────────────────────────────────────────────────
 interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -77,8 +91,8 @@ export async function api<T = any>(
     body,
     params,
     auth = true,
-    timeout = 15000,
   } = options;
+  const timeout = options.timeout ?? defaultTimeoutFor(path);
 
   // Build URL with query params
   let url = `${API_BASE_URL}/api${path}`;
