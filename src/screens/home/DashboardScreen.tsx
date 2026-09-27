@@ -28,6 +28,7 @@ import { ProgressBar } from "../../components/common/ProgressBar";
 import { FreePanel } from "../../components/common/FreePanel";
 import { AccountNote } from "../../components/common/AccountNote";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
+import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { TutorHomeCard } from "../../components/tutor/TutorHomeCard";
 import { SprawdzianLektura } from "../../components/common/SprawdzianLektura";
 import { SubjectTile } from "../../components/common/SubjectTile";
@@ -591,6 +592,16 @@ export function DashboardScreen() {
             Zobacz wyniki →
           </Text>
         </TouchableOpacity>
+      )}
+
+      {/* Prośba o opinię przy serii (≥ 2 dni, jak na webie) — moment, w którym
+          uczniowi faktycznie idzie. Komponent sam sprawdza, czy konto już pytano. */}
+      {(data?.user.currentStreak || 0) >= 2 && (
+        <TestimonialPrompt
+          trigger="streak"
+          context={{ streakDays: data?.user.currentStreak }}
+          style={{ marginBottom: 20 }}
+        />
       )}
 
       {/* ═══ 3 HERO TILES — Egzamin / Listening / Quiz ═══ */}

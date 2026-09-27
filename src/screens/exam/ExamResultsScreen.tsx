@@ -31,6 +31,7 @@ import { getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
 import { api } from "../../api/client";
 import { getPracticeLinks, type PracticeLinks } from "../../api/premium";
 import { maybeAskForReview } from "../../lib/reviewPrompt";
+import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { askForPushPermissionOnce } from "../../lib/pushNotifications";
 import type { ExamStackParamList } from "../../navigation/types";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
@@ -838,6 +839,19 @@ export function ExamResultsScreen() {
             >
               {feedback.motivationalMessage}
             </Text>
+
+            {/* Opinia po arkuszu — próg 40% jak na webie (przy 60% prośba prawie
+                się nie pokazywała). Komponent pilnuje, żeby nie pytać dwa razy. */}
+            {grading.percentage >= 40 && (
+              <TestimonialPrompt
+                trigger="exam"
+                context={{
+                  percentage: grading.percentage,
+                  subject: data?.exam?.subject?.slug ?? examContent?.subject ?? null,
+                }}
+                style={{ marginBottom: 20 }}
+              />
+            )}
 
             {/* Grade with AI button */}
             {feedback.isPartialGrading && (

@@ -36,6 +36,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { api, ApiError } from "../../api/client";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { TYPE_LABELS } from "../quiz/QuizPlayScreen";
 import { difficultyLabel, difficultyColor } from "../../lib/difficulty";
 import { getTrialStatus, claimTrial, type TrialStatus } from "../../api/premium";
@@ -647,6 +648,14 @@ export function DiagnosisScreen() {
             />
           </Card>
         )}
+
+        {/* Diagnoza to najczęściej kończona ścieżka — dobre miejsce na prośbę
+            o ocenę. Pod ofertą, żeby jej nie przykrywać (jak na webie). */}
+        <TestimonialPrompt
+          trigger="diagnosis"
+          context={{ percentage: r.scorePercent, subject: r.subject.slug }}
+          style={{ marginBottom: 16 }}
+        />
 
         <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 10 }}>
           Pytania i odpowiedzi
