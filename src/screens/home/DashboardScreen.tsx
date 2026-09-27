@@ -344,7 +344,11 @@ export function DashboardScreen() {
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <View
+          {/* Awatar otwiera Profil — jak w apkach zdaj i osmo (Karol 27.09.2026). */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            accessibilityLabel="Profil"
+            onPress={() => navigation.navigate("ProfileTab", { screen: "ProfileMain" })}
             style={{
               width: 44,
               height: 44,
@@ -365,7 +369,7 @@ export function DashboardScreen() {
                 {(user?.name?.[0] || user?.email?.[0] || "M").toUpperCase()}
               </Text>
             )}
-          </View>
+          </TouchableOpacity>
           <View>
             <Text style={{ fontSize: 14, color: theme.textSecondary }}>
               Witaj 👋
