@@ -4799,8 +4799,11 @@ export function QuizPlayScreen() {
                 )}
                 <TouchableOpacity
                   onPress={handleSkip}
+                  // Pominięcie w trakcie oceny zostawiało żądanie w locie —
+                  // jego wynik lądował potem na kolejnym pytaniu.
+                  disabled={loading}
                   hitSlop={8}
-                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6 }}
+                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, opacity: loading ? 0.35 : 1 }}
                 >
                   <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
                     Pomiń
