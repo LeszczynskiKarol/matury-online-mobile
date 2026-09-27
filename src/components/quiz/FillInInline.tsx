@@ -126,7 +126,7 @@ export function FillInInline({
           value={showCorrect ? b.acceptedAnswers![0] : values[b.id] || ""}
           onChangeText={(t) => !submitted && onChange({ ...values, [b.id]: t })}
           editable={!submitted}
-          placeholder={`${blankIndex + 1}.`}
+          placeholder={blanks.length > 1 ? `${blankIndex + 1}.` : "…"}
           placeholderTextColor={theme.textTertiary}
           autoCorrect={false}
           autoCapitalize="none"

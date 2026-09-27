@@ -2963,9 +2963,11 @@ export function QuizPlayScreen() {
                               marginBottom: 4,
                             }}
                           >
-                            {b.label || b.hint || b.baseWord
-                              ? `${i + 1}. ${b.label || b.hint || b.baseWord}`
-                              : `Luka ${i + 1}`}
+                            {blanks.length > 1
+                              ? b.label || b.hint || b.baseWord
+                                ? `${i + 1}. ${b.label || b.hint || b.baseWord}`
+                                : `Luka ${i + 1}`
+                              : b.label || b.hint || b.baseWord || "Odpowiedź"}
                           </Text>
                           <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                             value={
