@@ -2679,9 +2679,19 @@ export function QuizPlayScreen() {
                   (Array.isArray(selectedAnswer)
                     ? {}
                     : (selectedAnswer as any)) || {};
+                // Zajęta opcja przechodzi do nowego elementu (poprzedni zostaje
+                // pusty), ponowne stuknięcie wybranej ją odznacza — bez szukania,
+                // gdzie jest użyta, i zwalniania ręcznie (Karol 27.09.2026).
                 const setMatch = (left: string, right: string) => {
                   if (submitted) return;
-                  setSelectedAnswer({ ...answers, [left]: right } as any);
+                  const next: Record<string, string> = { ...(answers as any) };
+                  if (next[left] === right) {
+                    delete next[left];
+                  } else {
+                    for (const k of Object.keys(next)) if (k !== left && next[k] === right) delete next[k];
+                    next[left] = right;
+                  }
+                  setSelectedAnswer(next as any);
                 };
                 const usedValues = new Set(Object.values(answers));
                 return (
@@ -2720,15 +2730,14 @@ export function QuizPlayScreen() {
                               return (
                                 <TouchableOpacity
                                   key={right}
-                                  onPress={() =>
-                                    !taken && setMatch(pair.left, right)
-                                  }
-                                  disabled={submitted || taken}
+                                  onPress={() => setMatch(pair.left, right)}
+                                  disabled={submitted}
                                   style={{
                                     paddingHorizontal: 14,
                                     paddingVertical: 10,
                                     borderRadius: 14,
                                     borderWidth: 2,
+                                    borderStyle: !submitted && taken ? "dashed" : "solid",
                                     borderColor: submitted
                                       ? showCorrect
                                         ? colors.brand[500]
@@ -2753,7 +2762,9 @@ export function QuizPlayScreen() {
                                       !showWrong &&
                                       !isThis
                                         ? 0.3
-                                        : 1,
+                                        : !submitted && taken
+                                          ? 0.45
+                                          : 1,
                                   }}
                                 >
                                   <Text
