@@ -109,6 +109,9 @@ function normalizeOptionMaps<T extends { exam: { content: { parts: any[] } } }>(
 }
 
 export function ExamPlayerScreen() {
+  // Odstęp na dole treści = wysokość dolnego paska + margines (wcześniej
+  // stałe 120 px przy pasku ~50 px — za duża pusta przestrzeń na końcu).
+  const [examBarH, setExamBarH] = useState(56);
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
@@ -893,7 +896,7 @@ export function ExamPlayerScreen() {
       {/* ═══ CONTENT ═══ */}
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: examBarH + 16 }}
       >
         {/* Part header */}
         {currentPart && (
@@ -1068,6 +1071,7 @@ export function ExamPlayerScreen() {
 
       {/* ═══ BOTTOM NAV ═══ */}
       <View
+        onLayout={(e) => setExamBarH(Math.round(e.nativeEvent.layout.height))}
         style={{
           position: "absolute",
           bottom: 0,

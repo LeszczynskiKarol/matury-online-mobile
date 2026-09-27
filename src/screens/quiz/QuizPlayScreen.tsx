@@ -118,6 +118,9 @@ export const TYPE_LABELS: Record<string, string> = {
 // ══════════════════════════════════════════════════════════════════════════
 
 export function QuizPlayScreen() {
+  // Wysokość dolnego paska (dwa rzędy od 27.09.2026) — odstęp na dole treści
+  // liczony z niej, bez tego pasek zasłaniał ostatnią odpowiedź (np. D).
+  const [bottomBarH, setBottomBarH] = useState(130);
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
@@ -1143,7 +1146,7 @@ export function QuizPlayScreen() {
         contentContainerStyle={{
           paddingHorizontal: spacing[5],
           paddingTop: spacing[4],
-          paddingBottom: 90,
+          paddingBottom: bottomBarH + 16,
         }}
       >
         {/* ── LIVE FILTER BAR (nie w zadaniu od korepetytora) ─────────── */}
@@ -4661,6 +4664,7 @@ export function QuizPlayScreen() {
       {/* ── Bottom action bar ──────────────────────────────────────────── */}
       {!loadingMore && question && (
         <View
+          onLayout={(e) => setBottomBarH(Math.round(e.nativeEvent.layout.height))}
           style={{
             position: "absolute",
             bottom: 0,
