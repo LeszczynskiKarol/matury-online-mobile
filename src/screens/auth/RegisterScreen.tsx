@@ -45,10 +45,8 @@ export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
   const { register, loginWithGoogle } = useAuth();
 
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   // Zgoda marketingowa — DOBROWOLNA (art. 10 UŚUDE), domyślnie odznaczona,
   // niczego nie blokuje. Cofnięcie: profil.
@@ -91,7 +89,6 @@ export function RegisterScreen() {
     const errs: Record<string, string> = {};
     if (!email.trim()) errs.email = "Podaj email";
     if (password.length < 8) errs.password = "Min. 8 znaków";
-    if (password !== passwordConfirm) errs.passwordConfirm = "Hasła nie pasują";
     if (!acceptTerms) errs.terms = "Musisz zaakceptować regulamin";
     if (Object.keys(errs).length > 0) return setErrors(errs);
 
@@ -101,8 +98,8 @@ export function RegisterScreen() {
       const result = await register({
         email: email.trim().toLowerCase(),
         password,
-        passwordConfirm,
-        name: name.trim() || undefined,
+        // bez pola „Powtórz hasło” (podgląd 👁 w polu hasła); backend wymaga pola
+        passwordConfirm: password,
         acceptTerms,
         marketingConsent,
       });
@@ -181,14 +178,6 @@ export function RegisterScreen() {
         {/* Form */}
         <View style={{ gap: 16 }}>
           <Input
-            label="Imię (opcjonalnie)"
-            icon="person-outline"
-            placeholder="Jan"
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="words"
-          />
-          <Input
             label="Email"
             icon="mail-outline"
             placeholder="twoj@email.pl"
@@ -206,15 +195,6 @@ export function RegisterScreen() {
             onChangeText={setPassword}
             isPassword
             error={errors.password}
-          />
-          <Input
-            label="Powtórz hasło"
-            icon="lock-closed-outline"
-            placeholder="Powtórz hasło"
-            value={passwordConfirm}
-            onChangeText={setPasswordConfirm}
-            isPassword
-            error={errors.passwordConfirm}
           />
 
           {/* Terms checkbox */}
