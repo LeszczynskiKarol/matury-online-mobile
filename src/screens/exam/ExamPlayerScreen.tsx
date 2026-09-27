@@ -2106,7 +2106,7 @@ function ExamTaskInput({
                     marginBottom: 4,
                   }}
                 >
-                  {parseChemText(b.label || `Luka ${i + 1}`)}
+                  {parseChemText(b.label || b.prompt || `Luka ${i + 1}`)}
                 </Text>
                 <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={ans[b.id] || ""}

@@ -407,7 +407,7 @@ function SchemeFillRenderer({ task, value, onChange, theme, isDark }: RenderProp
     <View style={{ gap: 10 }}>
       {blanks.map((b: any) => (
         <View key={b.id}>
-          {b.label ? (
+          {b.label || b.prompt ? (
             <Text
               style={{
                 fontSize: 12,
@@ -416,7 +416,7 @@ function SchemeFillRenderer({ task, value, onChange, theme, isDark }: RenderProp
                 marginBottom: 4,
               }}
             >
-              {b.label}
+              {b.label || b.prompt}
             </Text>
           ) : null}
           <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
