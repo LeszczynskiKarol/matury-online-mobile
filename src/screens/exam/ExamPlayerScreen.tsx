@@ -652,7 +652,13 @@ export function ExamPlayerScreen() {
       </Modal>
 
       {/* ═══ TASK NAV MODAL ═══ */}
-      <Modal visible={showNav} transparent animationType="slide">
+      <Modal
+        visible={showNav}
+        transparent
+        animationType="slide"
+        // „Wstecz” na Androidzie zamyka spis zamiast nie robić nic.
+        onRequestClose={() => setShowNav(false)}
+      >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}>
           <TouchableOpacity
             style={{ flex: 1 }}
