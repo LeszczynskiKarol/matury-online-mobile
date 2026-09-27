@@ -4682,25 +4682,27 @@ export function QuizPlayScreen() {
                 <View
                   style={{ flexDirection: "row", gap: 6, alignItems: "center" }}
                 >
-                  {currentIndex > 0 && (
-                    <TouchableOpacity
-                      onPress={handlePrevious}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 12,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: theme.inputBg,
-                      }}
-                    >
-                      <Ionicons
-                        name="play-back"
-                        size={16}
-                        color={theme.textTertiary}
-                      />
-                    </TouchableOpacity>
-                  )}
+                  {/* „Poprzednie” zawsze na swoim miejscu (na 1. pytaniu wyszarzone) —
+                      inaczej „Następne” przeskakiwało z lewej w prawo (27.09.2026). */}
+                  <TouchableOpacity
+                    onPress={handlePrevious}
+                    disabled={currentIndex === 0}
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: theme.inputBg,
+                      opacity: currentIndex === 0 ? 0.35 : 1,
+                    }}
+                  >
+                    <Ionicons
+                      name="play-back"
+                      size={16}
+                      color={theme.textTertiary}
+                    />
+                  </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleSkip}
                     style={{
