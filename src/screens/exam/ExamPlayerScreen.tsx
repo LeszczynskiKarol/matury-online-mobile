@@ -1456,7 +1456,7 @@ function ExamTaskInput({
               {parseChemText(String(content.prefix))}
             </Text>
           ) : null}
-          <TextInput
+          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={typeof value === "string" ? value : ""}
             onChangeText={onChange}
             placeholder={content.hint || "wartość"}
@@ -1882,7 +1882,7 @@ function ExamTaskInput({
                 >
                   {parseChemText(row.label)}
                 </Text>
-                <TextInput
+                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={ans[row.label] || ""}
                   onChangeText={(text) =>
                     onChange({ ...ans, [row.label]: text })
@@ -2098,7 +2098,7 @@ function ExamTaskInput({
                 >
                   {parseChemText(b.label || `Luka ${i + 1}`)}
                 </Text>
-                <TextInput
+                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={ans[b.id] || ""}
                   onChangeText={(text) => onChange({ ...ans, [b.id]: text })}
                   placeholder="Wpisz..."

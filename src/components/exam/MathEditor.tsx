@@ -361,7 +361,7 @@ export function MathEditor({
       )}
 
       {/* Single text input */}
-      <TextInput
+      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
         ref={inputRef}
         value={value}
         onChangeText={onChange}

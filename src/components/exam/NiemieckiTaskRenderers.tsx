@@ -864,7 +864,7 @@ function ListeningFillDe({ task, answers, onAnswer, theme, isDark }: RenderProps
           >
             {gapId}.
           </Text>
-          <TextInput
+          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={answers[gapId] || ""}
             onChangeText={(t) => onAnswer(gapId, t)}
             placeholder="…"
@@ -1020,7 +1020,7 @@ function ListeningFillDe({ task, answers, onAnswer, theme, isDark }: RenderProps
                     {q.blankLabel}:
                   </Text>
                 )}
-                <TextInput
+                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={answers[q.id] || ""}
                   onChangeText={(t) => onAnswer(q.id, t)}
                   placeholder="Wpisz odpowiedź po niemiecku"
@@ -1167,7 +1167,7 @@ function ReadingMcq({ task, answers, onAnswer, theme, isDark }: RenderProps) {
                   ))}
                 </View>
               ) : (
-                <TextInput
+                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={answers[q.id] || ""}
                   onChangeText={(t) => onAnswer(q.id, t)}
                   placeholder={
@@ -1754,7 +1754,7 @@ function BothSentences({ task, answers, onAnswer, theme, isDark }: RenderProps) 
                           {p}
                         </Text>
                         {i < parts.length - 1 && (
-                          <TextInput
+                          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                             value={answers[s.id] || ""}
                             onChangeText={(t) => onAnswer(s.id, t)}
                             placeholder="…"
@@ -1926,7 +1926,7 @@ function OpenCloze({ task, answers, onAnswer, theme, isDark }: RenderProps) {
                       >
                         {blankId}.
                       </Text>
-                      <TextInput
+                      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                         value={answers[blankId] || ""}
                         onChangeText={(t) => onAnswer(blankId, t)}
                         placeholder="…"
@@ -1986,7 +1986,7 @@ function OpenCloze({ task, answers, onAnswer, theme, isDark }: RenderProps) {
               <Text style={{ fontSize: 13, fontWeight: "800", color: theme.text, minWidth: 36 }}>
                 {it.id}
               </Text>
-              <TextInput
+              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                 value={answers[it.id] || ""}
                 onChangeText={(t) => onAnswer(it.id, t)}
                 placeholder="Wpisz wyraz"
@@ -2091,7 +2091,7 @@ function Transformation({ task, answers, onAnswer, theme, isDark }: RenderProps)
                   ({hintWord})
                 </Text>
               ) : null}
-              <TextInput
+              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                 value={answers[row.id] || ""}
                 onChangeText={(t) => onAnswer(row.id, t)}
                 placeholder="Wpisz odpowiedź"
@@ -2309,7 +2309,7 @@ function Writing({ task, answers, onAnswer, theme, isDark }: RenderProps) {
             </View>
           )}
 
-          <TextInput
+          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={text}
             onChangeText={(t) => onAnswer(qId, t)}
             placeholder="Napisz swoją wypowiedź..."

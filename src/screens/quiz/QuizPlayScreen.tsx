@@ -2551,7 +2551,7 @@ export function QuizPlayScreen() {
                     taskType="math_short_calc"
                   />
                 ) : (
-                  <TextInput
+                  <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                     value={openAnswer}
                     onChangeText={setOpenAnswer}
                     multiline
@@ -2875,7 +2875,7 @@ export function QuizPlayScreen() {
                               key={i}
                               style={{ marginHorizontal: 4, marginVertical: 2 }}
                             >
-                              <TextInput
+                              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                                 value={
                                   submitted &&
                                   !isOk &&
@@ -2967,7 +2967,7 @@ export function QuizPlayScreen() {
                               ? `${i + 1}. ${b.label || b.hint || b.baseWord}`
                               : `Luka ${i + 1}`}
                           </Text>
-                          <TextInput
+                          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                             value={
                               submitted && !isOk && b.acceptedAnswers?.[0]
                                 ? b.acceptedAnswers[0]
@@ -3065,7 +3065,7 @@ export function QuizPlayScreen() {
                               showExample={sqIdx === 0}
                             />
                           ) : (
-                            <TextInput
+                            <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                               value={
                                 submitted &&
                                 !isOk &&
@@ -3295,7 +3295,7 @@ export function QuizPlayScreen() {
                               showExample={sqIdx === 0}
                             />
                           ) : (
-                            <TextInput
+                            <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                               value={
                                 submitted &&
                                 !isOk &&
@@ -3870,7 +3870,7 @@ export function QuizPlayScreen() {
                                 showExample={i === firstOpenIdx}
                               />
                             ) : (
-                              <TextInput
+                              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                                 value={ans[sq.id] || ""}
                                 onChangeText={(text) => set(sq.id, text)}
                                 editable={!submitted}
@@ -4194,7 +4194,7 @@ export function QuizPlayScreen() {
                           Twoja odpowiedź
                           {answer?.unit ? ` (${answer.unit})` : ""}:
                         </Text>
-                        <TextInput
+                        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                           value={openAnswer}
                           onChangeText={setOpenAnswer}
                           editable={!submitted}
@@ -4329,7 +4329,7 @@ export function QuizPlayScreen() {
                             >
                               {parseChemText(lbl.question || `Element ${lbl.id}`)}
                             </Text>
-                            <TextInput
+                            <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                               value={
                                 showCorrect ? lbl.acceptedAnswers[0] : ans[lbl.id] || ""
                               }
@@ -4452,7 +4452,7 @@ export function QuizPlayScreen() {
                               </Text>
                             )}
                           </View>
-                          <TextInput
+                          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                             value={ans[field.id] || ""}
                             onChangeText={(text) =>
                               !submitted &&

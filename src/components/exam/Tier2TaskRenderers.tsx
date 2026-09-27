@@ -256,7 +256,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
         <Text style={{ fontSize: 11, fontWeight: "700", color: theme.textTertiary, marginBottom: 4 }}>
           GAMETY MATKI (rozdziel spacją)
         </Text>
-        <TextInput
+        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           value={v.motherGenotype}
           onChangeText={(t) => update({ motherGenotype: t })}
           placeholder="np. IA IB"
@@ -280,7 +280,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
         <Text style={{ fontSize: 11, fontWeight: "700", color: theme.textTertiary, marginBottom: 4 }}>
           GAMETY OJCA (rozdziel spacją)
         </Text>
-        <TextInput
+        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           value={v.fatherGenotype}
           onChangeText={(t) => update({ fatherGenotype: t })}
           placeholder="np. i i"
@@ -312,7 +312,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
               {[0, 1].map((c2) => {
                 const cellId = `${r}_${c2}`;
                 return (
-                  <TextInput
+                  <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                     key={cellId}
                     value={v.gridCells?.[cellId] || ""}
                     onChangeText={(t) => updateCell(cellId, t)}
@@ -347,7 +347,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
         <Text style={{ fontSize: 11, fontWeight: "700", color: theme.textTertiary, marginBottom: 4 }}>
           PRAWDOPODOBIEŃSTWO (%)
         </Text>
-        <TextInput
+        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           value={v.targetProbability}
           onChangeText={(t) => update({ targetProbability: t })}
           placeholder="np. 25%"
@@ -380,7 +380,7 @@ function SchemeFillRenderer({ task, value, onChange, theme, isDark }: RenderProp
 
   if (blanks.length === 0) {
     return (
-      <TextInput
+      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
         value={typeof value === "string" ? value : ""}
         onChangeText={onChange}
         placeholder="Napisz schemat reakcji..."
@@ -419,7 +419,7 @@ function SchemeFillRenderer({ task, value, onChange, theme, isDark }: RenderProp
               {b.label}
             </Text>
           ) : null}
-          <TextInput
+          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={ans[b.id] || ""}
             onChangeText={(t) => onChange({ ...ans, [b.id]: t })}
             placeholder={b.placeholder || "Wpisz..."}
@@ -631,7 +631,7 @@ function CodeEditor({
   minHeight?: number;
 }) {
   return (
-    <TextInput
+    <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
       value={value}
       onChangeText={onChange}
       placeholder={placeholder}
@@ -782,7 +782,7 @@ function AnalysisRenderer({ task, value, onChange, theme, isDark }: RenderProps)
           </ScrollView>
         </View>
       )}
-      <TextInput
+      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
         value={typeof value === "string" ? value : ""}
         onChangeText={onChange}
         placeholder="Wpisz analizę kodu..."
@@ -932,7 +932,7 @@ function ProgrammingRenderer({ task, value, onChange, theme, isDark }: RenderPro
                 >
                   {a.label}
                 </Text>
-                <TextInput
+                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={(v.answers || {})[a.id] || ""}
                   onChangeText={(t) =>
                     onChange({
@@ -1315,7 +1315,7 @@ function SpreadsheetRenderer({ task, value, onChange, theme, isDark }: RenderPro
                 >
                   {a.label}
                 </Text>
-                <TextInput
+                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={(v.answers || {})[a.id] || ""}
                   onChangeText={(t) =>
                     onChange({
@@ -1451,7 +1451,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
                         borderColor: theme.border,
                       }}
                     >
-                      <TextInput
+                      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                         value={ans[cellId] || ""}
                         onChangeText={(t) => onChange({ ...ans, [cellId]: t })}
                         placeholder="…"
@@ -1534,7 +1534,7 @@ function IdentifyPersonsRenderer({ task, value, onChange, theme, isDark }: Rende
           >
             {b.text}
           </Text>
-          <TextInput
+          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={ans[b.id] || ""}
             onChangeText={(t) => onChange({ ...ans, [b.id]: t })}
             placeholder="Imię i nazwisko"
@@ -1701,7 +1701,7 @@ function EssayRenderer({ task, value, onChange, theme, isDark }: RenderProps) {
 
       {(topics.length === 0 || selectedTopic) && (
         <>
-          <TextInput
+          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={text}
             onChangeText={(t) => update({ text: t })}
             placeholder="Napisz wypowiedź..."
@@ -1822,7 +1822,7 @@ function DecideJustifyRenderer({ task, value, onChange, theme, isDark }: RenderP
         >
           UZASADNIENIE:
         </Text>
-        <TextInput
+        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           value={v.justification || ""}
           onChangeText={(t) => onChange({ ...v, justification: t })}
           placeholder="Uzasadnij swoją decyzję..."
@@ -1880,7 +1880,7 @@ function StyleRecognitionRenderer({ task, value, onChange, theme }: RenderProps)
         >
           STYL ARCHITEKTONICZNY:
         </Text>
-        <TextInput
+        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           value={v.styleName || ""}
           onChangeText={(t) => onChange({ ...v, styleName: t })}
           placeholder="np. gotycki, barokowy, klasycystyczny..."
@@ -1926,7 +1926,7 @@ function StyleRecognitionRenderer({ task, value, onChange, theme }: RenderProps)
               >
                 {i + 1}.
               </Text>
-              <TextInput
+              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                 value={features[i] || ""}
                 onChangeText={(t) => updateFeature(i, t)}
                 placeholder={

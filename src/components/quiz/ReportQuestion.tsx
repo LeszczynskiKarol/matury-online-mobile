@@ -450,7 +450,7 @@ function ReportModal({
                 (min. 5 znaków)
               </Text>
             </Text>
-            <TextInput
+            <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
               value={description}
               onChangeText={setDescription}
               multiline

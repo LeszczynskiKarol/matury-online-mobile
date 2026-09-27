@@ -121,7 +121,7 @@ export function FillInInline({
         b.acceptedAnswers?.some((a) => a.toLowerCase().trim() === userVal);
       const showCorrect = submitted && !isOk && !!b.acceptedAnswers?.[0];
       nodes.push(
-        <TextInput
+        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           key={`b${pi}`}
           value={showCorrect ? b.acceptedAnswers![0] : values[b.id] || ""}
           onChangeText={(t) => !submitted && onChange({ ...values, [b.id]: t })}

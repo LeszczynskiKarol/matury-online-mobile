@@ -303,7 +303,7 @@ export function ListeningQuestion({
 
             {/* OPEN */}
             {sq.type === "OPEN" && (
-              <TextInput
+              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                 value={ans[sq.id] || ""}
                 onChangeText={(text) => set(sq.id, text)}
                 editable={!disabled}
@@ -335,7 +335,7 @@ export function ListeningQuestion({
                   );
                 return (
                   <View>
-                    <TextInput
+                    <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                       value={ans[sq.id] || ""}
                       onChangeText={(text) => set(sq.id, text)}
                       editable={!disabled}
