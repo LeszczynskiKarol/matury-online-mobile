@@ -4663,69 +4663,40 @@ export function QuizPlayScreen() {
           }}
         >
           {!submitted ? (
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              {/* Poprzednie + Pomiń (ikony) + Pokaż odpowiedź — kolumna */}
+            // Jak na mobilnym webie (Karol 27.09.2026): cienki wiersz tekstowy
+            // „‹ Poprzednie · Pokaż odpowiedź · Pomiń ›”, pod nim „Sprawdź
+            // odpowiedź” na całą szerokość. Wcześniej dwie nieopisane ikony
+            // ⏮ ⏭ i ściśnięty przycisk obok.
+            <View style={{ paddingTop: 4, paddingBottom: 6 }}>
               <View
                 style={{
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                  gap: 4,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 6,
                 }}
               >
-                <View
-                  style={{ flexDirection: "row", gap: 6, alignItems: "center" }}
-                >
-                  {/* „Poprzednie” zawsze na swoim miejscu (na 1. pytaniu wyszarzone) —
-                      inaczej „Następne” przeskakiwało z lewej w prawo (27.09.2026). */}
-                  <TouchableOpacity
-                    onPress={handlePrevious}
-                    disabled={currentIndex === 0}
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: theme.inputBg,
-                      opacity: currentIndex === 0 ? 0.35 : 1,
-                    }}
-                  >
-                    <Ionicons
-                      name="play-back"
-                      size={16}
-                      color={theme.textTertiary}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleSkip}
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: theme.inputBg,
-                    }}
-                  >
-                    <Ionicons
-                      name="play-forward"
-                      size={16}
-                      color={theme.textTertiary}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {!isDiag && (
                 <TouchableOpacity
-                  disabled={revealing}
-                  onPress={async () => {
+                  onPress={handlePrevious}
+                  disabled={currentIndex === 0}
+                  hitSlop={8}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 6,
+                    opacity: currentIndex === 0 ? 0.35 : 1,
+                  }}
+                >
+                  <Ionicons name="chevron-back" size={16} color={theme.textSecondary} />
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
+                    Poprzednie
+                  </Text>
+                </TouchableOpacity>
+                {!isDiag && (
+                  <TouchableOpacity
+                    disabled={revealing}
+                    hitSlop={8}
+                    onPress={async () => {
                     // Klucz z serwera (pytanie jest bez klucza); ten sam
                     // request zapisuje REVEALED w sesji.
                     const q = question;
@@ -4774,24 +4745,31 @@ export function QuizPlayScreen() {
                       [q.id]: revealData,
                     }));
                   }}
-                  style={{
-                    paddingVertical: 4,
-                    paddingHorizontal: 4,
-                  }}
-                >
-                  <Text
                     style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      color: theme.textSecondary,
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                      borderRadius: 999,
+                      backgroundColor: theme.inputBg,
+                      opacity: revealing ? 0.5 : 1,
                     }}
                   >
-                    Pokaż odpowiedź
-                  </Text>
-                </TouchableOpacity>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: theme.textSecondary }}>
+                      {revealing ? "Pokazuję…" : "Pokaż odpowiedź"}
+                    </Text>
+                  </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  onPress={handleSkip}
+                  hitSlop={8}
+                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6 }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
+                    Pomiń
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+                </TouchableOpacity>
               </View>
-              <View style={{ flex: 1, alignItems: "center" }}>
+              <View>
                 <Button
                   title={loading ? "Sprawdzam..." : "Sprawdź odpowiedź"}
                   onPress={handleSubmit}
