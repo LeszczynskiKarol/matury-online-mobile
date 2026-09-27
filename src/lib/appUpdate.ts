@@ -5,7 +5,8 @@
 // Tylko sugestia — nigdy nie blokujemy starszej wersji.
 // ============================================================================
 
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
+import * as IntentLauncher from "expo-intent-launcher";
 import { api } from "../api/client";
 
 const PACKAGE_ID = "pl.matury_online.app";
@@ -29,13 +30,23 @@ export async function fetchVersionPolicy(): Promise<VersionPolicy | null> {
   }
 }
 
-/** Sklep Play: najpierw aplikacja sklepu, potem strona WWW. */
+/**
+ * Sklep Play wprost (pakiet com.android.vending). Samo `market://` na Xiaomi
+ * i innych telefonach z własnym sklepem pokazywało „Wybierz sklep” (GetApps
+ * też obsługuje market://) — 27.09.2026. Bez Google Play: strona WWW.
+ */
 export async function openStore(storeUrl?: string | null): Promise<void> {
-  try {
-    await Linking.openURL(`market://details?id=${PACKAGE_ID}`);
-  } catch {
-    await Linking.openURL(
-      storeUrl || `https://play.google.com/store/apps/details?id=${PACKAGE_ID}`,
-    ).catch(() => {});
+  const web = storeUrl || `https://play.google.com/store/apps/details?id=${PACKAGE_ID}`;
+  if (Platform.OS === "android") {
+    try {
+      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+        data: `market://details?id=${PACKAGE_ID}`,
+        packageName: "com.android.vending",
+      });
+      return;
+    } catch {
+      // brak Google Play na urządzeniu — niżej strona sklepu
+    }
   }
+  await Linking.openURL(web).catch(() => {});
 }

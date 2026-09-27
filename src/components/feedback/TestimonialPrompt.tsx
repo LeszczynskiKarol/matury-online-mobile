@@ -120,7 +120,9 @@ export function TestimonialPrompt({
   // 5★ → natywne okienko oceny Google Play (in-app review; helper sam pilnuje
   // limitu i cicho nic nie robi, gdy Play go nie pokaże).
   useEffect(() => {
-    if (done && rating === 5) maybeAskForReview(100);
+    // Każda ocena, nie tylko 5★ — pytanie o zdanie przed oknem oceny Google
+    // Play to „review gating”, zakazany w regulaminie sklepu.
+    if (done) maybeAskForReview(100);
   }, [done, rating]);
 
   const send = (payload: Record<string, unknown>) =>
