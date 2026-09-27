@@ -14,6 +14,7 @@ import { ProgressBar } from "../../components/common/ProgressBar";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 import { askForPushPermissionOnce } from "../../lib/pushNotifications";
+import { BackBar } from "../../components/common/BackBar";
 
 export function QuizResultScreen() {
   // Pierwszy ukończony quiz = dobry moment na jednorazową prośbę o zgodę
@@ -73,6 +74,7 @@ export function QuizResultScreen() {
         paddingHorizontal: spacing[6],
       }}
     >
+      <BackBar toTop />
       {/* Big result */}
       <View style={{ alignItems: "center", marginBottom: 40 }}>
         <Text style={{ fontSize: 64, marginBottom: 12 }}>{emoji}</Text>

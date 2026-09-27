@@ -33,6 +33,7 @@ import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 import type { ProfileStackParamList } from "../../navigation/types";
 import { SUBSCRIPTION_STATUS_LABEL } from "../../lib/premium";
+import { BackBar } from "../../components/common/BackBar";
 
 type Nav = NativeStackNavigationProp<ProfileStackParamList>;
 
@@ -130,6 +131,7 @@ export function ProfileScreen() {
         paddingHorizontal: spacing[5],
       }}
     >
+      <BackBar />
       <Text
         style={{
           fontSize: 28,

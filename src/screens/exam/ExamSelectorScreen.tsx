@@ -31,6 +31,7 @@ import { getTrialStatus, type TrialStatus } from "../../api/premium";
 import { radius } from "../../theme";
 import type { ExamStackParamList } from "../../navigation/types";
 import { handlePremiumError } from "../../lib/premiumAlert";
+import { BackBar } from "../../components/common/BackBar";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -290,6 +291,7 @@ export function ExamSelectorScreen() {
           paddingBottom: 100,
         }}
       >
+        <BackBar />
         <Text style={{ fontSize: 26, fontWeight: "800", color: theme.text }}>
           Twój darmowy arkusz
         </Text>
@@ -432,6 +434,7 @@ export function ExamSelectorScreen() {
         paddingBottom: 100,
       }}
     >
+      <BackBar />
       {/* Header */}
       <Text
         style={{

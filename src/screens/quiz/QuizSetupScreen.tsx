@@ -26,6 +26,7 @@ import { Card } from "../../components/ui/Card";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 import type { QuizStackParamList } from "../../navigation/types";
+import { BackBar } from "../../components/common/BackBar";
 
 type Nav = NativeStackNavigationProp<QuizStackParamList>;
 
@@ -656,6 +657,7 @@ export function QuizSetupScreen() {
         paddingHorizontal: spacing[5],
       }}
     >
+      <BackBar />
       <Text style={{ fontSize: 28, fontWeight: "700", color: theme.text, marginBottom: 4 }}>
         Nowa sesja nauki
       </Text>

@@ -15,6 +15,7 @@ import { SubjectCard } from '../../components/common/SubjectCard';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme';
 import type { SubjectsStackParamList } from '../../navigation/types';
+import { BackBar } from "../../components/common/BackBar";
 
 type Nav = NativeStackNavigationProp<SubjectsStackParamList>;
 
@@ -71,6 +72,7 @@ export function SubjectsScreen() {
       }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand[500]} />}
     >
+      <BackBar />
       <Text
         style={{
           fontSize: 28,

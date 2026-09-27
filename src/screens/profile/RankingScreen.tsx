@@ -21,6 +21,7 @@ import {
   getLeaderboardVisibility,
   toggleLeaderboardVisibility,
 } from "../../api/gamification";
+import { BackBar } from "../../components/common/BackBar";
 
 const TIER_COLORS: Record<string, { border: string; bg: string }> = {
   BRONZE: { border: "#cd7f32", bg: "#cd7f32" },
@@ -347,6 +348,7 @@ export function RankingScreen() {
           backgroundColor: theme.background,
         }}
       >
+        <BackBar />
         <View
           style={{
             flexDirection: "row",

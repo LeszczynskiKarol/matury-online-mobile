@@ -31,6 +31,7 @@ import {
   type ProfileResponse,
   type BadgeData,
 } from "../../api/gamification";
+import { BackBar } from "../../components/common/BackBar";
 
 // ── Tier styling ───────────────────────────────────────────────────────────
 
@@ -400,6 +401,7 @@ export function BadgesScreen() {
         />
       }
     >
+      <BackBar />
       <Text
         style={{
           fontSize: 28,
