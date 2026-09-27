@@ -131,7 +131,9 @@ export function DashboardScreen() {
     setRefreshing(false);
   };
 
-  const firstName = user?.name?.split(" ")[0] || "Cześć";
+  // Imię jest opcjonalne — bez niego początek e-maila (jak w apkach zdaj i osmo),
+  // a nie „Witaj 👋 / Cześć”.
+  const firstName = user?.name?.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || "Cześć";
 
   if (loading) {
     return (
