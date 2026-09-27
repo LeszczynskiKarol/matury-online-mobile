@@ -7,7 +7,7 @@
 // ============================================================================
 
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Modal } from "react-native";
+import { View, Text, TouchableOpacity, Modal, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -36,6 +36,7 @@ export function useQuizReviewsPref() {
       refresh().catch(() => {});
     } catch {
       setEnabled(!want); // serwer nie przyjął — wróć do stanu faktycznego
+      Alert.alert("Nie udało się zapisać", "Sprawdź połączenie z internetem i spróbuj ponownie.");
     } finally {
       setSaving(false);
     }
