@@ -1090,25 +1090,7 @@ export function QuizPlayScreen() {
             marginBottom: 10,
           }}
         >
-          <TouchableOpacity onPress={handleQuit}>
-            <Ionicons name="close" size={24} color={theme.textSecondary} />
-          </TouchableOpacity>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text
-              style={{
-                fontSize: 14,
-                fontFamily: "Outfit_600SemiBold",
-                color: theme.text,
-              }}
-            >
-              {currentIndex + 1} / {questions.length}
-            </Text>
-            {poolTotal !== undefined && hasActiveFilters && (
-              <Text style={{ fontSize: 10, color: theme.textTertiary }}>
-                (pula: {poolTotal})
-              </Text>
-            )}
-          </View>
+          {/* XP i „Zakończ” po lewej, ✕ po prawej — jak w webie (Karol 27.09.2026). */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {isDiag ? (
               <Text style={{ fontSize: 11, color: colors.brand[500], fontWeight: "700" }}>
@@ -1133,6 +1115,25 @@ export function QuizPlayScreen() {
               </TouchableOpacity>
             )}
           </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: "Outfit_600SemiBold",
+                color: theme.text,
+              }}
+            >
+              {currentIndex + 1} / {questions.length}
+            </Text>
+            {poolTotal !== undefined && hasActiveFilters && (
+              <Text style={{ fontSize: 10, color: theme.textTertiary }}>
+                (pula: {poolTotal})
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity onPress={handleQuit} hitSlop={10} accessibilityLabel="Zamknij sesję">
+            <Ionicons name="close" size={24} color={theme.textSecondary} />
+          </TouchableOpacity>
         </View>
         <ProgressBar progress={progress} height={4} animated={false} />
       </View>
