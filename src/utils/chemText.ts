@@ -375,6 +375,19 @@ function parseMathBlock(raw: string): string {
   // Single char: _x
   m = m.replace(/_(.)/g, (_, c) => SUBSCRIPT[c] || c);
 
+  // Drugie przejście po ułamkach — już po potęgach, indeksach i pierwiastkach.
+  // Pierwsze nie łapie \frac z klamrami w środku (\frac{3^{10}\cdot 9^{20}}{27^{15}},
+  // \frac{\sqrt[3]{54}+\sqrt[3]{16}}{\sqrt[3]{2}}), a sprzątanie niżej usuwało
+  // samo „\frac” i zostawało „{3¹⁰ · 9²⁰}{27¹⁵}” (arkusz Matematyka PP #3, 27.09.2026).
+  for (let i = 0; i < 3; i++) {
+    m = m.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, (_, num, den) => {
+      const simple = getSimpleFraction(num.trim(), den.trim());
+      if (simple) return simple;
+      const wrap = (x: string) => (/[+\-−·×\s]/.test(x.trim()) ? `(${x.trim()})` : x.trim());
+      return `${wrap(num)}/${wrap(den)}`;
+    });
+  }
+
   // \begin{cases}...\end{cases} → readable piecewise
   m = m.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (_, body) => {
     const lines = body
