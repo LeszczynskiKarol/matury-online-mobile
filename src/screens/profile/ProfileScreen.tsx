@@ -176,9 +176,13 @@ export function ProfileScreen() {
             </Text>
           )}
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={{ fontSize: 20, fontWeight: "700", color: theme.text }}>
-            {user?.name || "Maturzysta"}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "100%", paddingHorizontal: 16 }}>
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{ fontSize: 20, fontWeight: "700", color: theme.text, flexShrink: 1 }}
+          >
+            {user?.name?.trim().split("@")[0] || "Maturzysta"}
           </Text>
           {profile?.title && (
             <View
@@ -204,7 +208,9 @@ export function ProfileScreen() {
           )}
         </View>
         <Text
-          style={{ fontSize: 14, color: theme.textSecondary, marginTop: 2 }}
+          numberOfLines={1}
+          ellipsizeMode="middle"
+          style={{ fontSize: 14, color: theme.textSecondary, marginTop: 2, maxWidth: "100%", paddingHorizontal: 16 }}
         >
           {user?.email}
         </Text>

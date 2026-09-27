@@ -133,7 +133,8 @@ export function DashboardScreen() {
 
   // Imię jest opcjonalne — bez niego początek e-maila (jak w apkach zdaj i osmo),
   // a nie „Witaj 👋 / Cześć”.
-  const firstName = user?.name?.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || "Cześć";
+  // Nazwa bywa adresem e-mail (rejestracja bez pola imienia) — wtedy część przed „@".
+  const firstName = user?.name?.trim().split(/\s+/)[0]?.split("@")[0] || user?.email?.split("@")[0] || "Cześć";
 
   if (loading) {
     return (
@@ -179,11 +180,13 @@ export function DashboardScreen() {
             marginBottom: 24,
           }}
         >
-          <View>
+          <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
             <Text style={{ fontSize: 14, color: theme.textSecondary }}>
               Witaj 👋
             </Text>
             <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
               style={{ fontSize: 24, fontWeight: "700", color: theme.text }}
             >
               {firstName}
@@ -345,7 +348,7 @@ export function DashboardScreen() {
           marginBottom: 24,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View style={{ flex: 1, minWidth: 0, marginRight: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
           {/* Awatar otwiera Profil — jak w apkach zdaj i osmo (Karol 27.09.2026). */}
           <TouchableOpacity
             activeOpacity={0.8}
@@ -372,7 +375,7 @@ export function DashboardScreen() {
               </Text>
             )}
           </TouchableOpacity>
-          <View>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontSize: 14, color: theme.textSecondary }}>
               Witaj 👋
             </Text>
@@ -380,7 +383,9 @@ export function DashboardScreen() {
               style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
             >
               <Text
-                style={{ fontSize: 24, fontWeight: "700", color: theme.text }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={{ fontSize: 24, fontWeight: "700", color: theme.text, flexShrink: 1 }}
               >
                 {firstName}
               </Text>
