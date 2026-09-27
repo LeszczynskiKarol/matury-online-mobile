@@ -252,7 +252,8 @@ export function TestimonialPrompt({
         })}
       </View>
 
-      {rating != null && (
+      {/* Pole na tekst widoczne od razu pod gwiazdkami (Karol 27.09.2026). */}
+      {(
         <View style={{ marginTop: spacing[3], gap: spacing[2.5] }}>
           <TextInput
             value={quote}
@@ -261,13 +262,15 @@ export function TestimonialPrompt({
             textAlignVertical="top"
             maxLength={MAX_LEN}
             placeholder={
-              rating >= 4
+              rating == null
+                ? "Kilka słów od Ciebie (opcjonalnie)"
+                : rating >= 4
                 ? "Co konkretnie Ci pomaga? (opcjonalnie)"
                 : "Co mamy poprawić? Czytamy wszystko. (opcjonalnie)"
             }
             placeholderTextColor={theme.textTertiary}
             style={{
-              minHeight: 84,
+              minHeight: 56,
               backgroundColor: theme.inputBg,
               borderWidth: 1,
               borderColor: theme.border,
@@ -367,11 +370,13 @@ export function TestimonialPrompt({
               loading={sending}
               disabled={sending || tooShort || needsLabel}
             />
-            <TouchableOpacity onPress={() => setDone(true)} hitSlop={8}>
-              <Text style={[smallText, { fontFamily: fontFamily.body.semibold }]}>
-                Wystarczy ocena
-              </Text>
-            </TouchableOpacity>
+            {rating != null && (
+              <TouchableOpacity onPress={() => setDone(true)} hitSlop={8}>
+                <Text style={[smallText, { fontFamily: fontFamily.body.semibold }]}>
+                  Wystarczy ocena
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       )}

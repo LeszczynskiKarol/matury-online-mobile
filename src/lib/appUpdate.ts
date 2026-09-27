@@ -40,7 +40,9 @@ export async function openStore(storeUrl?: string | null): Promise<void> {
   if (Platform.OS === "android") {
     try {
       await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-        data: `market://details?id=${PACKAGE_ID}`,
+        // https, nie market:// — MIUI przechwytuje market:// nawet z pakietem
+        // Google Play i pokazuje „Wybierz sklep” (sprawdzone na Xiaomi, 27.09.2026).
+        data: `https://play.google.com/store/apps/details?id=${PACKAGE_ID}`,
         packageName: "com.android.vending",
       });
       return;
