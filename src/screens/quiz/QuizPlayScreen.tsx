@@ -113,6 +113,9 @@ export const TYPE_LABELS: Record<string, string> = {
   CALCULATION: "Obliczenia",
 };
 
+// Przedmioty maturalne z dwoma poziomami (PP i PR) — reszta tylko PR.
+const TWO_LEVEL_SUBJECT = /polski|matematyk|angielski|niemiecki/i;
+
 // ══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════
@@ -121,6 +124,7 @@ export function QuizPlayScreen() {
   // Wysokość dolnego paska (dwa rzędy od 27.09.2026) — odstęp na dole treści
   // liczony z niej, bez tego pasek zasłaniał ostatnią odpowiedź (np. D).
   const [bottomBarH, setBottomBarH] = useState(130);
+  const [levelExpanded, setLevelExpanded] = useState(false);
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
@@ -1313,17 +1317,26 @@ export function QuizPlayScreen() {
                 );
               })()}
 
-              {question.source && (
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: theme.textTertiary,
-                    marginLeft: "auto",
-                  }}
-                >
-                  {question.source}
-                </Text>
-              )}
+              {/* Poziom tylko w przedmiotach z PP i PR (od 2023: polski,
+                  matematyka, języki) — w pozostałych matura jest wyłącznie
+                  rozszerzona, a „PP” wprowadzało w błąd. Stuknięcie
+                  rozwija skrót. Inne źródła (exam_seed, CKE…) ukryte. */}
+              {(question.source === "PP" || question.source === "PR") &&
+                TWO_LEVEL_SUBJECT.test(subjectName || "") && (
+                  <TouchableOpacity
+                    onPress={() => setLevelExpanded((v) => !v)}
+                    hitSlop={8}
+                    style={{ marginLeft: "auto" }}
+                  >
+                    <Text style={{ fontSize: 11, color: theme.textTertiary }}>
+                      {levelExpanded
+                        ? question.source === "PR"
+                          ? "Poziom rozszerzony"
+                          : "Poziom podstawowy"
+                        : question.source}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               {(() => {
                 const t = question.type;
                 const c = content;
