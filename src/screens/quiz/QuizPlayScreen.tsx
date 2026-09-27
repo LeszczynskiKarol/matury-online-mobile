@@ -70,6 +70,7 @@ import {
 import type { QuizStackParamList } from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
 import { PremiumGate } from "../../components/common/PremiumGate";
+import { matchingOptionOrder } from "../../utils/matchingOrder";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -183,7 +184,15 @@ export function QuizPlayScreen() {
     const pool: string[] = Array.isArray(question.content.rightOptions)
       ? question.content.rightOptions.map(String)
       : question.content.pairs.map((p: any) => p.right).filter((r: any) => r != null);
-    return [...pool].sort(() => Math.random() - 0.5);
+    // Opcje od serwera są już ułożone bez korelacji z kluczem — zostawiamy.
+    // Pary z kluczem: żadna poprawna odpowiedź na wysokości swojego elementu
+    // (utils/matchingOrder.ts; losowe sortowanie dawało „a-1, b-2, c-3”).
+    return Array.isArray(question.content.rightOptions)
+      ? pool
+      : matchingOptionOrder(
+          pool,
+          question.content.pairs.map((p: any) => String(p?.left ?? "")).join("|"),
+        );
   }, [question?.id]);
 
   const [selectedAnswer, setSelectedAnswer] = useState<any>(null);
