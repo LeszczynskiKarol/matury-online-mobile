@@ -20,6 +20,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  TogglePill,
+  useQuizReviewsPref,
+} from "../../components/quiz/QuizReviewsPref";
 import { useTheme } from "../../context/ThemeContext";
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
@@ -50,6 +54,8 @@ export function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const { colors: theme, isDark, toggle } = useTheme();
   const { user, isPremium, logout, refresh } = useAuth();
+  // „Powtórki w quizie” (sekcja Nauka) — stan i PATCH w hooku.
+  const quizReviews = useQuizReviewsPref();
   // Usuwanie konta: osobna strefa pod linią + modal z przepisaniem słowa.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteWord, setDeleteWord] = useState("");
@@ -662,6 +668,58 @@ export function ProfileScreen() {
           </Text>
         </Card>
       )}
+
+      {/* ── Nauka ─────────────────────────────────────────────────────
+          „Powtórki w quizie” — ten sam przełącznik co w okienku plakietki
+          🔁 Powtórka w quizie i na webie (PATCH /auth/study-prefs). */}
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          color: theme.textSecondary,
+          marginBottom: 8,
+        }}
+      >
+        Nauka
+      </Text>
+      <Card style={{ marginBottom: 20, padding: 0 }}>
+        <TouchableOpacity
+          onPress={quizReviews.toggle}
+          disabled={quizReviews.saving}
+          accessibilityRole="switch"
+          accessibilityState={{
+            checked: quizReviews.enabled,
+            disabled: quizReviews.saving,
+          }}
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            paddingHorizontal: spacing[5],
+            paddingVertical: spacing[4],
+            opacity: quizReviews.saving ? 0.6 : 1,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+            <Ionicons name="repeat" size={20} color={theme.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "500", color: theme.text }}>
+                Powtórki w quizie
+              </Text>
+              <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 2, lineHeight: 15 }}>
+                Quiz dokłada do sesji pytania, które sprawiły Ci wcześniej
+                trudność (najwyżej 30%). Po wyłączeniu dostajesz tylko nowe
+                pytania — materiał szybciej się zapomina, ale błędy dalej są
+                zapamiętywane i po włączeniu powtórki wrócą.
+              </Text>
+            </View>
+          </View>
+          <TogglePill on={quizReviews.enabled} />
+        </TouchableOpacity>
+      </Card>
 
       {/* Settings */}
       <Card style={{ marginBottom: 20, padding: 0 }}>

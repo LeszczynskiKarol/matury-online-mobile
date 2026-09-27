@@ -45,6 +45,9 @@ export interface User {
     correctAnswers: number;
     adaptiveDifficulty: number;
   }[];
+  // Powtórki w quizie (do 30% sesji z pytań, które sprawiły trudność).
+  // Brak pola = włączone (domyślnie true w bazie).
+  quizReviews?: boolean;
 }
 
 interface AuthResponse {
@@ -182,6 +185,14 @@ export async function setEmailPrefs(prefs: {
   emailTutorZone: boolean;
 }> {
   return api("/auth/email-prefs", { method: "PATCH", body: prefs });
+}
+
+// Preferencje nauki — ten sam przełącznik co na webie. quizReviews=false:
+// quiz nie dokłada powtórek, historia błędów dalej się zapisuje.
+export async function setStudyPrefs(prefs: {
+  quizReviews?: boolean;
+}): Promise<{ quizReviews: boolean }> {
+  return api("/auth/study-prefs", { method: "PATCH", body: prefs });
 }
 
 export async function getMe(): Promise<User> {

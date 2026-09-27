@@ -38,6 +38,8 @@ export interface Question {
     name: string;
     slug: string;
   };
+  // Powtórka (SM-2) dołożona przez selektor — gdy user ma quizReviews=true.
+  isReview?: boolean;
 }
 
 export interface FilterOptions {

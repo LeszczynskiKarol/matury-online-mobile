@@ -69,6 +69,7 @@ import {
 } from "../../components/common/AdminCopyButton";
 import type { QuizStackParamList } from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
+import { QuizReviewsModal } from "../../components/quiz/QuizReviewsPref";
 import { PremiumGate } from "../../components/common/PremiumGate";
 import { matchingOptionOrder } from "../../utils/matchingOrder";
 
@@ -184,6 +185,8 @@ export function QuizPlayScreen() {
     return () => stopAllListeningPlayers();
   }, [currentIndex]);
   const question = questions[currentIndex];
+  // Okienko „Dlaczego to pytanie wróciło?” (plakietka 🔁 Powtórka)
+  const [reviewInfoOpen, setReviewInfoOpen] = useState(false);
   const matchingShuffledRight = useMemo(() => {
     if (question?.type !== "MATCHING" || !question?.content?.pairs) return [];
     // Pytanie przychodzi bez pairs[].right — prawa kolumna to `rightOptions`
@@ -1230,11 +1233,18 @@ export function QuizPlayScreen() {
                 </Text>
               </View>
 
-              {/* Powtórka z fiszek SM-2 (backend: smart-question-selector) */}
-              {(question as any).isReview && (
-                <View style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 9999, backgroundColor: isDark ? 'rgba(245,158,11,0.18)' : '#fffbeb' }}>
+              {/* Powtórka z fiszek SM-2 (backend: smart-question-selector);
+                  stuknięcie → okienko z wyjaśnieniem i przełącznikiem */}
+              {question.isReview && (
+                <TouchableOpacity
+                  onPress={() => setReviewInfoOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Powtórka — dlaczego to pytanie wróciło?"
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                  style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 9999, backgroundColor: isDark ? 'rgba(245,158,11,0.18)' : '#fffbeb' }}
+                >
                   <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#fcd34d' : '#b45309' }}>🔁 Powtórka</Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {/* Difficulty badge z label */}
@@ -4889,6 +4899,11 @@ export function QuizPlayScreen() {
           )}
         </View>
       )}
+
+      <QuizReviewsModal
+        visible={reviewInfoOpen}
+        onClose={() => setReviewInfoOpen(false)}
+      />
     </View>
   );
   function getCorrectAnswerLocal(type: string, content: any): any {
