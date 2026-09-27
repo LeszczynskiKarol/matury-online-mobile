@@ -109,7 +109,9 @@ export function ListeningQuestion({
 
       <AudioPlayer
         src={content.audioUrl}
-        maxPlays={content.maxPlays}
+        // Bez limitu odtworzeń (Karol 27.09.2026, jak web i zdaj/osmo) —
+        // content.maxPlays z generatora jest świadomie ignorowane.
+        maxPlays={Number.POSITIVE_INFINITY}
         durationMs={content.audioDurationMs}
         disabled={disabled}
       />
@@ -619,33 +621,11 @@ function AudioPlayer({
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
             >
-              {Array.from({ length: maxPlays }).map((_, i) => (
-                <View
-                  key={i}
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: 3.5,
-                    backgroundColor:
-                      i < playCount
-                        ? "#3b82f6"
-                        : isDark
-                          ? "#3f3f46"
-                          : "#d4d4d8",
-                  }}
-                />
-              ))}
-              <Text
-                style={{
-                  fontSize: 9,
-                  color: theme.textTertiary,
-                  marginLeft: 4,
-                }}
-              >
-                {playsLeft > 0
-                  ? `${playsLeft} odsłuch${playsLeft > 1 ? "ania" : "anie"}`
-                  : "Limit odsłuchań"}
-              </Text>
+              {playCount > 0 && (
+                <Text style={{ fontSize: 9, color: theme.textTertiary }}>
+                  Odsłuchano ×{playCount}
+                </Text>
+              )}
             </View>
           </View>
         </View>
@@ -674,48 +654,6 @@ function AudioPlayer({
         </View>
       )}
 
-      {/* Warnings */}
-      {playCount === maxPlays - 1 && !isPlaying && playCount > 0 && (
-        <View
-          style={{
-            marginTop: 10,
-            padding: 8,
-            borderRadius: 10,
-            backgroundColor: "#fffbeb",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 11,
-              color: "#92400e",
-              textAlign: "center",
-              fontWeight: "500",
-            }}
-          >
-            ⚠ Ostatnie odsłuchanie. Słuchaj uważnie!
-          </Text>
-        </View>
-      )}
-      {playCount >= maxPlays && !isPlaying && (
-        <View
-          style={{
-            marginTop: 10,
-            padding: 8,
-            borderRadius: 10,
-            backgroundColor: isDark ? "#27272a" : "#f4f4f5",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 11,
-              color: theme.textTertiary,
-              textAlign: "center",
-            }}
-          >
-            Nagranie zakończone. Odpowiedz na pytania poniżej.
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
