@@ -353,6 +353,10 @@ export function QuizPlayScreen() {
   const progress =
     questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
   const isLastQuestion = currentIndex >= questions.length - 1;
+  // Ostatnie wczytane pytanie zwykłej sesji (nie diagnoza, nie samo
+  // słuchanie, które dociąga nagrania pojedynczo) — pokazujemy wyjście.
+  const showEndSession =
+    !isDiag && !isListeningOnly && isLastQuestion && questions.length > 0;
   // Diagnoza: nazwa przedmiotu w nagłówku — bez dopisku „— egzamin
   // ósmoklasisty” / „(…)”, jak na ekranie wyboru przedmiotu.
   const diagSubjectLabel = isDiag
@@ -4957,10 +4961,10 @@ export function QuizPlayScreen() {
                   hitSlop={8}
                   style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, opacity: loading || revealing ? 0.35 : 1 }}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
-                    Pomiń
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: showEndSession ? colors.brand[500] : theme.textSecondary }}>
+                    {showEndSession ? (isAssignment ? "Pomiń" : "+10 pytań") : "Pomiń"}
                   </Text>
-                  <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+                  <Ionicons name="chevron-forward" size={16} color={showEndSession ? colors.brand[500] : theme.textSecondary} />
                 </TouchableOpacity>
                 )}
               </View>
@@ -5000,6 +5004,30 @@ export function QuizPlayScreen() {
                 {/* Ostatnie pytanie diagnozy — wyraźne wyjście do wyniku
                     (web: obrysowany „Zakończ teraz i pokaż wynik”). Pytania
                     bez odpowiedzi → potwierdzenie w finishDiagnosis. */}
+                {/* Ostatnie wczytane pytanie zwykłej sesji — jak web: wyjście
+                    „Zakończ sesję nauki”, a „Pomiń” zamienia się w „+10 pytań”
+                    (dociąga kolejną porcję w tej samej sesji). */}
+                {showEndSession && !loading && (
+                  <TouchableOpacity
+                    onPress={endSession}
+                    disabled={revealing}
+                    activeOpacity={0.8}
+                    style={{
+                      marginTop: 8,
+                      paddingVertical: 9,
+                      paddingHorizontal: 12,
+                      borderRadius: 14,
+                      borderWidth: 2,
+                      borderColor: colors.brand[500],
+                      alignItems: "center",
+                      opacity: revealing ? 0.5 : 1,
+                    }}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.brand[500] }}>
+                      Zakończ sesję nauki
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {isDiag && isLastQuestion && diagnosis!.mode === "play" && !loading && (
                   <TouchableOpacity
                     onPress={() => void finishDiagnosis()}
@@ -5126,6 +5154,25 @@ export function QuizPlayScreen() {
                     <Ionicons name="arrow-forward" size={18} color="#fff" />
                   }
                 />
+                )}
+                {showEndSession && (
+                  <TouchableOpacity
+                    onPress={endSession}
+                    activeOpacity={0.8}
+                    style={{
+                      marginTop: 8,
+                      paddingVertical: 9,
+                      paddingHorizontal: 12,
+                      borderRadius: 14,
+                      borderWidth: 2,
+                      borderColor: colors.brand[500],
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.brand[500] }}>
+                      Zakończ sesję nauki
+                    </Text>
+                  </TouchableOpacity>
                 )}
               </View>
             </View>

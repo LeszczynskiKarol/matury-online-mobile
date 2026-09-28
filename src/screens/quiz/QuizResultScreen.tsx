@@ -118,6 +118,9 @@ export function QuizResultScreen() {
             {correctAnswers}/{questionsAnswered}
           </Text>
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
             style={{
               fontSize: 11,
               fontFamily: "DMSans_400Regular",
