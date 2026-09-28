@@ -181,6 +181,11 @@ export interface DashboardData {
     xpEarned: number;
     completedAt: string;
   }[];
+  // Arkusze w feedzie (backend od 2026-09) — tylko fallback feedu.
+  recentExams?: any[];
+  // Jeden feed wszystkich trybów (backend services/recent-activity.ts,
+  // od 28.09.2026). Starszy backend nie zwraca pola.
+  recentActivity?: import("../components/common/RecentActivityList").ActivityItem[];
   recentAchievements: {
     slug: string;
     name: string;

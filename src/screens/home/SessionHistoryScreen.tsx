@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { Card } from "../../components/ui/Card";
@@ -139,6 +139,7 @@ export function SessionHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { colors: theme } = useTheme();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
 
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -202,6 +203,12 @@ export function SessionHistoryScreen() {
       setDetailLoading(false);
     }
   };
+
+  // Wejście z „Ostatniej aktywności” na pulpicie: od razu przebieg sesji.
+  const initialSessionId = (route?.params as any)?.sessionId as string | undefined;
+  useEffect(() => {
+    if (initialSessionId) openDetail(initialSessionId);
+  }, [initialSessionId]);
 
   const closeDetail = () => {
     setSelectedId(null);

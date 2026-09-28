@@ -32,6 +32,10 @@ import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { TutorHomeCard } from "../../components/tutor/TutorHomeCard";
 import { SprawdzianLektura } from "../../components/common/SprawdzianLektura";
 import { SubjectTile } from "../../components/common/SubjectTile";
+import {
+  RecentActivityList,
+  legacyActivity,
+} from "../../components/common/RecentActivityList";
 import { api } from "../../api/client";
 import {
   getNotifications,
@@ -136,6 +140,10 @@ export function DashboardScreen() {
   // a nie „Witaj 👋 / Cześć”.
   // Nazwa bywa adresem e-mail (rejestracja bez pola imienia) — wtedy część przed „@".
   const firstName = user?.name?.trim().split(/\s+/)[0]?.split("@")[0] || user?.email?.split("@")[0] || "Cześć";
+
+  const activityFeed =
+    data?.recentActivity ??
+    legacyActivity(data?.recentSessions ?? [], data?.recentExams ?? []);
 
   if (loading) {
     return (
@@ -1069,8 +1077,10 @@ export function DashboardScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Recent sessions */}
-      {data?.recentSessions && data.recentSessions.length > 0 && (
+      {/* Ostatnia aktywność — Quiz, słuchanie, arkusze, wypracowania,
+          diagnoza w jednym feedzie; każdy kafelek prowadzi dalej
+          (RecentActivityList). Starszy backend: recentSessions + recentExams. */}
+      {activityFeed.length > 0 && (
         <View>
           <Text
             style={{
@@ -1080,81 +1090,14 @@ export function DashboardScreen() {
               marginBottom: 12,
             }}
           >
-            Ostatnie sesje
+            Ostatnia aktywność
           </Text>
           <View style={{ gap: 8 }}>
-            {data.recentSessions.map((s) => {
-              // Sesja z jednego tematu (lektura / dział) = nauka pod
-              // sprawdzian. Tap wraca do kreatora z tym samym tematem.
-              const topicSubject = s.topic
-                ? subjects.find((x) => x.slug === s.subject.slug)
-                : undefined;
-              const card = (
-                <Card variant="stat">
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                        flex: 1,
-                        minWidth: 0,
-                      }}
-                    >
-                      <Text style={{ fontSize: 16 }}>
-                        {s.subject.icon || "📝"}
-                      </Text>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          numberOfLines={1}
-                          style={{
-                            fontSize: 14,
-                            fontWeight: "500",
-                            color: theme.text,
-                          }}
-                        >
-                          {s.topic?.name
-                            ? `${s.topic.name} · ${s.subject.name}`
-                            : s.subject.name}
-                        </Text>
-                        <Text
-                          style={{ fontSize: 12, color: theme.textSecondary }}
-                        >
-                          {s.questionsAnswered} pytań · {s.accuracy}%
-                          {topicSubject ? " · Ćwicz dalej →" : ""}
-                        </Text>
-                      </View>
-                    </View>
-                    <Badge variant="xp" value={`+${s.xpEarned} XP`} />
-                  </View>
-                </Card>
-              );
-              return topicSubject ? (
-                <TouchableOpacity
-                  key={s.id}
-                  activeOpacity={0.85}
-                  onPress={() =>
-                    navigation.navigate("QuizTab", {
-                      screen: "QuizSetup",
-                      params: {
-                        subjectId: topicSubject.id,
-                        topicId: s.topic!.id,
-                      },
-                    })
-                  }
-                >
-                  {card}
-                </TouchableOpacity>
-              ) : (
-                <View key={s.id}>{card}</View>
-              );
-            })}
+            <RecentActivityList
+              items={activityFeed}
+              navigation={navigation}
+              subjects={subjects}
+            />
             {/* Link do pełnej historii */}
             <TouchableOpacity
               activeOpacity={0.85}

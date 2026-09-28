@@ -23,7 +23,8 @@ export type MainTabParamList = {
 // ── Nested Stacks ─────────────────────────────────────────────────────────
 export type HomeStackParamList = {
   Dashboard: undefined;
-  SessionHistory: undefined;
+  // sessionId — od razu przebieg tej sesji (z „Ostatniej aktywności”).
+  SessionHistory: { sessionId?: string } | undefined;
   ListeningHub: undefined;
   // Strefa korepetytora (uczeń): lista zadań i uruchomienie jednego.
   TutorAssignments: undefined;
