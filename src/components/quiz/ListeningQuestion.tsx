@@ -383,10 +383,10 @@ export function ListeningQuestion({
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// AUDIO PLAYER (expo-audio)
+// AUDIO PLAYER (expo-audio) — eksport też dla podglądu w PremiumGate
 // ══════════════════════════════════════════════════════════════════════════
 
-function AudioPlayer({
+export function AudioPlayer({
   src,
   maxPlays,
   durationMs,
@@ -605,6 +605,8 @@ function AudioPlayer({
           <View
             style={{
               flexDirection: "row",
+              flexWrap: "wrap",
+              columnGap: 8,
               justifyContent: "space-between",
               alignItems: "center",
             }}
@@ -621,11 +623,9 @@ function AudioPlayer({
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
             >
-              {playCount > 0 && (
-                <Text style={{ fontSize: 9, color: theme.textTertiary }}>
-                  Odsłuchano ×{playCount}
-                </Text>
-              )}
+              <Text style={{ fontSize: 9, color: theme.textTertiary }}>
+                {playCount > 0 ? `Odsłuchano ×${playCount}` : "bez limitu odsłuchań"}
+              </Text>
             </View>
           </View>
         </View>

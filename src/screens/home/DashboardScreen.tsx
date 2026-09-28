@@ -234,19 +234,6 @@ export function DashboardScreen() {
             arkusza, ceną i Pakietem, a pod nim drugi raz diagnoza i arkusz
             (zdaj-angielski, 25.09.2026). Przy nieudanej płatności akcję
             przejmuje baner wyżej. */}
-        {/* Blok Premium wysoko, jak web PremiumGate „dashboard” (Karol
-            28.09.2026) — wcześniej o Premium była tylko drobna linijka na
-            dole karty „Za darmo”. Przy nieudanej płatności akcję ma baner. */}
-        {!paymentFailed && (
-          <DashboardUnlockBox
-            onUnlock={() =>
-              navigation.navigate("ProfileTab", { screen: "Subscription" })
-            }
-            subscriptionStatus={user?.subscriptionStatus}
-            hasTutor={!!user?.hasTutor}
-          />
-        )}
-
         {!paymentFailed && (
           <View style={{ marginBottom: 24 }}>
             <FreePanel
@@ -261,6 +248,19 @@ export function DashboardScreen() {
               }
             />
           </View>
+        )}
+
+        {/* Blok Premium POD kartą „Za darmo” — najpierw darmowa diagnoza
+            i arkusz, potem oferta (Karol 29.09.2026; 28.09 stał nad kartą).
+            Przy nieudanej płatności akcję ma baner. */}
+        {!paymentFailed && (
+          <DashboardUnlockBox
+            onUnlock={() =>
+              navigation.navigate("ProfileTab", { screen: "Subscription" })
+            }
+            subscriptionStatus={user?.subscriptionStatus}
+            hasTutor={!!user?.hasTutor}
+          />
         )}
 
         {/* Greyed-out subjects */}

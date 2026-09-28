@@ -3,13 +3,13 @@
 // src/components/common/PremiumGate.tsx
 //
 // Zamiast generycznego "🔒 wymaga Premium": per-trybowe copy z konkretami,
-// countdown do matury, mini-podgląd wartości (w quizie interaktywny),
+// countdown do matury, mini-podgląd wartości (arkusz; w słuchaniu prawdziwe nagranie),
 // personalizacja z darmowej diagnozy (/api/diagnosis/mine) i risk-reversal.
 // CTA prowadzi do SubscriptionScreen (Stripe checkout w in-app browser).
 // ============================================================================
 
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
@@ -17,6 +17,7 @@ import { Button } from "../ui/Button";
 import { api } from "../../api/client";
 import { logIntent } from "../../api/premium";
 import { TrialOfferCard } from "./TrialOfferCard";
+import { AudioPlayer } from "../quiz/ListeningQuestion";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
@@ -64,14 +65,16 @@ const MODE_CONFIG: Record<
   // bez bramki user trafiał w pusty ekran „To było ostatnie zadanie", a stamtąd
   // „Od nowa" ładowało nagrania z banku z pominięciem blokady.
   listening: {
-    headline: "Słuchanie, które brzmi jak na maturze",
+    headline: "Nagrania do słuchania, które się nie kończą",
+    // Jak web PremiumGate „listening”, bez „tempo jak na CKE” (tego nie
+    // mierzymy) i bez „1:1” przy typach zadań.
     bullets: [
-      "Świeże nagrania z angielskiego i niemieckiego — generowane przez AI",
-      "Zadania jak w arkuszu CKE, poziom podstawowy i rozszerzony",
-      "Odsłuchujesz bez limitu, a po odpowiedzi widzisz, gdzie był błąd",
+      "Najpierw nagrania, których jeszcze nie słyszałeś — gdy zostaje ich mało, AI dogrywa nowe w tle",
+      "Różne głosy (🇬🇧/🇺🇸/🇦🇺), Hochdeutsch dla niemieckiego",
+      "Typy zadań jak w arkuszu maturalnym",
     ],
     personalizedVerb:
-      "Słuchanie to pewne punkty — o ile ucho jest osłuchane z tempem nagrań.",
+      "Słuchanie to najszybsze punkty na maturze językowej — nie oddawaj ich.",
   },
   exam: {
     headline: "Przećwicz maturę, zanim zdasz ją naprawdę",
@@ -226,14 +229,57 @@ function variantCopy(
 
 // ── Mini-podglądy wartości ───────────────────────────────────────────────────
 
-function MiniQuizPreview() {
+interface ListeningSample {
+  audioUrl: string;
+  audioDurationMs: number;
+  instruction: string | null;
+  subQuestion: {
+    text: string;
+    options: { id: string; text: string }[];
+    correctAnswer: string;
+  };
+  subQuestionCount: number;
+}
+
+function pytaniaDoNagrania(n: number): string {
+  if (n === 1) return "jest do niego 1 pytanie";
+  const lastTwo = n % 100;
+  const last = n % 10;
+  const few = last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14);
+  return few ? `są do niego ${n} pytania` : `jest do niego ${n} pytań`;
+}
+
+// Prawdziwe nagranie z bazy — jak web ListeningPreview: /public/listening-sample
+// (zawsze to samo, jedno pytanie z kluczem), odtwarzacz ten sam co w Słuchaniu.
+function ListeningPreview() {
   const { colors: theme } = useTheme();
-  const [picked, setPicked] = useState<string | null>(null);
-  const options = [
-    { id: "A", text: "x = 2", ok: false },
-    { id: "B", text: "x = 3", ok: true },
-    { id: "C", text: "x = 6", ok: false },
-  ];
+  const [sample, setSample] = useState<ListeningSample | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    api<ListeningSample>("/public/listening-sample", { auth: false })
+      .then((d) => (d?.audioUrl && d?.subQuestion ? setSample(d) : setFailed(true)))
+      .catch(() => setFailed(true));
+  }, []);
+
+  if (failed) return null;
+  if (!sample) {
+    return (
+      <View
+        style={{
+          height: 160,
+          borderRadius: radius.xl,
+          backgroundColor: theme.backgroundSecondary,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator color={colors.brand[500]} />
+      </View>
+    );
+  }
+
+  const sq = sample.subQuestion;
   return (
     <View
       style={{
@@ -244,77 +290,89 @@ function MiniQuizPreview() {
         padding: spacing[4],
       }}
     >
-      <Text
-        style={{
-          fontSize: 11,
-          fontWeight: "700",
-          color: theme.textTertiary,
-          marginBottom: 6,
-        }}
-      >
-        SPRÓBUJ — TAK WYGLĄDA PYTANIE:
-      </Text>
-      <Text
-        style={{
-          fontSize: 14,
-          fontWeight: "600",
-          color: theme.text,
-          marginBottom: 10,
-        }}
-      >
-        Rozwiązaniem równania 2x − 1 = 5 jest:
-      </Text>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        {options.map((o) => {
-          const showState = picked !== null;
-          const bg = !showState
-            ? "transparent"
-            : o.ok
-              ? colors.brand[500] + "22"
-              : picked === o.id
-                ? colors.red[500] + "22"
-                : "transparent";
-          const border = !showState
-            ? theme.border
-            : o.ok
-              ? colors.brand[500]
-              : picked === o.id
-                ? colors.red[500]
-                : theme.border;
-          return (
-            <TouchableOpacity
-              key={o.id}
-              onPress={() => setPicked(o.id)}
-              style={{
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                borderRadius: radius.lg,
-                borderWidth: 1,
-                borderColor: border,
-                backgroundColor: bg,
-              }}
-            >
-              <Text style={{ fontSize: 13, fontWeight: "600", color: theme.text }}>
-                {o.text}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      {picked && (
+      {sample.instruction ? (
         <Text
-          style={{
-            fontSize: 12,
-            color: theme.textSecondary,
-            marginTop: 10,
-            lineHeight: 17,
-          }}
+          style={{ fontSize: 13, fontWeight: "600", color: theme.text, marginBottom: 10, lineHeight: 18 }}
         >
-          {picked === "B" ? "✅ Dokładnie tak!" : "❌ Poprawnie: x = 3."} 2x = 6,
-          więc x = 3. Każde pytanie ma takie wyjaśnienie — a w Premium dodatkowo
-          tłumaczenie AI krok po kroku.
+          {sample.instruction}
         </Text>
-      )}
+      ) : null}
+      <AudioPlayer
+        src={sample.audioUrl}
+        maxPlays={Number.POSITIVE_INFINITY}
+        durationMs={sample.audioDurationMs}
+        disabled={false}
+      />
+      <View
+        style={{
+          marginTop: 12,
+          padding: spacing[3],
+          borderRadius: radius.lg,
+          backgroundColor: theme.card,
+        }}
+      >
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+          <View
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 10,
+              backgroundColor: "#3b82f6",
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 1,
+            }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#fff" }}>1</Text>
+          </View>
+          <Text style={{ flex: 1, fontSize: 13, fontWeight: "600", color: theme.text, lineHeight: 19 }}>
+            {sq.text}
+          </Text>
+        </View>
+        <View style={{ gap: 6 }}>
+          {sq.options.map((o) => {
+            const ok = o.id === sq.correctAnswer;
+            return (
+              <View
+                key={o.id}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: 8,
+                  borderRadius: radius.md,
+                  borderWidth: 2,
+                  borderColor: ok ? colors.brand[500] : "transparent",
+                  backgroundColor: ok ? colors.brand[500] + "18" : "transparent",
+                }}
+              >
+                <View
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    backgroundColor: theme.backgroundSecondary,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: theme.text }}>{o.id}</Text>
+                </View>
+                <Text style={{ flex: 1, fontSize: 13, color: theme.text }}>{o.text}</Text>
+                {ok && (
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: colors.brand[500] }}>
+                    ✓ Poprawna
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      </View>
+      <Text style={{ marginTop: 10, fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
+        Prawdziwe nagranie z aplikacji — w sesji {pytaniaDoNagrania(sample.subQuestionCount)}.
+        Najpierw dostajesz nagrania, których jeszcze nie słyszałeś, a nowe AI dogrywa w tle.
+      </Text>
     </View>
   );
 }
@@ -414,6 +472,9 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
       .then((d) => {
         const worst = [...(d?.diagnoses ?? [])]
           .filter((x) => typeof x.scorePercent === "number")
+          // Pod słuchaniem tylko diagnoza z języka — „masz 24% z matematyki”
+          // brzmi tu jak błąd, nie personalizacja (jak web subjectFilter).
+          .filter((x) => mode !== "listening" || /angielski|niemiecki/.test(x.subjectSlug))
           .sort((a, b) => a.scorePercent! - b.scorePercent!)[0];
         if (worst) setDiagnosis(worst);
       })
@@ -423,7 +484,9 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const special = variant.kind === "default" ? null : variantCopy(variant, days);
   const headline = special?.headline ?? cfg.headline;
   const bullets = special?.bullets ?? cfg.bullets;
-  const ctaTitle = special?.cta ?? "Przejdź na Premium — 49 zł/mies.";
+  // Cena w osobnej linii pod przyciskiem, jak web („Od 49 zł miesięcznie”) —
+  // w jednym tytule „— 49 zł/mies.” łamało się na 360 dp.
+  const ctaTitle = special?.cta ?? "Przejdź na Premium";
 
   return (
     <ScrollView
@@ -497,9 +560,11 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
           ))}
         </View>
 
-        <View style={{ marginBottom: 16 }}>
-          {mode === "listening" ? null : mode === "quiz" ? <MiniQuizPreview /> : <ExamPreview />}
-        </View>
+        {mode !== "quiz" && (
+          <View style={{ marginBottom: 16 }}>
+            {mode === "listening" ? <ListeningPreview /> : <ExamPreview />}
+          </View>
+        )}
 
         {diagnosis && diagnosis.scorePercent !== null && (
           <View
@@ -534,6 +599,18 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
           }}
           icon={<Ionicons name="diamond" size={16} color="#fff" />}
         />
+        {!special && (
+          <Text
+            style={{
+              fontSize: 13,
+              color: theme.textSecondary,
+              textAlign: "center",
+              marginTop: 8,
+            }}
+          >
+            Od <Text style={{ fontWeight: "700", color: theme.text }}>49 zł</Text> miesięcznie
+          </Text>
+        )}
         {variant.kind === "referred" && (
           <TouchableOpacity
             onPress={() => navigation.getParent()?.navigate("HomeTab", { screen: "TutorAssignments" })}
