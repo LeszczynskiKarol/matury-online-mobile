@@ -2,6 +2,7 @@
 // Login Screen
 // ============================================================================
 
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
 import {
   View,
@@ -25,7 +26,6 @@ import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
-import { BrandMark } from "../../components/common/BrandMark";
 import { ApiError } from "../../api/client";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
@@ -130,9 +130,29 @@ export function LoginScreen() {
 
         {/* Logo */}
         <View style={{ alignItems: "center", marginTop: 40, marginBottom: 48 }}>
-          <View style={{ marginBottom: 16 }}>
-            <BrandMark size={56} radius={radius.xl} />
-          </View>
+          <LinearGradient
+            colors={[colors.brand[500], colors.navy[600]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: radius.xl,
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 16,
+            }}
+          >
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 24,
+                fontFamily: "Outfit_700Bold",
+              }}
+            >
+              M
+            </Text>
+          </LinearGradient>
           <Text
             style={{
               fontSize: 28,
