@@ -2126,6 +2126,30 @@ function Transformation({ task, answers, onAnswer, theme, isDark }: RenderProps)
 // WRITING — wypowiedź pisemna z wyborem tematu
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Nagłówek zadania pisemnego (Karol 28.09.2026): wcześniej sklejany z pól bazy
+// dawał „W wpis na blogu do czytelnicy bloga”, „W forum_post do czytelnicy
+// forum”. Forma idzie do miejscownika z mapy, adresat osobną linią (bez odmiany).
+const WRITING_FORM_LOC: Record<string, string> = {
+  "e-mail": "W e-mailu", email: "W e-mailu", mail: "W e-mailu",
+  "wpis na blogu": "We wpisie na blogu", blog: "We wpisie na blogu", blog_post: "We wpisie na blogu",
+  "wpis na forum": "We wpisie na forum", forum: "We wpisie na forum", forum_post: "We wpisie na forum",
+  list: "W liście", letter: "W liście", formal_letter: "W liście formalnym",
+  artykuł: "W artykule", article: "W artykule", wiadomość: "W wiadomości", message: "W wiadomości",
+  rozprawka: "W rozprawce", essay: "W rozprawce", review: "W recenzji", report: "W raporcie",
+};
+function writingFormHeading(form?: string): string {
+  if (!form) return "W wypowiedzi";
+  return WRITING_FORM_LOC[form.trim().toLowerCase()] ?? `Forma: ${form.replace(/_/g, " ")} —`;
+}
+// Polecenie z punktami jest już w nagłówku zadania (task.instruction) — nie
+// powtarzamy scenariusza i punktów drugi raz pod spodem.
+function instructionCoversBullets(instruction: unknown, bullets: unknown): boolean {
+  if (typeof instruction !== "string" || !Array.isArray(bullets) || !bullets.length) return false;
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const inst = norm(instruction);
+  return bullets.every((b) => typeof b === "string" && inst.includes(norm(b).slice(0, 40)));
+}
+
 function Writing({ task, answers, onAnswer, theme, isDark }: RenderProps) {
   const content = task.content;
   const qId = "writing";
@@ -2280,7 +2304,8 @@ function Writing({ task, answers, onAnswer, theme, isDark }: RenderProps) {
                   marginBottom: 6,
                 }}
               >
-                W {brief.form || "e-mailu"} do {brief.recipient || "kolegi/koleżanki"}:
+                {writingFormHeading(brief.form)}:{brief.recipient ? `
+Adresat: ${brief.recipient}` : ""}
               </Text>
               <View style={{ gap: 4 }}>
                 {(brief.bulletPoints || []).map((bp: string, i: number) => (
