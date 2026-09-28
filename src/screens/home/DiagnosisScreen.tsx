@@ -26,7 +26,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -39,13 +38,9 @@ import { Button } from "../../components/ui/Button";
 import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { TYPE_LABELS } from "../quiz/QuizPlayScreen";
 import { difficultyLabel, difficultyColor } from "../../lib/difficulty";
-import {
-  getTrialStatus,
-  claimTrial,
-  isFreePackBlocked,
-  FREE_PACK_BLOCKED_MESSAGE,
-  type TrialStatus,
-} from "../../api/premium";
+import { FREE_PACK_BLOCKED_MESSAGE } from "../../api/premium";
+import { useAuth } from "../../context/AuthContext";
+import { daysToMatura } from "../../components/common/PremiumGate";
 import { colors } from "../../theme/colors";
 import { hasPassThreshold, PASS_PERCENT } from "../../utils/passThreshold";
 
@@ -120,6 +115,27 @@ const lockedLabel = (n: number) =>
 const shortName = (name: string, _slug?: string) =>
   name.split(" — ")[0].split(" (")[0].trim();
 
+/** Nazwa przedmiotu w dopełniaczu — ręcznie, jak web UnlockQuizBox
+ *  („z WOS”, „z Biznes i zarządzanie” psuły automatyczną odmianę). */
+const GENITIVE: Record<string, string> = {
+  polski: "języka polskiego",
+  matematyka: "matematyki",
+  angielski: "języka angielskiego",
+  niemiecki: "języka niemieckiego",
+  biologia: "biologii",
+  chemia: "chemii",
+  fizyka: "fizyki",
+  geografia: "geografii",
+  historia: "historii",
+  wos: "WOS-u",
+  informatyka: "informatyki",
+  "biznes-zarzadzanie": "biznesu i zarządzania",
+};
+function subjectGenitive(slug: string, fallbackName: string): string {
+  const base = slug.replace(/-osmoklasista$/, "").replace(/-(fce|cae)$/, "");
+  return GENITIVE[base] ?? fallbackName.toLowerCase();
+}
+
 /** Punkty rekrutacyjne z wyniku diagnozy E8 — te same mnożniki co na webie. */
 function recruitPoints(scorePercent: number, slug: string): { pts: string; max: number } {
   const mult = /angiel|niemiec|jezyk|język/i.test(slug) ? 0.3 : 0.35;
@@ -171,10 +187,21 @@ function formatCorrect(q: ResultQuestion): string {
   }
 }
 
-function ScoreRing({ percent, sub, theme }: { percent: number; sub?: string; theme: any }) {
+/** Koło wyniku jak web: zielone nad progiem/celem, czerwone pod progiem,
+ *  żółte pod celem 65% (przedmiot bez progu). */
+function ScoreRing({
+  percent,
+  sub,
+  color,
+  theme,
+}: {
+  percent: number;
+  sub?: string;
+  color: string;
+  theme: any;
+}) {
   const r = 52;
   const c = 2 * Math.PI * r;
-  const color = percent >= 70 ? "#22c55e" : percent >= 45 ? "#f59e0b" : "#ef4444";
   return (
     <View style={{ width: 150, height: 150, alignSelf: "center", marginBottom: 12 }}>
       <Svg width={150} height={150} viewBox="0 0 120 120" style={{ transform: [{ rotate: "-90deg" }] }}>
@@ -217,8 +244,7 @@ export function DiagnosisScreen() {
 
   const [phase, setPhase] = useState<Phase>({ kind: "loading", label: "Ładuję…" });
   const [openQ, setOpenQ] = useState<string | null>(null);
-  const [trial, setTrial] = useState<TrialStatus | null>(null);
-  const [claiming, setClaiming] = useState(false);
+  const { isPremium } = useAuth();
 
   // ── Raport ──────────────────────────────────────────────────────────────────
   const loadResult = useCallback(async (token: string) => {
@@ -227,7 +253,6 @@ export function DiagnosisScreen() {
       const result = await api<FullResult>(`/diagnosis/result/${encodeURIComponent(token)}`);
       setOpenQ(null);
       setPhase({ kind: "result", result, token });
-      getTrialStatus().then(setTrial).catch(() => {});
     } catch (e) {
       setPhase({
         kind: "error",
@@ -359,22 +384,6 @@ export function DiagnosisScreen() {
     });
   };
 
-  const claim = async () => {
-    setClaiming(true);
-    try {
-      setTrial(await claimTrial("diagnosis"));
-      navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
-    } catch (e: any) {
-      if (isFreePackBlocked(e)) {
-        setTrial((t) => (t ? { ...t, eligible: false, freePackBlocked: true } : t));
-        return;
-      }
-      Alert.alert("Nie udało się", e?.message || "Nie udało się odebrać arkusza.");
-    } finally {
-      setClaiming(false);
-    }
-  };
-
   const back = () => {
     if (navigation.canGoBack()) navigation.goBack();
     else navigation.navigate("Dashboard");
@@ -489,242 +498,214 @@ export function DiagnosisScreen() {
   }
 
   // ── Wynik ───────────────────────────────────────────────────────────────────
+  // Układ i kolejność jak web DiagnosisResult.tsx (Karol 28.09.2026):
+  // „✓ Twoja diagnoza jest gotowa” → koło z wynikiem (próg albo „cel: 65%
+  // (rekrutacja)”) → nagłówek → brak oceny AI → box Premium → „Pytania
+  // i odpowiedzi” → „Twoje działy — od najsłabszego” → „Najwięcej tracisz
+  // tutaj” → prośba o opinię. Bez karty darmowego arkusza (web 26.09: ma
+  // miejsce w panelu „Za darmo”) i bez reklamy apki (jesteśmy w apce).
   if (phase.kind === "result") {
     const r = phase.result;
     const isV2 = r.version === 2;
-    // 13 pytań na kilkanaście działów = zwykle JEDNO pytanie na dział, więc
-    // procent przy dziale mógł być tylko 0% albo 100% i nic nie mówił
-    // (zgłoszenie 25.09.2026). Zamiast pasków: gdzie były błędy, a gdzie nie.
-    const cleanTopic = (n: string) => n.replace(/^[IVXLC]+\.\s*/, "").trim();
-    const byTopic = new Map<string, { wrong: number; partial: number; skipped: number; total: number }>();
-    for (const q of r.questions ?? []) {
-      const key = cleanTopic(q.topicName || "Inne");
-      const t = byTopic.get(key) ?? { wrong: 0, partial: 0, skipped: 0, total: 0 };
-      t.total += 1;
-      if (q.answered === false || q.feedback?.aiLocked) t.skipped += 1;
-      else if (!q.isCorrect) {
-        if (q.score > 0) t.partial += 1;
-        else t.wrong += 1;
-      }
-      byTopic.set(key, t);
-    }
-    const weakTopics = [...byTopic.entries()]
-      .filter(([, t]) => t.wrong + t.partial + t.skipped > 0)
-      .sort((a, b) => b[1].wrong + b[1].partial - (a[1].wrong + a[1].partial) || b[1].skipped - a[1].skipped);
-    const goodTopics = [...byTopic.entries()]
-      .filter(([, t]) => t.wrong + t.partial + t.skipped === 0)
-      .map(([name]) => name);
-    const correctCount = (r.questions ?? []).filter((q) => q.isCorrect).length;
-    const weak = weakTopics.map(([name]) => ({ topicName: name }));
-    const mistakesLabel = (t: { wrong: number; partial: number; skipped: number }) => {
-      const parts: string[] = [];
-      if (t.wrong) parts.push(t.wrong === 1 ? "1 błąd" : t.wrong < 5 ? `${t.wrong} błędy` : `${t.wrong} błędów`);
-      if (t.partial) parts.push(t.partial === 1 ? "1 częściowo" : `${t.partial} częściowo`);
-      if (t.skipped) parts.push(t.skipped === 1 ? "1 bez odpowiedzi" : `${t.skipped} bez odpowiedzi`);
-      return parts.join(" · ");
-    };
+    const isE8 = r.examKind === "OSMOKLASISTA";
     // Próg zdawalności ma tylko matura PP z przedmiotu obowiązkowego
     // (utils/passThreshold.ts; backend wysyła wtedy passThreshold: 30).
-    // Matura bez progu (biologia, WOS…) → dystans do 65% (rekrutacja);
-    // ósmoklasista → punkty rekrutacyjne. Starszy backend dawał 30 przy każdym
-    // przedmiocie maturalnym — sprawdzamy też slug.
-    const isE8 = r.examKind === "OSMOKLASISTA";
-    const hasThreshold =
+    // Starszy backend dawał 30 przy każdym przedmiocie maturalnym — dlatego
+    // sprawdzamy też slug (web: diagnosisHasPassThreshold).
+    const withThreshold =
       r.passThreshold !== null &&
       r.passThreshold !== undefined &&
       (r.examKind !== "MATURA" && r.examKind !== undefined
         ? true
         : hasPassThreshold(r.subject.slug, "PODSTAWOWY"));
-    const rp = !hasThreshold && isE8 ? recruitPoints(r.scorePercent, r.subject.slug) : null;
-    const ringSub = hasThreshold
-        ? r.scorePercent >= (r.passThreshold ?? PASS_PERCENT)
-          ? `zdana (próg ${r.passThreshold}%)`
-          : `poniżej progu ${r.passThreshold}%`
-        : rp
-          ? `${rp.pts} pkt z ${rp.max}`
-          : `cel: ${RECRUIT_PERCENT}% (rekrutacja)`;
-    const headline = hasThreshold
-      ? r.scorePercent >= (r.passThreshold ?? PASS_PERCENT)
-        ? r.scorePercent >= 70
-          ? "Dobry wynik — czas dopracować szczegóły."
-          : "Próg jest, teraz podnieś wynik."
+    const threshold = r.passThreshold ?? PASS_PERCENT;
+    const aboveTarget = withThreshold
+      ? r.scorePercent >= threshold
+      : r.scorePercent >= RECRUIT_PERCENT;
+    const ringColor = aboveTarget ? "#22c55e" : withThreshold ? "#ef4444" : "#f59e0b";
+    // Ósmoklasista: bez progu, ale z punktami rekrutacyjnymi (jak dotąd).
+    const rp = !withThreshold && isE8 ? recruitPoints(r.scorePercent, r.subject.slug) : null;
+    const ringSub = withThreshold
+      ? `próg: ${threshold}%`
+      : rp
+        ? `${rp.pts} pkt z ${rp.max}`
+        : `cel: ${RECRUIT_PERCENT}% (rekrutacja)`;
+    const headline = withThreshold
+      ? aboveTarget
+        ? "Próg zaliczony — czas podnieść wynik."
         : "Poniżej progu — wiesz już, od czego zacząć."
-      : r.scorePercent >= 70
+      : aboveTarget
         ? "Dobry wynik — czas dopracować szczegóły."
         : "Wiesz już, od czego zacząć.";
+
+    // Działy od najsłabszego — jak web (topicBreakdown z backendu).
+    const rows = [...(r.topicBreakdown ?? [])]
+      .filter((t) => t && t.total > 0)
+      .sort((a, b) => a.earned / a.total - b.earned / b.total);
+    const weak = rows.filter((t) => t.earned / t.total < 0.5);
+    const lockedN = Number(r.aiLockedCount) || 0;
+    const days = r.examKind === "MATURA" || r.examKind === undefined ? daysToMatura() : null;
+    const toSubscription = () =>
+      navigation.getParent()?.navigate("ProfileTab", { screen: "Subscription" });
+
     return (
       <ScrollView style={container} contentContainerStyle={content}>
         <Header title={`Diagnoza · ${shortName(r.subject.name, r.subject.slug)}`} />
-        <ScoreRing percent={r.scorePercent} sub={ringSub} theme={theme} />
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "800",
-            color: theme.text,
-            textAlign: "center",
-            marginBottom: 20,
-          }}
-        >
-          {headline}
-        </Text>
 
-        <Card style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>
-            Dobrze: {correctCount} z {r.questions?.length ?? 0} zadań
+        {/* Nagłówek z wynikiem — najpierw „gotowe”, potem liczba (web). */}
+        <View style={{ alignItems: "center", marginBottom: 20 }}>
+          <View
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 5,
+              borderRadius: 999,
+              backgroundColor: isDark ? "#064e3b55" : "#ecfdf5",
+              marginBottom: 10,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "800",
+                letterSpacing: 0.6,
+                color: isDark ? "#6ee7b7" : "#047857",
+              }}
+            >
+              ✓ TWOJA DIAGNOZA JEST GOTOWA
+            </Text>
+          </View>
+          <Text
+            style={{
+              fontSize: 13,
+              color: theme.textSecondary,
+              textAlign: "center",
+              lineHeight: 19,
+              marginBottom: 14,
+            }}
+          >
+            Diagnoza · {shortName(r.subject.name, r.subject.slug)} — poniżej wynik,
+            działy do powtórki i co dalej.
           </Text>
-          <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 4, lineHeight: 17 }}>
-            13 zadań to za mało, żeby oceniać każdy dział osobno — pokazujemy,
-            gdzie pojawiły się błędy.
+          <ScoreRing percent={r.scorePercent} sub={ringSub} color={ringColor} theme={theme} />
+          <Text
+            style={{
+              fontSize: 21,
+              fontWeight: "800",
+              color: theme.text,
+              textAlign: "center",
+              lineHeight: 27,
+            }}
+          >
+            {headline}
           </Text>
-
-          {weakTopics.length > 0 && (
-            <>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginTop: 16, marginBottom: 8 }}>
-                Do powtórki
-              </Text>
-              <View style={{ gap: 8 }}>
-                {weakTopics.map(([name, t]) => (
-                  <View key={name} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <View
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: t.wrong ? colors.red[500] : t.partial ? "#f59e0b" : theme.textTertiary,
-                      }}
-                    />
-                    <Text style={{ flex: 1, fontSize: 14, color: theme.text }}>{name}</Text>
-                    <Text style={{ fontSize: 12, color: theme.textSecondary }}>{mistakesLabel(t)}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
+          {!withThreshold && (
+            <Text
+              style={{
+                fontSize: 13,
+                color: theme.textSecondary,
+                textAlign: "center",
+                lineHeight: 19,
+                marginTop: 8,
+              }}
+            >
+              {isE8
+                ? "Egzamin ósmoklasisty nie ma progu zdawalności — liczy się sam wynik, który przelicza się na punkty w rekrutacji."
+                : "Matura z tego przedmiotu nie ma progu zdawalności — liczy się sam wynik, który uczelnie biorą pod uwagę w rekrutacji."}
+            </Text>
           )}
+        </View>
 
-          {goodTopics.length > 0 && (
-            <>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginTop: 16, marginBottom: 8 }}>
-                Poszło dobrze
-              </Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {goodTopics.map((name) => (
-                  <View
-                    key={name}
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                      borderRadius: 999,
-                      backgroundColor: "#10b98122",
-                    }}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#10b981" }}>✓ {name}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-        </Card>
-
-        {/* Darmowy pakiet (z oceną AI) poszedł już z tej sieci/urządzenia —
-            zadania otwarte zostały bez oceny. Mówimy to wprost; tuż pod spodem
-            jest karta „Zobacz Premium" (trial.eligible = false). */}
-        {((r.aiLockedCount ?? 0) > 0 || r.freePackBlocked === true) && (
+        {/* Konto bez darmowego pakietu: część zadań bez oceny AI (web:
+            FreePackBlockedNote). Starszy backend nie wysyła pola — wtedy nic. */}
+        {(lockedN > 0 || r.freePackBlocked === true) && (
           <Card style={{ marginBottom: 16, borderColor: "#f59e0b" }}>
             <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 4 }}>
-              {(r.aiLockedCount ?? 0) > 0
-                ? `Bez oceny AI: ${lockedLabel(r.aiLockedCount!)}`
-                : "Bez oceny AI"}
+              {lockedN > 0 ? `Bez oceny AI: ${lockedLabel(lockedN)}` : "Bez oceny AI"}
             </Text>
             <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19 }}>
-              {FREE_PACK_BLOCKED_MESSAGE}
+              {lockedN === 1
+                ? "1 odpowiedzi nie oceniliśmy automatycznie i nie liczymy jej do wyniku. "
+                : lockedN > 1
+                  ? `${lockedN} odpowiedzi nie oceniliśmy automatycznie i nie liczymy ich do wyniku. `
+                  : ""}
+              {r.freePackMessage || FREE_PACK_BLOCKED_MESSAGE}
             </Text>
           </Card>
         )}
 
-        {/* Następny krok: darmowy arkusz (póki przysługuje), potem Premium. */}
-        {trial &&
-        trial.attemptStatus !== "COMPLETED" &&
-        trial.attemptStatus !== "GRADING" &&
-        !(isFreePackBlocked(trial) && !trial.active && !trial.examId) &&
-        (trial.eligible || trial.active || trial.examId) ? (
-          <Card style={{ marginBottom: 16, backgroundColor: colors.brand[500] + "14", borderColor: colors.brand[500] }}>
-            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.brand[500], letterSpacing: 1, marginBottom: 4 }}>
-              NASTĘPNY KROK · ZA DARMO
-            </Text>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 6 }}>
-              {trial.examId ? "Dokończ swój darmowy arkusz" : "Sprawdź się na pełnym arkuszu"}
-            </Text>
-            <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19, marginBottom: 12 }}>
-              {weak.length > 0
-                ? `Diagnoza pokazała, gdzie tracisz (${weak
-                    .slice(0, 2)
-                    .map((t) => t.topicName)
-                    .join(", ")}). Pełny arkusz powie, ile to kosztuje w punktach — `
-                : "Diagnoza sprawdziła wybrane działy. Pełny arkusz pokaże wynik w punktach — "}
-              z oceną AI zadań otwartych, bez limitu czasu.
-            </Text>
-            <Button
-              title={
-                trial.examId
-                  ? "Kontynuuj arkusz →"
-                  : trial.active
-                    ? "Wybierz przedmiot →"
-                    : "Odbierz darmowy arkusz →"
-              }
-              loading={claiming}
-              onPress={() => {
-                if (trial.examId) {
-                  navigation.getParent()?.navigate("ExamTab", {
-                    screen: "ExamPlay",
-                    params: { examId: trial.examId, subjectId: "" },
-                  });
-                } else if (trial.active) {
-                  navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
-                } else void claim();
+        {/* Premium pod wynikiem, nad pytaniami (web UnlockQuizBox) — tylko
+            konto bez Premium. Zakup idzie przez Google Play (Subscription). */}
+        {!isPremium && (
+          <View
+            style={{
+              marginBottom: 20,
+              padding: 18,
+              borderRadius: radius["2xl"],
+              borderWidth: 1,
+              borderColor: isDark ? colors.brand[700] + "99" : colors.brand[300],
+              backgroundColor: isDark ? colors.brand[900] + "4D" : colors.brand[50],
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "800",
+                letterSpacing: 0.8,
+                color: isDark ? colors.brand[300] : colors.brand[700],
+                marginBottom: 4,
               }}
-              size="sm"
-            />
-          </Card>
-        ) : (
-          <Card style={{ marginBottom: 16, backgroundColor: colors.brand[500] + "14", borderColor: colors.brand[500] }}>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 6 }}>
-              {weak.length > 0 ? "Najwięcej tracisz tutaj" : "Solidna baza — teraz przełóż ją na wynik"}
+            >
+              PREMIUM
             </Text>
-            <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19, marginBottom: 12 }}>
-              {weak.length > 0
-                ? `${weak
-                    .slice(0, 3)
-                    .map((t) => t.topicName)
-                    .join(", ")}. W Premium ćwiczysz te działy w Quizie bez limitu, rozwiązujesz pełne arkusze i dostajesz ocenę wypowiedzi pisemnych.`
-                : "W Premium ćwiczysz w Quizie bez limitu, rozwiązujesz pełne arkusze na czas i dostajesz ocenę wypowiedzi pisemnych."}
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "800",
+                color: theme.text,
+                lineHeight: 24,
+                marginBottom: 10,
+              }}
+            >
+              Odblokuj nielimitowane quizy z {subjectGenitive(r.subject.slug, shortName(r.subject.name))} i
+              innych przedmiotów
             </Text>
-            <Button
-              title="Zobacz Premium →"
-              onPress={() => navigation.getParent()?.navigate("ProfileTab", { screen: "Subscription" })}
-              size="sm"
-            />
-          </Card>
+            <View style={{ gap: 6, marginBottom: 14 }}>
+              {[
+                "Cały bank zadań z wyborem działu, typu zadań i poziomu trudności",
+                "Wyjaśnienie po każdej odpowiedzi i powtórki tego, co sprawiło trudność",
+                isE8
+                  ? "Wszystkie przedmioty i arkusze egzaminacyjne"
+                  : "Wszystkie przedmioty maturalne i arkusze egzaminacyjne",
+              ].map((b) => (
+                <View key={b} style={{ flexDirection: "row", gap: 8 }}>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "800",
+                      color: isDark ? colors.brand[400] : colors.brand[600],
+                    }}
+                  >
+                    ✓
+                  </Text>
+                  <Text style={{ flex: 1, fontSize: 13, color: theme.text, lineHeight: 19 }}>{b}</Text>
+                </View>
+              ))}
+            </View>
+            <Button title="Odblokuj Premium →" onPress={toSubscription} size="sm" />
+          </View>
         )}
 
-        {/* Prośba o ocenę tylko przy dobrym wyniku (≥ 60%), jak na webie —
-            obok słabego wyniku i paywalla nikt nie oceniał (Karol 28.09.2026). */}
-        {(r.scorePercent ?? 0) >= 60 && (
-          <TestimonialPrompt
-            trigger="diagnosis"
-            context={{ percentage: r.scorePercent, subject: r.subject.slug }}
-            style={{ marginBottom: 16 }}
-          />
-        )}
-
-        <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 10 }}>
+        {/* Pytania i odpowiedzi — pod boxem Premium, nad działami (web). */}
+        <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, marginBottom: 10 }}>
           Pytania i odpowiedzi
         </Text>
-        <View style={{ gap: 8, marginBottom: 20 }}>
+        <View style={{ gap: 8, marginBottom: 24 }}>
           {r.questions.map((q, i) => {
             const open = openQ === q.id;
             const skipped = q.answered === false;
             // Zadanie AI bez oceny (darmowy pakiet wykorzystany) — nie „✗".
             const locked = !skipped && q.feedback?.aiLocked === true;
+            const revealed = (q as any).revealed === true || q.feedback?.revealed === true;
             const badge = skipped || locked
               ? theme.textTertiary
               : q.isCorrect
@@ -766,7 +747,7 @@ export function DiagnosisScreen() {
                     }}
                   >
                     <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-                      {skipped ? "–" : locked ? "🔒" : q.isCorrect ? "✓" : q.score > 0 ? "½" : "✗"}
+                      {skipped ? "–" : locked ? "?" : q.isCorrect ? "✓" : q.score > 0 ? "½" : "✗"}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
@@ -782,7 +763,13 @@ export function DiagnosisScreen() {
                             {difficultyLabel(q.difficulty)}
                           </Text>
                         ) : null}
-                        {q.answered === false ? " · bez odpowiedzi" : locked ? " · bez oceny AI" : ""}
+                        {skipped
+                          ? " · bez odpowiedzi"
+                          : locked
+                            ? " · bez oceny AI"
+                            : revealed
+                              ? " · pokazana odpowiedź"
+                              : ""}
                       </Text>
                     )}
                   </View>
@@ -799,7 +786,14 @@ export function DiagnosisScreen() {
                       <Text style={{ fontSize: 13, color: theme.text }}>{parseChemText(formatYourAnswer(q))}</Text>
                     </View>
                     <View style={{ padding: 10, borderRadius: radius.xl, backgroundColor: colors.brand[500] + "14" }}>
-                      <Text style={{ fontSize: 11, color: colors.brand[600], fontWeight: "700", marginBottom: 2 }}>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: isDark ? colors.brand[400] : colors.brand[600],
+                          fontWeight: "700",
+                          marginBottom: 2,
+                        }}
+                      >
                         Poprawna odpowiedź
                       </Text>
                       <Text style={{ fontSize: 13, color: theme.text }}>{parseChemText(formatCorrect(q))}</Text>
@@ -820,6 +814,121 @@ export function DiagnosisScreen() {
             );
           })}
         </View>
+
+        {/* Rozbicie na działy — od najsłabszego, kolory jak web
+            (< 40% czerwony, < 70% żółty, reszta zielony). */}
+        {rows.length > 0 && (
+          <Card style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, marginBottom: 14 }}>
+              Twoje działy — od najsłabszego
+            </Text>
+            <View style={{ gap: 12 }}>
+              {rows.map((t) => {
+                const pct = Math.round((t.earned / t.total) * 100);
+                const barColor = pct < 40 ? colors.red[500] : pct < 70 ? "#f59e0b" : colors.brand[500];
+                return (
+                  <View key={t.topicId || t.topicName}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 10,
+                        marginBottom: 5,
+                      }}
+                    >
+                      <Text style={{ flex: 1, fontSize: 13, color: theme.text, lineHeight: 18 }}>
+                        {t.topicName}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: theme.textSecondary,
+                          fontVariant: ["tabular-nums"],
+                        }}
+                      >
+                        {pct}%
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        height: 10,
+                        borderRadius: 5,
+                        backgroundColor: isDark ? "rgba(255,255,255,0.09)" : colors.surface[100],
+                      }}
+                    >
+                      <View
+                        style={{
+                          height: 10,
+                          borderRadius: 5,
+                          backgroundColor: barColor,
+                          width: `${Math.max(pct, 4)}%`,
+                        }}
+                      />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </Card>
+        )}
+
+        {/* Domknięcie wyniku: gdzie tracisz, ile dni do matury, jedno wyjście
+            (web: ciemny box „Najwięcej tracisz tutaj”). */}
+        <View
+          style={{
+            marginBottom: 16,
+            padding: 18,
+            borderRadius: radius["2xl"],
+            backgroundColor: isDark ? colors.navy[900] : colors.navy[800],
+            borderWidth: isDark ? 1 : 0,
+            borderColor: colors.navy[700] + "66",
+          }}
+        >
+          <Text style={{ fontSize: 17, fontWeight: "800", color: "#fff", marginBottom: 6 }}>
+            {weak.length > 0 ? "Najwięcej tracisz tutaj" : "Solidna baza — teraz przełóż ją na wynik"}
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.navy[100], lineHeight: 21, marginBottom: 12 }}>
+            {weak.length > 0 ? (
+              <>
+                <Text style={{ fontWeight: "800", color: "#fff" }}>
+                  {weak
+                    .slice(0, 3)
+                    .map((t) => t.topicName)
+                    .join(", ")}
+                </Text>
+                {isE8
+                  ? ". W Premium odblokowujesz pytania z tych działów, pełne arkusze na czas i ocenę zadań otwartych przez AI."
+                  : ". W Premium odblokowujesz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań przez AI."}
+              </>
+            ) : (
+              "Diagnoza sprawdza podstawy. O wyniku decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."
+            )}
+          </Text>
+          {days !== null && days > 0 && (
+            <Text style={{ fontSize: 13, color: colors.navy[200], lineHeight: 19, marginBottom: 14 }}>
+              ⏳ Do matury zostało <Text style={{ fontWeight: "800", color: "#fff" }}>{days} dni</Text>. Te
+              braki nie znikną same — im wcześniej zaczniesz, tym mniej pod górkę.
+            </Text>
+          )}
+          {!isPremium && (
+            <Button
+              title={weak.length > 0 ? "Nadrób te działy w Premium →" : "Odblokuj arkusze i ocenę AI →"}
+              onPress={toSubscription}
+              size="sm"
+            />
+          )}
+        </View>
+
+        {/* Prośba o ocenę tylko przy dobrym wyniku (≥ 60%), jak na webie —
+            obok słabego wyniku i paywalla nikt nie oceniał (Karol 28.09.2026). */}
+        {(r.scorePercent ?? 0) >= 60 && (
+          <TestimonialPrompt
+            trigger="diagnosis"
+            context={{ percentage: r.scorePercent, subject: r.subject.slug }}
+            style={{ marginBottom: 16 }}
+          />
+        )}
 
         {/* Bez „Powtórz diagnozę": serwer pozwala na jedną diagnozę na osobę,
             więc link robił pętlę do tego samego wyniku (25.09.2026). */}

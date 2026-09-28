@@ -353,6 +353,16 @@ export function QuizPlayScreen() {
   const progress =
     questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
   const isLastQuestion = currentIndex >= questions.length - 1;
+  // Diagnoza: nazwa przedmiotu w nagłówku — bez dopisku „— egzamin
+  // ósmoklasisty” / „(…)”, jak na ekranie wyboru przedmiotu.
+  const diagSubjectLabel = isDiag
+    ? String(subjectName || "").split(" — ")[0].split(" (")[0].trim()
+    : "";
+  // Pytania diagnozy bez odpowiedzi (także bez „Pokaż odpowiedź”) — do
+  // podpisu przy „Zakończ i pokaż wynik”, jak na webie.
+  const diagMissingCount = isDiag
+    ? questions.filter((q) => !resultsMap[q.id]).length
+    : 0;
 
   // ══════════════════════════════════════════════════════════════════════════
   // FILTER-DRIVEN QUESTION LOADING (identical to web loadFilteredQuestions)
@@ -1102,12 +1112,42 @@ export function QuizPlayScreen() {
             marginBottom: 10,
           }}
         >
-          {/* XP i „Zakończ” po lewej, ✕ po prawej — jak w webie (Karol 27.09.2026). */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {/* XP i „Zakończ” po lewej, ✕ po prawej — jak w webie (Karol 27.09.2026).
+              Diagnoza: „Darmowa diagnoza” + nazwa przedmiotu pod spodem
+              (Karol 28.09.2026) — blok zajmuje resztę wiersza (flex 1,
+              minWidth 0), długa nazwa łamie się na 2 wiersze i nie wchodzi
+              na licznik ani ✕ (360 dp). */}
+          <View
+            style={
+              isDiag
+                ? { flex: 1, minWidth: 0, marginRight: 12 }
+                : { flexDirection: "row", alignItems: "center", gap: 8 }
+            }
+          >
             {isDiag ? (
-              <Text style={{ fontSize: 11, color: colors.brand[500], fontWeight: "700" }}>
-                {diagnosis!.mode === "review" ? "Przegląd diagnozy" : "Darmowa diagnoza"}
-              </Text>
+              <>
+                <Text
+                  numberOfLines={1}
+                  style={{ fontSize: 11, color: colors.brand[500], fontWeight: "700" }}
+                >
+                  {diagnosis!.mode === "review" ? "Przegląd diagnozy" : "Darmowa diagnoza"}
+                </Text>
+                {!!diagSubjectLabel && (
+                  <Text
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                    style={{
+                      fontSize: 14,
+                      lineHeight: 18,
+                      fontFamily: "Outfit_600SemiBold",
+                      color: theme.text,
+                      marginTop: 1,
+                    }}
+                  >
+                    {diagSubjectLabel}
+                  </Text>
+                )}
+              </>
             ) : (
             <Text
               style={{
@@ -4793,14 +4833,49 @@ export function QuizPlayScreen() {
                     Poprzednie
                   </Text>
                 </TouchableOpacity>
-                {!isDiag && (
+                {(!isDiag || diagnosis!.mode === "play") && (
                   <TouchableOpacity
-                    disabled={revealing}
+                    disabled={revealing || loading}
                     hitSlop={8}
                     onPress={async () => {
+                    const q = question;
+                    if (isDiag) {
+                      // „Pokaż odpowiedź” w diagnozie (jak web DiagnosisQuiz):
+                      // 0 pkt za pytanie, backend zapisuje „__REVEALED__” i
+                      // oddaje klucz + wyjaśnienie (feedback z revealed: true).
+                      setRevealing(true);
+                      try {
+                        const res = await api<any>("/diagnosis/v2/answer", {
+                          method: "POST",
+                          body: {
+                            token: diagnosis!.token,
+                            questionId: q.id,
+                            response: "__REVEALED__",
+                          },
+                        });
+                        // Stare pytanie z oceną (odpowiedź już była) — serwer
+                        // oddaje zapisaną ocenę; wtedy bez znacznika podglądu.
+                        setResult(res);
+                        setSubmitted(true);
+                        setResultsMap((prev) => ({ ...prev, [q.id]: res }));
+                        setAnswersMap((prev) => ({ ...prev, [q.id]: null }));
+                        setStats((prev) => ({
+                          correct: prev.correct + (res?.isCorrect ? 1 : 0),
+                          totalXp: 0,
+                          answered: prev.answered + 1,
+                        }));
+                      } catch (err: any) {
+                        Alert.alert(
+                          "Nie udało się pokazać odpowiedzi",
+                          err?.message || "Sprawdź połączenie i spróbuj jeszcze raz.",
+                        );
+                      } finally {
+                        setRevealing(false);
+                      }
+                      return;
+                    }
                     // Klucz z serwera (pytanie jest bez klucza); ten sam
                     // request zapisuje REVEALED w sesji.
-                    const q = question;
                     setRevealing(true);
                     let reveal: any = null;
                     let serverExplanation: string | null = null;
@@ -4859,19 +4934,35 @@ export function QuizPlayScreen() {
                     </Text>
                   </TouchableOpacity>
                 )}
+                {isDiag && isLastQuestion ? (
+                  // Ostatnie pytanie diagnozy: bez „Pomiń” (jak web) — drogę
+                  // do wyniku daje przycisk „Zakończ i pokaż wynik” niżej.
+                  // Niewidoczna kopia „Pomiń ›” trzyma „Pokaż odpowiedź”
+                  // na środku przy każdej skali czcionki.
+                  <View
+                    pointerEvents="none"
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                    style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, opacity: 0 }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600" }}>Pomiń</Text>
+                    <Ionicons name="chevron-forward" size={16} />
+                  </View>
+                ) : (
                 <TouchableOpacity
                   onPress={handleSkip}
                   // Pominięcie w trakcie oceny zostawiało żądanie w locie —
                   // jego wynik lądował potem na kolejnym pytaniu.
-                  disabled={loading}
+                  disabled={loading || revealing}
                   hitSlop={8}
-                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, opacity: loading ? 0.35 : 1 }}
+                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, opacity: loading || revealing ? 0.35 : 1 }}
                 >
                   <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
                     Pomiń
                   </Text>
                   <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
                 </TouchableOpacity>
+                )}
               </View>
               <View>
                 <Button
@@ -4906,6 +4997,52 @@ export function QuizPlayScreen() {
                       🤖 AI ocenia Twoją odpowiedź — zwykle 10-20 sekund...
                     </Text>
                   )}
+                {/* Ostatnie pytanie diagnozy — wyraźne wyjście do wyniku
+                    (web: obrysowany „Zakończ teraz i pokaż wynik”). Pytania
+                    bez odpowiedzi → potwierdzenie w finishDiagnosis. */}
+                {isDiag && isLastQuestion && diagnosis!.mode === "play" && !loading && (
+                  <TouchableOpacity
+                    onPress={() => void finishDiagnosis()}
+                    disabled={revealing}
+                    activeOpacity={0.8}
+                    style={{
+                      marginTop: 8,
+                      paddingVertical: 9,
+                      paddingHorizontal: 12,
+                      borderRadius: 14,
+                      borderWidth: 2,
+                      borderColor: colors.brand[500],
+                      alignItems: "center",
+                      opacity: revealing ? 0.5 : 1,
+                    }}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.brand[500] }}>
+                      Zakończ i pokaż wynik
+                    </Text>
+                    {diagMissingCount > 0 && (
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: theme.textSecondary,
+                          marginTop: 2,
+                          textAlign: "center",
+                        }}
+                      >
+                        Bez odpowiedzi:{" "}
+                        {diagMissingCount === 1
+                          ? "1 pytanie"
+                          : `${diagMissingCount} ${
+                              diagMissingCount % 10 >= 2 &&
+                              diagMissingCount % 10 <= 4 &&
+                              (diagMissingCount % 100 < 12 || diagMissingCount % 100 > 14)
+                                ? "pytania"
+                                : "pytań"
+                            }`}{" "}
+                        — liczone jako błąd
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           ) : (
@@ -4923,14 +5060,14 @@ export function QuizPlayScreen() {
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 4,
+                    gap: isDiag ? 2 : 4,
                     paddingVertical: 12,
-                    paddingHorizontal: 8,
+                    paddingHorizontal: isDiag ? 2 : 8,
                   }}
                 >
                   <Ionicons
                     name="chevron-back"
-                    size={18}
+                    size={isDiag ? 16 : 18}
                     color={theme.textTertiary}
                   />
                   <Text
@@ -4940,25 +5077,56 @@ export function QuizPlayScreen() {
                       fontWeight: "500",
                     }}
                   >
-                    Wróć
+                    {isDiag ? "Poprzednie" : "Wróć"}
                   </Text>
                 </TouchableOpacity>
               )}
               <View style={{ flex: 1 }}>
+                {isDiag ? (
+                  // Diagnoza: „← Poprzednie” obok — własny przycisk z tekstem
+                  // w jednym wierszu (adjustsFontSizeToFit), bo przy dużej
+                  // czcionce systemowej (1,3×) i 360 dp „Następne pytanie →”
+                  // łamało strzałkę do drugiego wiersza.
+                  <TouchableOpacity
+                    onPress={handleNext}
+                    activeOpacity={0.8}
+                    style={{
+                      minHeight: 52,
+                      paddingHorizontal: 12,
+                      paddingVertical: 12,
+                      borderRadius: 16,
+                      backgroundColor: colors.brand[500],
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                      style={{
+                        fontSize: 16,
+                        fontFamily: "Outfit_600SemiBold",
+                        color: "#fff",
+                      }}
+                    >
+                      {isLastQuestion
+                        ? diagnosis!.mode === "review"
+                          ? "Wróć do raportu"
+                          : "Zakończ i pokaż wynik"
+                        : "Następne pytanie →"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
                 <Button
-                  title={
-                    isDiag && isLastQuestion
-                      ? diagnosis!.mode === "review"
-                        ? "Wróć do raportu"
-                        : "Zakończ i pokaż wynik"
-                      : "Następne pytanie"
-                  }
+                  title="Następne pytanie"
                   onPress={handleNext}
                   size="lg"
                   icon={
                     <Ionicons name="arrow-forward" size={18} color="#fff" />
                   }
                 />
+                )}
               </View>
             </View>
           )}

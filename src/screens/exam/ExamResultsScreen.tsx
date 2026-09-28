@@ -4,7 +4,7 @@
 // ExamResultsScreen — Review mode with grading overlay
 // ============================================================================
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { cleanInstructionForDisplay } from "../../utils/examInstruction";
 import { PASS_PERCENT, hasPassThreshold, verdictLineFor } from "../../utils/passThreshold";
 import {
@@ -37,6 +37,8 @@ import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { askForPushPermissionOnce } from "../../lib/pushNotifications";
 import type { ExamStackParamList } from "../../navigation/types";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
+import { examTaskTypeLabel } from "../../utils/examTaskLabels";
+import { daysToMatura } from "../../components/common/PremiumGate";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -53,6 +55,21 @@ function pointsTo(target: number, totalScore: number, maxScore: number) {
   return Math.max(0, Math.ceil((maxScore * target) / 100) - totalScore);
 }
 
+// Ile miesięcy zostało do najbliższej matury — do ramowania „ten wynik da się
+// jeszcze podnieść” przy najniższych wynikach (jak web monthsToMatura).
+// Minimum 1, żeby tuż przed egzaminem nie wyszło „masz na to 0 miesięcy”.
+function monthsToMatura(): number {
+  const days = daysToMatura();
+  if (days === null) return 8;
+  return Math.max(1, Math.floor(days / 30.44));
+}
+
+function monthsLabel(n: number): string {
+  if (n === 1) return "1 miesiąc";
+  if (n >= 2 && n <= 4) return `${n} miesiące`;
+  return `${n} miesięcy`;
+}
+
 function getOutcomeFraming(
   percentage: number,
   totalScore: number,
@@ -67,20 +84,29 @@ function getOutcomeFraming(
   // Egzamin bez progu zdawalności (PR, przedmiot dodatkowy): ani „zdane”, ani
   // „do progu brakuje” — sam dystans do poziomów rekrutacyjnych.
   if (!threshold && percentage < RECRUIT_PERCENT) {
+    const months = monthsLabel(monthsToMatura());
     return {
-      distance: `Do wyniku, który liczy się w rekrutacji (${RECRUIT_PERCENT}%), brakuje Ci ${toRecruit} pkt.`,
-      upsellTitle: `Do progu rekrutacyjnego brakuje ${toRecruit} pkt`,
+      distance: `Do wyniku, który liczy się w rekrutacji (${RECRUIT_PERCENT}%), brakuje Ci ${toRecruit} pkt${percentage < 50 ? ` — masz na to jeszcze ${months}` : ""}.`,
+      upsellTitle:
+        percentage < PASS_PERCENT
+          ? `Ten wynik da się podnieść — masz na to ${months}`
+          : `Do progu rekrutacyjnego brakuje ${toRecruit} pkt`,
       upsellBody:
-        "W Premium masz pytania dokładnie z działów, w których straciłeś punkty, i kolejne arkusze, żeby sprawdzić, czy różnica znika.",
+        percentage < PASS_PERCENT
+          ? "Najtrudniejsze już za Tobą: wiesz dokładnie, które działy kosztują Cię punkty i od czego zacząć — plan naprawczy jest wyżej. W Premium ćwiczysz dokładnie te działy i wracasz do kolejnych arkuszy, żeby zobaczyć, jak różnica znika."
+          : "W Premium ćwiczysz słabsze obszary i sprawdzasz postęp na kolejnych arkuszach.",
     };
   }
 
   if (percentage < PASS_PERCENT) {
+    // Rama ratunkowa, nie porażkowa: komunikat ma mówić „jest plan i jest
+    // czas”, a nie dobijać procentem.
+    const months = monthsLabel(monthsToMatura());
     return {
-      distance: `Do progu zdawalności brakuje Ci ${toPass} pkt.`,
-      upsellTitle: `Brakuje Ci ${toPass} pkt do zdania`,
+      distance: `Do progu zdawalności brakuje Ci ${toPass} pkt — masz na to jeszcze ${months}.`,
+      upsellTitle: `Ten wynik da się podnieść — masz na to ${months}`,
       upsellBody:
-        "Tego nie nadrobi jeden arkusz. W Premium masz pytania dokładnie z działów, w których straciłeś punkty, i kolejne arkusze, żeby sprawdzić, czy różnica znika.",
+        "Najtrudniejsze już za Tobą: wiesz dokładnie, które działy kosztują Cię punkty i od czego zacząć — plan naprawczy jest wyżej. W Premium ćwiczysz dokładnie te działy i wracasz do kolejnych arkuszy, żeby zobaczyć, jak różnica znika.",
     };
   }
   if (percentage < 50) {
@@ -103,20 +129,21 @@ function getOutcomeFraming(
       distance: `Mocny wynik. Do bardzo dobrego (${TOP_PERCENT}%) brakuje ${toTop} pkt.`,
       upsellTitle: `Do bardzo dobrego wyniku brakuje ${toTop} pkt`,
       upsellBody:
-        "Masz bazę, której większość dopiero szuka. Te ostatnie punkty schodzą najwolniej — z regularnych powtórek i kolejnych arkuszy.",
+        "Masz bazę, której większość dopiero szuka. Te ostatnie punkty schodzą najwolniej — z regularnych powtórek i kolejnych arkuszy, nie z jednego podejścia.",
     };
   }
   return {
     distance: "Wynik na poziomie najlepszych — rzecz w tym, żeby go utrzymać.",
     upsellTitle: "Ten poziom trzeba utrzymać do maja",
     upsellBody:
-      "Forma bez treningu spada, a do matury zostało sporo czasu. W Premium masz kolejne arkusze i powtórki, żeby ten wynik był Twoim minimum, nie rekordem.",
+      "Forma bez treningu spada, a do matury zostało sporo czasu. W Premium masz kolejne arkusze i pytania dobierane pod Twój poziom, żeby ten wynik był Twoim minimum, nie rekordem.",
   };
 }
 
 function getScoreTier(pct: number, isDark: boolean) {
   if (pct >= 85)
     return {
+      tier: "excellent",
       emoji: "🏆",
       label: "Doskonale!",
       color: isDark ? "#34d399" : "#059669",
@@ -125,14 +152,17 @@ function getScoreTier(pct: number, isDark: boolean) {
     };
   if (pct >= 65)
     return {
+      tier: "good",
       emoji: "🎉",
       label: "Dobry wynik!",
-      color: isDark ? "#60a5fa" : "#2563eb",
-      bg: isDark ? "#2563eb10" : "#eff6ff",
-      border: isDark ? "#2563eb40" : "#bfdbfe",
+      // Zielony marki jak web (text-brand-600), nie niebieski.
+      color: isDark ? "#4ade80" : "#16a34a",
+      bg: isDark ? "#22c55e10" : "#f0fdf4",
+      border: isDark ? "#22c55e40" : "#bbf7d0",
     };
   if (pct >= 50)
     return {
+      tier: "decent",
       emoji: "📝",
       label: "Zdany",
       color: isDark ? "#fbbf24" : "#d97706",
@@ -141,6 +171,7 @@ function getScoreTier(pct: number, isDark: boolean) {
     };
   if (pct >= 30)
     return {
+      tier: "borderline",
       emoji: "⚠️",
       label: "Na granicy",
       color: isDark ? "#fb923c" : "#ea580c",
@@ -148,12 +179,29 @@ function getScoreTier(pct: number, isDark: boolean) {
       border: isDark ? "#ea580c40" : "#fed7aa",
     };
   return {
+    tier: "failed",
     emoji: "💪",
     label: "Niezdany — nie poddawaj się!",
     color: isDark ? "#f87171" : "#dc2626",
     bg: isDark ? "#dc262610" : "#fef2f2",
     border: isDark ? "#dc262640" : "#fecaca",
   };
+}
+
+/** Kolor wyniku części / zadań z odpowiedzią — jak web: < 40% czerwony,
+ *  < 70% żółty, reszta zielony marki (czytelne w obu motywach). */
+function scoreTone(pct: number, isDark: boolean): string {
+  if (pct < 40) return isDark ? "#f87171" : "#dc2626";
+  if (pct < 70) return isDark ? "#fbbf24" : "#d97706";
+  return isDark ? "#4ade80" : "#16a34a";
+}
+
+function hasResponse(v: any): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v === "string") return v.trim().length > 0;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === "object") return Object.values(v).some(hasResponse);
+  return true;
 }
 
 export function ExamResultsScreen() {
@@ -178,6 +226,28 @@ export function ExamResultsScreen() {
   // inaczej „rozwiąż od nowa" byłoby pętlą przepalającą darmową pulę kredytów.
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
   const [practice, setPractice] = useState<PracticeLinks | null>(null);
+  // Zmiana zadania zaczyna od góry (jak web window.scrollTo) — wcześniej
+  // nowe zadanie otwierało się w połowie, na wysokości poprzedniego.
+  const scrollRef = useRef<ScrollView>(null);
+  const [gradeError, setGradeError] = useState<string | null>(null);
+  const [regrading, setRegrading] = useState(false);
+  // Karta „Darmowa próbka quizu” w „Co dalej?” (konto bez Premium, web
+  // DiagnosisSampleCard): diagnoza jest jedna na konto — zrobiona → brak
+  // karty, rozpoczęta → „Dokończ…”.
+  const [diagCard, setDiagCard] = useState<
+    { kind: "none" } | { kind: "todo" } | { kind: "progress"; name: string }
+  >({ kind: "none" });
+  useEffect(() => {
+    Promise.all([
+      api<any>("/diagnosis/mine").catch(() => null),
+      api<any>("/diagnosis/v2/current").catch(() => null),
+    ]).then(([mine, cur]) => {
+      const c = cur?.current;
+      if ((mine?.diagnoses ?? []).length > 0 || c?.completed) return;
+      if (c?.subject?.name) setDiagCard({ kind: "progress", name: c.subject.name });
+      else setDiagCard({ kind: "todo" });
+    });
+  }, []);
 
   useEffect(() => {
     api<{ isPremium: boolean }>("/stripe/status")
@@ -410,14 +480,37 @@ export function ExamResultsScreen() {
           padding: 32,
         }}
       >
-        <Text style={{ fontSize: 40, marginBottom: 16 }}>⏳</Text>
-        <Text style={{ fontSize: 14, color: theme.textSecondary }}>
-          Wyniki niedostępne.
+        <Text style={{ fontSize: 40, marginBottom: 16 }}>
+          {feedback?.error ? "⚠️" : "⏳"}
         </Text>
+        <Text style={{ fontSize: 14, color: theme.textSecondary, textAlign: "center", lineHeight: 20 }}>
+          {feedback?.message || "Wyniki niedostępne."}
+        </Text>
+        {/* Ocenianie padło przed zapisaniem ocen — /grade w tym stanie
+            przejdzie, więc dajemy drogę wyjścia (jak web). */}
+        <Button
+          title={regrading ? "Uruchamianie oceny..." : "🔄 Oceń egzamin ponownie"}
+          loading={regrading}
+          onPress={async () => {
+            setRegrading(true);
+            try {
+              await gradeExamWithAI(attemptId);
+              setError("GRADING");
+              setGradingProgress(0);
+              setReloadKey((k) => k + 1);
+            } catch (err: any) {
+              Alert.alert("Nie udało się", err?.message || "Nie udało się rozpocząć oceny.");
+            } finally {
+              setRegrading(false);
+            }
+          }}
+          style={{ marginTop: 20 }}
+        />
         <Button
           title="Wróć"
+          variant="ghost"
           onPress={() => navigation.goBack()}
-          style={{ marginTop: 20 }}
+          style={{ marginTop: 10 }}
         />
       </View>
     );
@@ -430,6 +523,31 @@ export function ExamResultsScreen() {
   const allTasks = examContent.parts.flatMap((p: any) =>
     p.tasks.map((t: any) => ({ ...t, partId: p.id, partName: p.name })),
   );
+  // Pod-numeracja zadań (id → "2" lub "2.1") — jak web: kilka zadań z tym
+  // samym `number` w części to podpunkty jednego zadania.
+  const taskLabels: Record<string, string> = {};
+  examContent.parts.forEach((p: any) => {
+    const counts: Record<string, number> = {};
+    p.tasks.forEach((t: any) => {
+      const n = String(t.number);
+      counts[n] = (counts[n] || 0) + 1;
+    });
+    const seen: Record<string, number> = {};
+    p.tasks.forEach((t: any) => {
+      const n = String(t.number);
+      if (counts[n] > 1) {
+        seen[n] = (seen[n] || 0) + 1;
+        taskLabels[t.id] = `${n}.${seen[n]}`;
+      } else {
+        taskLabels[t.id] = n;
+      }
+    });
+  });
+  const labelOf = (t: any) => taskLabels[t?.id] ?? String(t?.number ?? "");
+  // Materiały to zasób arkusza — zadanie może wskazywać materiał z innej
+  // części (materialIds), więc szukamy w całym arkuszu, nie w bieżącej części.
+  const allMaterials: any[] = examContent.parts.flatMap((p: any) => p.materials || []);
+  const partResults: any[] = grading.partResults ?? [];
   const isSummary = currentTaskId === "__summary__";
   const currentTask = isSummary
     ? null
@@ -460,6 +578,7 @@ export function ExamResultsScreen() {
   const goToTask = (id: string) => {
     setCurrentTaskId(id);
     setShowNav(false);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
   };
   const goNext = () => {
     if (isSummary) goToTask(allTasks[0].id);
@@ -633,76 +752,104 @@ export function ExamResultsScreen() {
               </Text>
             </TouchableOpacity>
             <ScrollView>
-              {examContent.parts.map((part: any) => (
+              {/* Lista zadań jak web (boczny panel): część z wynikiem w kolorze
+                  (< 40% czerwony, < 70% żółty), pod nią zadania — kropka stanu,
+                  numer, typ zadania, punkty. */}
+              {examContent.parts.map((part: any) => {
+                const pr = partResults.find((x: any) => x.partId === part.id);
+                const prPct = pr && pr.maxScore > 0 ? (pr.score / pr.maxScore) * 100 : 0;
+                return (
                 <View key={part.id} style={{ marginBottom: 16 }}>
                   <Text
                     style={{
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: "700",
                       color: theme.textTertiary,
-                      letterSpacing: 1,
-                      marginBottom: 8,
+                      letterSpacing: 0.8,
+                      marginBottom: 6,
+                      paddingHorizontal: 4,
                     }}
                   >
-                    {part.name.replace("Część ", "Cz. ")}
+                    {String(part.name)
+                      .replace("Część ", "Cz. ")
+                      .replace("Arkusz 2. ", "")
+                      .toUpperCase()}
+                    {pr ? (
+                      <Text style={{ color: scoreTone(prPct, isDark) }}>
+                        {"  "}({pr.score}/{pr.maxScore})
+                      </Text>
+                    ) : null}
                   </Text>
-                  <View
-                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                  >
+                  <View style={{ gap: 2 }}>
                     {part.tasks.map((task: any) => {
                       const tg = gradingMap.get(task.id);
                       const isCur = task.id === currentTaskId;
-                      const dotColor = (tg as any)?._ungraded
+                      const ungraded = !!(tg as any)?._ungraded;
+                      const dotColor = ungraded
                         ? "#a855f7"
                         : tg?.isCorrect
                           ? colors.brand[500]
                           : (tg?.pointsEarned ?? 0) > 0
                             ? "#f59e0b"
                             : "#ef4444";
+                      const ptsColor = isCur
+                        ? "rgba(255,255,255,0.85)"
+                        : ungraded
+                          ? "#a855f7"
+                          : tg?.isCorrect
+                            ? isDark ? "#4ade80" : "#16a34a"
+                            : (tg?.pointsEarned ?? 0) > 0
+                              ? isDark ? "#fbbf24" : "#d97706"
+                              : isDark ? "#f87171" : "#dc2626";
+                      const lbl = labelOf(task);
                       return (
                         <TouchableOpacity
                           key={task.id}
                           onPress={() => goToTask(task.id)}
                           style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 14,
+                            flexDirection: "row",
                             alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: isCur
-                              ? colors.navy[500]
-                              : theme.inputBg,
-                            borderWidth: isCur ? 0 : 2,
-                            borderColor: dotColor,
+                            gap: 10,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            borderRadius: 12,
+                            backgroundColor: isCur ? colors.navy[500] : "transparent",
                           }}
                         >
+                          <View
+                            style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: dotColor }}
+                          />
                           <Text
                             style={{
+                              minWidth: 34,
                               fontSize: 13,
                               fontWeight: "700",
                               color: isCur ? "#fff" : theme.text,
                             }}
                           >
-                            {task.number}
+                            {lbl}
+                            {lbl.includes(".") ? "" : "."}
                           </Text>
                           <Text
+                            numberOfLines={1}
                             style={{
-                              fontSize: 8,
-                              fontWeight: "700",
-                              color: isCur ? "rgba(255,255,255,0.7)" : dotColor,
+                              flex: 1,
+                              fontSize: 13,
+                              color: isCur ? "#fff" : theme.textSecondary,
                             }}
                           >
-                            {(tg as any)?._ungraded
-                              ? "?"
-                              : (tg?.pointsEarned ?? 0)}
-                            /{tg?.maxPoints ?? task.points}
+                            {examTaskTypeLabel(task.type)}
+                          </Text>
+                          <Text style={{ fontSize: 12, fontWeight: "800", color: ptsColor }}>
+                            {ungraded ? "?" : (tg?.pointsEarned ?? 0)}/{tg?.maxPoints ?? task.points}
                           </Text>
                         </TouchableOpacity>
                       );
                     })}
                   </View>
                 </View>
-              ))}
+                );
+              })}
             </ScrollView>
           </View>
         </View>
@@ -738,7 +885,7 @@ export function ExamResultsScreen() {
             <Text style={{ fontSize: 11, color: theme.textSecondary }}>
               {isSummary
                 ? "Podsumowanie"
-                : `Zad. ${currentTask?.number} · ${currentIndex + 1} z ${allTasks.length}`}
+                : `Zad. ${labelOf(currentTask)} · ${currentIndex + 1} z ${allTasks.length}`}
             </Text>
           </View>
           <TouchableOpacity
@@ -761,106 +908,252 @@ export function ExamResultsScreen() {
       </View>
 
       {/* ═══ CONTENT ═══ */}
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
-        {/* ── SUMMARY ── */}
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+        {/* Opinia po arkuszu od 50%, jak na webie (nad treścią, Karol
+            28.09.2026). Powtórki ogranicza backend (max 3 wyświetlenia, co 3 dni). */}
+        {grading.percentage >= 50 && (
+          <TestimonialPrompt
+            trigger="exam"
+            context={{
+              percentage: grading.percentage,
+              subject: data?.exam?.subject?.slug ?? examContent?.subject ?? null,
+            }}
+            style={{ marginBottom: 16 }}
+          />
+        )}
+
+        {/* ── SUMMARY ── układ i kolejność jak web ExamResults.tsx ── */}
         {isSummary && (
           <View>
             {/* „Oddaj to, co masz": przy niepełnym arkuszu osobno wynik z zadań,
                 na które była odpowiedź — procent z całości nic wtedy nie mówi. */}
             {(() => {
-              const has = (v: any): boolean => {
-                if (v === null || v === undefined) return false;
-                if (typeof v === "string") return v.trim().length > 0;
-                if (Array.isArray(v)) return v.length > 0;
-                if (typeof v === "object") return Object.values(v).some(has);
-                return true;
-              };
               const ts: any[] = grading.tasks;
-              const done = ts.filter((t) => has(t.userResponse));
+              const done = ts.filter((t) => hasResponse(t.userResponse));
               if (done.length === 0 || done.length === ts.length) return null;
               const got = done.reduce((a, t) => a + (t.pointsEarned || 0), 0);
               const max = done.reduce((a, t) => a + (t.maxPoints || 0), 0);
               const pct = max > 0 ? Math.round((got / max) * 100) : 0;
               return (
-                <View style={{ borderRadius: 20, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: colors.brand[500], backgroundColor: isDark ? "rgba(59,130,246,0.12)" : "#eff6ff" }}>
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.brand[500], letterSpacing: 1, marginBottom: 4 }}>
+                <View
+                  style={{
+                    borderRadius: 20,
+                    padding: 18,
+                    marginBottom: 14,
+                    borderWidth: 1,
+                    borderColor: isDark ? colors.brand[800] : colors.brand[200],
+                    backgroundColor: isDark ? colors.brand[900] + "33" : colors.brand[50],
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "800",
+                      color: isDark ? colors.brand[300] : colors.brand[700],
+                      letterSpacing: 0.8,
+                      marginBottom: 4,
+                    }}
+                  >
                     WYNIK Z ROZWIĄZANYCH ZADAŃ
                   </Text>
-                  <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text }}>
+                  <Text style={{ fontSize: 24, fontWeight: "800", color: scoreTone(pct, isDark) }}>
                     {got}/{max} pkt ({pct}%)
                   </Text>
-                  <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, lineHeight: 18 }}>
-                    Masz odpowiedzi w {done.length} z {ts.length} zadań. Niżej wynik z całego arkusza — zadania bez odpowiedzi liczą się w nim za 0 pkt.
+                  <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, lineHeight: 19 }}>
+                    {summaryWithheld
+                      ? `Masz odpowiedzi w ${done.length} z ${ts.length} zadań · punkty z całego arkusza: ${grading.totalScore}/${grading.maxScore} (zadania bez odpowiedzi liczą się za 0 pkt).`
+                      : `Masz odpowiedzi w ${done.length} z ${ts.length} zadań. Poniżej wynik z całego arkusza — zadania bez odpowiedzi liczą się w nim za 0 pkt.`}
                   </Text>
                 </View>
               );
             })()}
-            {/* Score card */}
+
+            {/* Nagłówek wyniku: trzy warianty jak web — za mało odpowiedzi,
+                ratunkowy (poniżej 30%) i zwykły. */}
             <View
               style={{
                 borderRadius: 20,
-                padding: 24,
-                marginBottom: 20,
-                backgroundColor: tier.bg,
+                padding: 22,
+                marginBottom: 16,
+                backgroundColor: summaryWithheld ? theme.card : tier.bg,
                 borderWidth: 1,
-                borderColor: tier.border,
+                borderColor: summaryWithheld ? theme.cardBorder : tier.border,
                 alignItems: "center",
               }}
             >
               <Text style={{ fontSize: 40, marginBottom: 8 }}>
-                {tier.emoji}
+                {summaryWithheld ? "📝" : tier.tier === "failed" ? "🧭" : tier.emoji}
               </Text>
               <Text
                 style={{
                   fontSize: 18,
                   fontWeight: "800",
                   color: theme.text,
+                  textAlign: "center",
                   marginBottom: 4,
                 }}
               >
                 {exam.title}
               </Text>
-              <Text
-                style={{ fontSize: 28, fontWeight: "800", color: tier.color }}
-              >
-                {grading.totalScore}/{grading.maxScore} pkt (
-                {grading.percentage}%)
-              </Text>
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: "600",
-                  color: tier.color,
-                  marginTop: 4,
-                }}
-              >
-                {verdict}
-              </Text>
-              {/* Dystans w punktach — dla wszystkich, bez sprzedaży.
-                  To jest najużyteczniejsza liczba na całym ekranie. */}
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: theme.textSecondary,
-                  textAlign: "center",
-                  marginTop: 10,
-                  lineHeight: 19,
-                }}
-              >
-                {framing.distance}
-              </Text>
+              {summaryWithheld ? (
+                <>
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "800",
+                      color: theme.text,
+                      textAlign: "center",
+                      marginTop: 6,
+                    }}
+                  >
+                    Arkusz rozwiązany tylko w części
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: theme.textSecondary,
+                      textAlign: "center",
+                      marginTop: 8,
+                      lineHeight: 19,
+                    }}
+                  >
+                    {typeof data?.answeredRatio === "number"
+                      ? `Odpowiedzi masz w ${Math.round(data.answeredRatio * 100)}% zadań — to za mało, żeby ocenić Twój poziom.`
+                      : "To za mało odpowiedzi, żeby ocenić Twój poziom."}
+                  </Text>
+                </>
+              ) : tier.tier === "failed" ? (
+                <>
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "800",
+                      color: theme.text,
+                      textAlign: "center",
+                      marginTop: 6,
+                    }}
+                  >
+                    Masz punkt startu — i gotowy plan naprawczy
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "700",
+                      color: tier.color,
+                      textAlign: "center",
+                      marginTop: 8,
+                    }}
+                  >
+                    Punkt startu: {grading.totalScore}/{grading.maxScore} pkt ({grading.percentage}%)
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: theme.textSecondary,
+                      textAlign: "center",
+                      marginTop: 10,
+                      lineHeight: 19,
+                    }}
+                  >
+                    {framing.distance}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: theme.textSecondary,
+                      textAlign: "center",
+                      marginTop: 4,
+                      lineHeight: 19,
+                    }}
+                  >
+                    Niżej widzisz, które działy kosztowały Cię najwięcej punktów i od czego zacząć.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text
+                    style={{
+                      fontSize: 28,
+                      fontWeight: "800",
+                      color: tier.color,
+                      textAlign: "center",
+                      marginTop: 4,
+                    }}
+                  >
+                    {grading.totalScore}/{grading.maxScore} pkt ({grading.percentage}%)
+                  </Text>
+                  {verdict ? (
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "700",
+                        color: tier.color,
+                        textAlign: "center",
+                        marginTop: 6,
+                      }}
+                    >
+                      {verdict}
+                    </Text>
+                  ) : null}
+                  {/* Dystans w punktach — najużyteczniejsza liczba na ekranie. */}
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: theme.textSecondary,
+                      textAlign: "center",
+                      marginTop: 10,
+                      lineHeight: 19,
+                    }}
+                  >
+                    {framing.distance}
+                  </Text>
+                </>
+              )}
+
+              {/* Wynik części arkusza w kolorach (jak lista części na webie). */}
+              {partResults.length > 1 && (
+                <View style={{ alignSelf: "stretch", marginTop: 16, gap: 6 }}>
+                  {partResults.map((pr: any) => {
+                    const pct = pr.maxScore > 0 ? (pr.score / pr.maxScore) * 100 : 0;
+                    return (
+                      <View
+                        key={pr.partId}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 12,
+                          backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.7)",
+                        }}
+                      >
+                        <Text style={{ flex: 1, fontSize: 13, color: theme.text }}>
+                          {String(pr.partName ?? "")
+                            .replace("Część ", "Cz. ")
+                            .replace("Arkusz 2. ", "")}
+                        </Text>
+                        <Text style={{ fontSize: 13, fontWeight: "800", color: scoreTone(pct, isDark) }}>
+                          {pr.score}/{pr.maxScore}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
 
-            {/* Motivational */}
             {summaryWithheld ? (
               <View
                 style={{
                   padding: 14,
                   borderRadius: 16,
                   marginBottom: 20,
+                  borderLeftWidth: 4,
+                  borderLeftColor: "#f59e0b",
+                  backgroundColor: theme.card,
                   borderWidth: 1,
-                  borderColor: isDark ? "#1e3a8a" : "#bfdbfe",
-                  backgroundColor: isDark ? "#1e3a8a22" : "#eff6ff",
+                  borderColor: theme.cardBorder,
                 }}
               >
                 <Text style={{ fontSize: 13, color: theme.text, lineHeight: 19 }}>
@@ -869,55 +1162,32 @@ export function ExamResultsScreen() {
                     : "ℹ️ Podsumowanie i omówienie arkusza pojawią się, gdy odpowiesz na co najmniej 30% zadań. Zadania bez odpowiedzi nie pokazują klucza."}
                 </Text>
               </View>
-            ) : (
-            <Text
-              style={{
-                fontSize: 13,
-                color: theme.textSecondary,
-                fontStyle: "italic",
-                textAlign: "center",
-                marginBottom: 20,
-                lineHeight: 20,
-              }}
-            >
-              {feedback.motivationalMessage}
-            </Text>
-            )}
-
-            {/* Opinia po arkuszu od 50%, jak na webie (Karol 28.09.2026).
-                Powtórki ogranicza backend (max 3 wyświetlenia, co 3 dni). */}
-            {grading.percentage >= 50 && (
-              <TestimonialPrompt
-                trigger="exam"
-                context={{
-                  percentage: grading.percentage,
-                  subject: data?.exam?.subject?.slug ?? examContent?.subject ?? null,
-                }}
-                style={{ marginBottom: 20 }}
-              />
-            )}
-
-            {/* Grade with AI button */}
-            {feedback.isPartialGrading && (
-              <TouchableOpacity
-                onPress={async () => {
-                  try {
-                    await gradeExamWithAI(attemptId);
-                    setError("GRADING");
-                    setGradingProgress(0);
-                    setReloadKey((k) => k + 1);
-                  } catch (err: any) {
-                    Alert.alert("Błąd", err.message);
-                  }
-                }}
+            ) : feedback?.motivationalMessage ? (
+              <Text
                 style={{
-                  padding: 20,
+                  fontSize: 13,
+                  color: theme.textSecondary,
+                  fontStyle: "italic",
+                  textAlign: "center",
+                  marginBottom: 20,
+                  lineHeight: 20,
+                }}
+              >
+                {feedback.motivationalMessage}
+              </Text>
+            ) : null}
+
+            {/* „Oceń z AI” — wynik częściowy (jak web: trzy warianty opisu). */}
+            {feedback?.isPartialGrading && (
+              <View
+                style={{
+                  padding: 18,
                   borderRadius: 16,
                   marginBottom: 20,
                   alignItems: "center",
                   borderWidth: 2,
                   borderStyle: "dashed",
-                  borderColor: "#a855f7",
+                  borderColor: isDark ? "#6b21a8" : "#d8b4fe",
                   backgroundColor: isDark ? "#5b21b610" : "#faf5ff",
                 }}
               >
@@ -925,367 +1195,346 @@ export function ExamResultsScreen() {
                   style={{
                     fontSize: 13,
                     color: theme.textSecondary,
-                    marginBottom: 8,
+                    marginBottom: 12,
+                    textAlign: "center",
+                    lineHeight: 19,
                   }}
                 >
-                  {(feedback as any).noCredits
-                    ? "⚡ Zadania otwarte czekają na ocenę AI (zabrakło kredytów przy oddaniu)."
-                    : "⚡ Zadania otwarte nie zostały ocenione."}
+                  {(feedback as any).aiFailedTasks
+                    ? `⚡ Wynik częściowy — ${(feedback as any).aiFailedTasks} zad. nie udało się ocenić z powodu błędu AI (0 pkt nie wynika z Twoich odpowiedzi).`
+                    : (feedback as any).noCredits
+                      ? "⚡ Wynik częściowy — zadania otwarte czekają na ocenę AI (zabrakło kredytów przy oddaniu)."
+                      : "⚡ Wynik częściowy — zadania otwarte (wypracowanie, notatka, listening) nie zostały ocenione."}
                 </Text>
-                <View
+                <TouchableOpacity
+                  disabled={regrading}
+                  onPress={async () => {
+                    setGradeError(null);
+                    setRegrading(true);
+                    try {
+                      await gradeExamWithAI(attemptId);
+                      setError("GRADING");
+                      setGradingProgress(0);
+                      setReloadKey((k) => k + 1);
+                    } catch (err: any) {
+                      setGradeError(err?.message || "Nie udało się rozpocząć oceny.");
+                    } finally {
+                      setRegrading(false);
+                    }
+                  }}
                   style={{
                     backgroundColor: "#7c3aed",
                     borderRadius: 14,
                     paddingHorizontal: 20,
                     paddingVertical: 12,
+                    opacity: regrading ? 0.6 : 1,
                   }}
                 >
-                  <Text
-                    style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}
-                  >
-                    🤖 Oceń z AI (pełna ocena CKE)
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff", textAlign: "center" }}>
+                    {regrading ? "Uruchamianie oceny..." : "🤖 Oceń z AI (pełna ocena CKE)"}
                   </Text>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    marginTop: 8,
-                  }}
-                >
-                  <View
-                    style={{
-                      backgroundColor: isDark ? "#5b21b630" : "#f3e8ff",
-                      paddingHorizontal: 8,
-                      paddingVertical: 2,
-                      borderRadius: 99,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: "700",
-                        color: "#7c3aed",
-                      }}
-                    >
-                      💎 15 kredytów
-                    </Text>
-                  </View>
-                  <Text style={{ fontSize: 10, color: theme.textTertiary }}>
-                    ~3-5 min
+                </TouchableOpacity>
+                {gradeError ? (
+                  <Text style={{ fontSize: 12, color: isDark ? "#f87171" : "#dc2626", marginTop: 8, textAlign: "center" }}>
+                    {gradeError}
                   </Text>
-                </View>
-              </TouchableOpacity>
+                ) : (
+                  <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 8, textAlign: "center", lineHeight: 16 }}>
+                    Kredyty AI schodzą tylko za zadania otwarte z odpowiedzią. Ocena zajmie ~1–3 min.
+                  </Text>
+                )}
+              </View>
             )}
 
             {/* Podsumowanie AI — wstrzymane poniżej progu 30% odpowiedzi */}
-            {!summaryWithheld && (<>
-            {/* Strengths + Weaknesses */}
-            <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
-              <Card style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: "700",
-                    color: theme.text,
-                    marginBottom: 8,
-                  }}
-                >
-                  💪 Mocne strony
-                </Text>
-                {feedback.strengths?.map((s: string, i: number) => (
-                  <View
-                    key={i}
-                    style={{ flexDirection: "row", gap: 6, marginBottom: 4 }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: colors.brand[500],
-                        fontWeight: "700",
-                      }}
-                    >
-                      ✓
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: theme.textSecondary,
-                        flex: 1,
-                        lineHeight: 17,
-                      }}
-                    >
-                      {s}
-                    </Text>
-                  </View>
-                ))}
-              </Card>
-              <Card style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: "700",
-                    color: theme.text,
-                    marginBottom: 8,
-                  }}
-                >
-                  ⚠️ Do poprawy
-                </Text>
-                {feedback.weaknesses?.map((w: string, i: number) => (
-                  <View
-                    key={i}
-                    style={{ flexDirection: "row", gap: 6, marginBottom: 4 }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: "#ef4444",
-                        fontWeight: "700",
-                      }}
-                    >
-                      !
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: theme.textSecondary,
-                        flex: 1,
-                        lineHeight: 17,
-                      }}
-                    >
-                      {w}
-                    </Text>
-                  </View>
-                ))}
-              </Card>
-            </View>
+            {!summaryWithheld && (
+              <>
+                {/* Mocne strony / Do poprawy — jedna pod drugą (web na telefonie). */}
+                {[
+                  { title: "💪 Mocne strony", items: feedback?.strengths ?? [], mark: "✓", markColor: colors.brand[500] },
+                  { title: "⚠️ Do poprawy", items: feedback?.weaknesses ?? [], mark: "!", markColor: "#ef4444" },
+                ].map((box) =>
+                  box.items.length > 0 ? (
+                    <Card key={box.title} style={{ marginBottom: 12 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 8 }}>
+                        {box.title}
+                      </Text>
+                      {box.items.map((s: string, i: number) => (
+                        <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 5 }}>
+                          <Text style={{ fontSize: 13, color: box.markColor, fontWeight: "800" }}>{box.mark}</Text>
+                          <Text style={{ fontSize: 13, color: theme.textSecondary, flex: 1, lineHeight: 19 }}>
+                            {s}
+                          </Text>
+                        </View>
+                      ))}
+                    </Card>
+                  ) : null,
+                )}
 
-            {/* Recommendations */}
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "700",
-                color: theme.text,
-                marginBottom: 10,
-              }}
-            >
-              🎯 Rekomendacje
-            </Text>
-            {feedback.recommendations?.map((rec: any, i: number) => (
-              <Card
-                key={i}
-                style={{
-                  marginBottom: 10,
-                  borderLeftWidth: 4,
-                  borderLeftColor:
-                    rec.priority === "high"
-                      ? "#ef4444"
-                      : rec.priority === "medium"
-                        ? "#f59e0b"
-                        : "#d4d4d8",
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    marginBottom: 4,
-                  }}
-                >
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 2,
-                      borderRadius: 99,
-                      backgroundColor:
-                        rec.priority === "high"
-                          ? "#fef2f2"
-                          : rec.priority === "medium"
-                            ? "#fffbeb"
-                            : "#f4f4f5",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 9,
-                        fontWeight: "700",
-                        color:
-                          rec.priority === "high"
-                            ? "#dc2626"
-                            : rec.priority === "medium"
-                              ? "#d97706"
-                              : "#71717a",
-                      }}
-                    >
-                      {rec.priority === "high"
-                        ? "🔴 Wysoki"
-                        : rec.priority === "medium"
-                          ? "🟡 Średni"
-                          : "🟢 Niski"}
-                    </Text>
-                  </View>
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "700",
-                      color: theme.text,
-                    }}
-                  >
-                    {rec.area}
+                {(feedback?.recommendations ?? []).length > 0 && (
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text, marginTop: 8, marginBottom: 10 }}>
+                    🎯 Rekomendacje
                   </Text>
-                </View>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: theme.textSecondary,
-                    lineHeight: 17,
-                  }}
-                >
-                  {rec.description}
-                </Text>
-                {/* Most do banku pytań. Pokazujemy TYLKO gdy dopasowanie
-                    trafiło w konkretny dział i coś w nim jest — „0 pytań"
-                    albo losowy dział niszczyłyby wiarygodność rady. */}
-                {(() => {
-                  const link = practice?.links?.[i];
-                  if (!link?.topicId || link.questionCount === 0) return null;
-                  return (
-                    <TouchableOpacity
-                      onPress={() => {
-                        if (isPremium) {
-                          navigation.getParent()?.navigate("QuizTab", {
-                            screen: "QuizSetup",
-                            params: { topicId: link.topicId! },
-                          });
-                        } else {
-                          navigation.getParent()?.navigate("ProfileTab", {
-                            screen: "Subscription",
-                          });
-                        }
-                      }}
-                      style={{ marginTop: 10 }}
-                    >
-                      <Text
+                )}
+                {(feedback?.recommendations ?? []).map((rec: any, i: number) => (
+                  <Card
+                    key={i}
+                    style={{
+                      marginBottom: 10,
+                      borderLeftWidth: 4,
+                      borderLeftColor:
+                        rec.priority === "high" ? "#ef4444" : rec.priority === "medium" ? "#f59e0b" : "#d4d4d8",
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
+                      <View
                         style={{
-                          fontSize: 11,
-                          fontWeight: "700",
-                          color: colors.brand[500],
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 99,
+                          backgroundColor:
+                            rec.priority === "high"
+                              ? isDark ? "#7f1d1d55" : "#fef2f2"
+                              : rec.priority === "medium"
+                                ? isDark ? "#78350f55" : "#fffbeb"
+                                : isDark ? "#3f3f4655" : "#f4f4f5",
                         }}
                       >
-                        {isPremium
-                          ? `Ćwicz ten dział — ${link.questionCount} pytań z „${link.topicName}” →`
-                          : `W Premium: ${link.questionCount} pytań z działu „${link.topicName}” →`}
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "700",
+                            color:
+                              rec.priority === "high"
+                                ? isDark ? "#fca5a5" : "#dc2626"
+                                : rec.priority === "medium"
+                                  ? isDark ? "#fcd34d" : "#d97706"
+                                  : isDark ? "#d4d4d8" : "#71717a",
+                          }}
+                        >
+                          {rec.priority === "high" ? "🔴 Wysoki" : rec.priority === "medium" ? "🟡 Średni" : "🟢 Niski"}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text, flexShrink: 1 }}>
+                        {rec.area}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19 }}>
+                      {rec.description}
+                    </Text>
+                    {/* Most do banku pytań — tylko gdy dopasowanie trafiło
+                        w konkretny dział i coś w nim jest. */}
+                    {(() => {
+                      const link = practice?.links?.[i];
+                      if (!link?.topicId || link.questionCount === 0) return null;
+                      return (
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (isPremium) {
+                              navigation.getParent()?.navigate("QuizTab", {
+                                screen: "QuizSetup",
+                                params: { topicId: link.topicId! },
+                              });
+                            } else {
+                              navigation.getParent()?.navigate("ProfileTab", {
+                                screen: "Subscription",
+                              });
+                            }
+                          }}
+                          style={{ marginTop: 10 }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: isDark ? colors.brand[400] : colors.brand[600] }}>
+                            {isPremium
+                              ? `Ćwicz ten dział — ${link.questionCount} pytań z „${link.topicName}” →`
+                              : `W Premium: ${link.questionCount} pytań z działu „${link.topicName}” →`}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })()}
+                  </Card>
+                ))}
+              </>
+            )}
+
+            {/* Co dalej — konto bez Premium: darmowa próbka quizu (diagnoza,
+                raz na konto) + odblokowanie; Premium: powtórka arkusza. */}
+            <View
+              style={{
+                marginTop: 16,
+                paddingTop: 18,
+                borderTopWidth: 1,
+                borderTopColor: theme.borderLight,
+              }}
+            >
+              {isPremium === false ? (
+                <>
+                  <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, textAlign: "center", marginBottom: 12 }}>
+                    Co dalej?
+                  </Text>
+                  {diagCard.kind !== "none" && (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() =>
+                        navigation.getParent()?.navigate("HomeTab", { screen: "Diagnosis" })
+                      }
+                      style={{
+                        padding: 16,
+                        borderRadius: 18,
+                        borderWidth: 1,
+                        borderColor: theme.cardBorder,
+                        backgroundColor: theme.card,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          alignSelf: "flex-start",
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 99,
+                          backgroundColor: isDark ? "#064e3b55" : "#d1fae5",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: isDark ? "#6ee7b7" : "#065f46", letterSpacing: 0.6 }}>
+                          ZA DARMO
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 4 }}>
+                        {diagCard.kind === "progress"
+                          ? `Dokończ darmową próbkę quizu — ${diagCard.name}`
+                          : "Darmowa próbka quizu"}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 18 }}>
+                        Sprawdź drugi tryb nauki: 13 pytań jak w Quizie, z oceną i krótkim wyjaśnieniem po każdej odpowiedzi. Raz na konto.
                       </Text>
                     </TouchableOpacity>
-                  );
-                })()}
-              </Card>
-            ))}
-            </>)}
-
-            {/* Powtórka arkusza — tylko Premium (patrz komentarz przy stanie) */}
-            {isPremium === false ? (
-              <View
-                style={{
-                  marginTop: 24,
-                  padding: 18,
-                  borderRadius: 18,
-                  backgroundColor: colors.brand[500] + "14",
-                  borderWidth: 1,
-                  borderColor: colors.brand[500] + "55",
-                }}
-              >
-                <Text
-                  style={{ fontSize: 15, fontWeight: "800", color: theme.text }}
-                >
-                  {framing.upsellTitle}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: theme.textSecondary,
-                    lineHeight: 18,
-                    marginTop: 6,
-                    marginBottom: 14,
-                  }}
-                >
-                  {framing.upsellBody}
-                </Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    navigation.getParent()?.navigate("ProfileTab", {
-                      screen: "Subscription",
-                    })
-                  }
-                  style={{
-                    backgroundColor: colors.brand[500],
-                    paddingVertical: 12,
-                    borderRadius: 14,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text
-                    style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}
+                  )}
+                  <View
+                    style={{
+                      padding: 18,
+                      borderRadius: 18,
+                      backgroundColor: isDark ? colors.brand[900] + "33" : colors.brand[50],
+                      borderWidth: 1,
+                      borderColor: isDark ? colors.brand[700] + "80" : colors.brand[300],
+                    }}
                   >
-                    Odblokuj wszystkie arkusze →
+                    <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
+                      {summaryWithheld
+                        ? "Rozwiąż cały arkusz, żeby zobaczyć, gdzie tracisz punkty"
+                        : framing.upsellTitle}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        color: theme.textSecondary,
+                        lineHeight: 19,
+                        marginTop: 6,
+                        marginBottom: 14,
+                      }}
+                    >
+                      {summaryWithheld
+                        ? "Omówienie, plan naprawczy i rozwiązania wszystkich zadań pojawiają się przy pełnym podejściu. W Premium masz wszystkie arkusze i możesz podchodzić do nich wielokrotnie."
+                        : framing.upsellBody}
+                    </Text>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() =>
+                        navigation.getParent()?.navigate("ProfileTab", {
+                          screen: "Subscription",
+                        })
+                      }
+                      style={{
+                        backgroundColor: colors.brand[500],
+                        borderRadius: 16,
+                        paddingVertical: 14,
+                        paddingHorizontal: 14,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.75}
+                        style={{ fontSize: 15, fontWeight: "800", color: "#fff" }}
+                      >
+                        Odblokuj wszystkie arkusze →
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : isPremium ? (
+                <TouchableOpacity
+                  onPress={() => setShowRetryModal(true)}
+                  style={{
+                    alignItems: "center",
+                    alignSelf: "center",
+                    paddingVertical: 14,
+                    paddingHorizontal: 24,
+                    borderRadius: 16,
+                    backgroundColor: theme.inputBg,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>
+                    🔄 Rozwiąż ponownie od zera
+                  </Text>
+                  <Text style={{ fontSize: 10, color: theme.textTertiary, marginTop: 4 }}>
+                    Obecne wyniki zostaną zastąpione nowymi.
                   </Text>
                 </TouchableOpacity>
-              </View>
-            ) : isPremium ? (
-              <TouchableOpacity
-                onPress={() => setShowRetryModal(true)}
-                style={{
-                  alignItems: "center",
-                  marginTop: 24,
-                  paddingVertical: 14,
-                  paddingHorizontal: 24,
-                  borderRadius: 16,
-                  backgroundColor: theme.inputBg,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: "600",
-                    color: theme.textSecondary,
-                  }}
-                >
-                  🔄 Rozwiąż ponownie od zera
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 10,
-                    color: theme.textTertiary,
-                    marginTop: 4,
-                  }}
-                >
-                  Obecne wyniki zostaną zastąpione.
-                </Text>
-              </TouchableOpacity>
-            ) : null}
+              ) : null}
+            </View>
           </View>
         )}
 
         {/* ── TASK REVIEW ── */}
-        {!isSummary && currentTask && currentGrading && (
+        {!isSummary && currentTask && currentGrading && (() => {
+          const tone = currentGrading.isCorrect
+            ? "ok"
+            : currentGrading.pointsEarned > 0
+              ? "partial"
+              : "bad";
+          const toneSolid = tone === "ok" ? colors.brand[500] : tone === "partial" ? "#f59e0b" : "#ef4444";
+          const toneText =
+            tone === "ok"
+              ? isDark ? "#4ade80" : "#16a34a"
+              : tone === "partial"
+                ? isDark ? "#fbbf24" : "#d97706"
+                : isDark ? "#f87171" : "#dc2626";
+          // Karta zadania w kolorze oceny, jak web (border + delikatne tło).
+          const cardBorder =
+            tone === "ok"
+              ? isDark ? "#14532d" : "#bbf7d0"
+              : tone === "partial"
+                ? isDark ? "#78350f" : "#fde68a"
+                : isDark ? "#7f1d1d" : "#fecaca";
+          const cardBg =
+            tone === "ok"
+              ? isDark ? "#22c55e0d" : "#f0fdf4"
+              : tone === "partial"
+                ? isDark ? "#f59e0b0d" : "#fffbeb"
+                : isDark ? "#ef44440d" : "#fef2f2";
+          const typeLabel = examTaskTypeLabel(currentTask.type);
+          return (
           <View>
             {currentPart && (
               <Text
                 style={{
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: "700",
                   color: theme.text,
                   marginBottom: 12,
+                  paddingBottom: 10,
+                  borderBottomWidth: 1,
+                  borderBottomColor: theme.borderLight,
                 }}
               >
                 {currentPart.name}
               </Text>
             )}
 
-            {/* Materials */}
-            {currentTask.materialIds?.length > 0 && currentPart && (
+            {/* Materiały źródłowe — domyślnie widoczne; szukane w całym arkuszu. */}
+            {currentTask.materialIds?.length > 0 && (
               <TouchableOpacity
                 onPress={() => setShowMaterials(!showMaterials)}
                 style={{
@@ -1293,7 +1542,7 @@ export function ExamResultsScreen() {
                   paddingHorizontal: 14,
                   paddingVertical: 8,
                   borderRadius: 14,
-                  backgroundColor: isDark ? "#92400e20" : "#fffbeb",
+                  backgroundColor: isDark ? "#92400e33" : "#fef3c7",
                   marginBottom: 12,
                 }}
               >
@@ -1301,23 +1550,19 @@ export function ExamResultsScreen() {
                   style={{
                     fontSize: 12,
                     fontWeight: "700",
-                    color: isDark ? "#fbbf24" : "#92400e",
+                    color: isDark ? "#fbbf24" : "#b45309",
                   }}
                 >
-                  📄 {showMaterials ? "Ukryj teksty" : "Pokaż teksty"}
+                  📄 {showMaterials ? "Ukryj materiały źródłowe" : "Pokaż materiały źródłowe"}
                 </Text>
               </TouchableOpacity>
             )}
             {showMaterials &&
-              currentPart &&
               (currentTask.materialIds || []).map((matId: string) => {
-                const mat = currentPart.materials.find(
-                  (m: any) => m.id === matId,
-                );
+                const mat = allMaterials.find((m: any) => m.id === matId);
                 if (!mat) return null;
-                // Pełny renderer materiałów (ten sam co w playerze) — ręczna
-                // karta pokazywała tylko tytuł+tekst, gubiąc tabele
-                // (mat.table/tableData), SVG i wykresy.
+                // Pełny renderer materiałów (ten sam co w playerze): tabele,
+                // SVG, wykresy.
                 return (
                   <MaterialRenderer
                     key={mat.id}
@@ -1328,18 +1573,17 @@ export function ExamResultsScreen() {
                 );
               })}
 
-            {/* Task card with grading */}
-            <Card
+            {/* Karta zadania z oceną */}
+            <View
               style={{
+                borderRadius: 20,
                 borderWidth: 2,
-                borderColor: currentGrading.isCorrect
-                  ? colors.brand[500]
-                  : currentGrading.pointsEarned > 0
-                    ? "#f59e0b"
-                    : "#ef4444",
+                borderColor: cardBorder,
+                backgroundColor: cardBg,
+                padding: 16,
               }}
             >
-              {/* Header */}
+              {/* Nagłówek: numer w kolorze oceny, typ • punkty, zgłoś, wynik */}
               <View
                 style={{
                   flexDirection: "row",
@@ -1350,28 +1594,30 @@ export function ExamResultsScreen() {
               >
                 <View
                   style={{
-                    width: 32,
+                    minWidth: 32,
                     height: 32,
+                    paddingHorizontal: 6,
                     borderRadius: 10,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: currentGrading.isCorrect
-                      ? colors.brand[500]
-                      : currentGrading.pointsEarned > 0
-                        ? "#f59e0b"
-                        : "#ef4444",
+                    backgroundColor: toneSolid,
                   }}
                 >
-                  <Text
-                    style={{ fontSize: 14, fontWeight: "800", color: "#fff" }}
-                  >
-                    {currentTask.number}
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: "#fff" }}>
+                    {labelOf(currentTask)}
                   </Text>
                 </View>
                 <Text
-                  style={{ fontSize: 11, color: theme.textTertiary, flex: 1 }}
+                  numberOfLines={2}
+                  style={{
+                    fontSize: 11,
+                    color: theme.textTertiary,
+                    flex: 1,
+                    letterSpacing: 0.4,
+                  }}
                 >
-                  {currentTask.points} pkt
+                  {typeLabel ? `${typeLabel.toUpperCase()} • ` : ""}
+                  {currentTask.points} PKT
                 </Text>
                 {/* W wynikach najczęściej widać, że klucz albo ocena są złe. */}
                 {exam?.id && (
@@ -1379,49 +1625,31 @@ export function ExamResultsScreen() {
                     exam={{
                       examId: exam.id,
                       taskId: currentTask.id,
-                      taskLabel: String(currentTask.number ?? ""),
+                      taskLabel: labelOf(currentTask),
                     }}
                     questionPreview={String(currentTask.instruction ?? "")}
                   />
                 )}
-                <Text
-                  style={{
-                    fontSize: 15,
-                    fontWeight: "800",
-                    color: currentGrading.isCorrect
-                      ? colors.brand[600]
-                      : currentGrading.pointsEarned > 0
-                        ? "#d97706"
-                        : "#dc2626",
-                  }}
-                >
-                  {currentGrading.pointsEarned}/{currentGrading.maxPoints}
-                </Text>
-                <Text style={{ fontSize: 18 }}>
-                  {currentGrading.isCorrect
-                    ? "✅"
-                    : currentGrading.pointsEarned > 0
-                      ? "⚠️"
-                      : "❌"}
+                <Text style={{ fontSize: 15, fontWeight: "800", color: toneText }}>
+                  {currentGrading.pointsEarned}/{currentGrading.maxPoints} pkt
                 </Text>
               </View>
 
-              {/* Instruction — CodeAwareText jak w playerze: płoty ```kodu
+              {/* Polecenie — CodeAwareText jak w playerze: płoty ```kodu
                   i `kod w linii` (informatyka) zamiast gołych backticków. */}
               <CodeAwareText
                 text={cleanInstructionForDisplay(currentTask)}
                 style={{
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: "600",
                   color: theme.text,
-                  lineHeight: 23,
+                  lineHeight: 24,
                 }}
                 containerStyle={{ marginBottom: 16 }}
                 isDark={isDark}
               />
 
-              {/* Tabela w poleceniu (task.content.table) — jak web ExamResults;
-                  do 28.09.2026 ekran wyników jej nie pokazywał. */}
+              {/* Tabela w poleceniu (task.content.table) — jak web ExamResults. */}
               {Array.isArray(currentTask.content?.table?.headers) &&
                 Array.isArray(currentTask.content?.table?.rows) && (
                   <View style={{ marginBottom: 16 }}>
@@ -1433,8 +1661,9 @@ export function ExamResultsScreen() {
                   </View>
                 )}
 
-              {/* User answer */}
-              <View style={{ marginBottom: 12 }}>
+              {/* Twoja odpowiedź — w formie zadania (ABCD, P/F, dopasowanie)
+                  z zaznaczonym kluczem, jak web AnswerDisplay. */}
+              <View style={{ marginBottom: 14 }}>
                 <Text
                   style={{
                     fontSize: 10,
@@ -1444,178 +1673,81 @@ export function ExamResultsScreen() {
                     marginBottom: 6,
                   }}
                 >
-                  TWOJA ODPOWIEDŹ
+                  TWOJA ODPOWIEDŹ:
                 </Text>
-                <View
-                  style={{
-                    backgroundColor: theme.inputBg,
-                    borderRadius: 12,
-                    padding: 12,
-                    borderWidth: 1,
-                    borderColor: theme.border,
-                  }}
-                >
-                  <Text
-                    style={{ fontSize: 13, color: theme.text, lineHeight: 20 }}
-                  >
-                    {formatUserResponse(currentGrading.userResponse)}
-                  </Text>
-                </View>
+                <AnswerDisplay task={currentTask} tg={currentGrading} theme={theme} isDark={isDark} />
               </View>
 
-              {/* Analysis */}
+              {/* Analiza AI */}
               {((currentGrading.analysis?.correct ?? []).length > 0 ||
                 (currentGrading.analysis?.incorrect ?? []).length > 0 ||
                 (currentGrading.analysis?.missing ?? []).length > 0) && (
                 <View
                   style={{
-                    backgroundColor: theme.inputBg,
+                    backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.85)",
                     borderRadius: 12,
                     padding: 12,
-                    marginBottom: 12,
+                    marginBottom: 14,
                     borderWidth: 1,
                     borderColor: theme.border,
                   }}
                 >
-                  {(currentGrading.analysis?.correct ?? []).map(
-                    (c: string, i: number) => (
-                      <View
-                        key={`c${i}`}
-                        style={{
-                          flexDirection: "row",
-                          gap: 6,
-                          marginBottom: 4,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: colors.brand[500],
-                            fontWeight: "700",
-                            fontSize: 12,
-                          }}
-                        >
-                          ✓
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: theme.textSecondary,
-                            flex: 1,
-                            lineHeight: 18,
-                          }}
-                        >
+                  {[
+                    { items: currentGrading.analysis?.correct ?? [], mark: "✓", color: colors.brand[500] },
+                    { items: currentGrading.analysis?.incorrect ?? [], mark: "✗", color: "#ef4444" },
+                    { items: currentGrading.analysis?.missing ?? [], mark: "!", color: "#f59e0b" },
+                  ].map((g, gi) =>
+                    g.items.map((c: string, i: number) => (
+                      <View key={`${gi}-${i}`} style={{ flexDirection: "row", gap: 8, marginBottom: 5 }}>
+                        <Text style={{ color: g.color, fontWeight: "800", fontSize: 13 }}>{g.mark}</Text>
+                        <Text style={{ fontSize: 13, color: theme.textSecondary, flex: 1, lineHeight: 19 }}>
                           {c}
                         </Text>
                       </View>
-                    ),
+                    )),
                   )}
-                  {(currentGrading.analysis?.incorrect ?? []).map(
-                    (c: string, i: number) => (
-                      <View
-                        key={`i${i}`}
-                        style={{
-                          flexDirection: "row",
-                          gap: 6,
-                          marginBottom: 4,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "#ef4444",
-                            fontWeight: "700",
-                            fontSize: 12,
-                          }}
-                        >
-                          ✗
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: theme.textSecondary,
-                            flex: 1,
-                            lineHeight: 18,
-                          }}
-                        >
-                          {c}
-                        </Text>
-                      </View>
-                    ),
-                  )}
-                  {(currentGrading.analysis?.missing ?? []).map(
-                    (c: string, i: number) => (
-                      <View
-                        key={`m${i}`}
-                        style={{
-                          flexDirection: "row",
-                          gap: 6,
-                          marginBottom: 4,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "#f59e0b",
-                            fontWeight: "700",
-                            fontSize: 12,
-                          }}
-                        >
-                          !
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: theme.textSecondary,
-                            flex: 1,
-                            lineHeight: 18,
-                          }}
-                        >
-                          {c}
-                        </Text>
-                      </View>
-                    ),
-                  )}
-                  {currentGrading.analysis?.suggestion && (
-                    <Text
+                  {currentGrading.analysis?.suggestion ? (
+                    <View
                       style={{
-                        fontSize: 12,
-                        color: "#0ea5e9",
-                        marginTop: 8,
-                        lineHeight: 18,
+                        borderTopWidth: 1,
+                        borderTopColor: theme.border,
+                        paddingTop: 8,
+                        marginTop: 4,
                       }}
                     >
-                      💡 {currentGrading.analysis?.suggestion}
-                    </Text>
-                  )}
+                      <Text style={{ fontSize: 13, color: isDark ? "#38bdf8" : "#0284c7", lineHeight: 19 }}>
+                        💡 {currentGrading.analysis.suggestion}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               )}
 
-              {/* Ungraded notice */}
+              {/* Zadanie czeka na ocenę AI */}
               {(currentGrading as any)?._ungraded && (
                 <View
                   style={{
                     padding: 14,
                     borderRadius: 12,
-                    backgroundColor: isDark ? "#5b21b610" : "#faf5ff",
+                    backgroundColor: isDark ? "#5b21b61a" : "#faf5ff",
                     borderWidth: 1,
-                    borderColor: "#a855f7",
+                    borderColor: isDark ? "#6b21a8" : "#e9d5ff",
                     alignItems: "center",
-                    marginBottom: 12,
+                    marginBottom: 14,
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "600",
-                      color: "#7c3aed",
-                    }}
-                  >
-                    🤖 Wymaga oceny AI
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#c084fc" : "#7c3aed" }}>
+                    🤖 To zadanie wymaga oceny AI
+                  </Text>
+                  <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 4, textAlign: "center", lineHeight: 17 }}>
+                    Dotknij „Oceń z AI” w podsumowaniu, aby uzyskać pełną ocenę z feedbackiem CKE.
                   </Text>
                 </View>
               )}
 
-              {/* CKE Criteria */}
+              {/* Kryteria CKE */}
               {currentGrading.criteria?.length > 0 && (
-                <View style={{ marginBottom: 12 }}>
+                <View style={{ marginBottom: 14 }}>
                   <Text
                     style={{
                       fontSize: 10,
@@ -1625,13 +1757,13 @@ export function ExamResultsScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    KRYTERIA CKE
+                    KRYTERIA CKE:
                   </Text>
                   {currentGrading.criteria.map((cr: any, i: number) => (
                     <View
                       key={i}
                       style={{
-                        backgroundColor: theme.inputBg,
+                        backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.85)",
                         borderRadius: 10,
                         padding: 10,
                         marginBottom: 6,
@@ -1641,40 +1773,29 @@ export function ExamResultsScreen() {
                         style={{
                           flexDirection: "row",
                           justifyContent: "space-between",
+                          gap: 8,
                           marginBottom: 2,
                         }}
                       >
-                        <Text
-                          style={{
-                            fontSize: 11,
-                            fontWeight: "600",
-                            color: theme.text,
-                          }}
-                        >
+                        <Text style={{ flex: 1, fontSize: 12, fontWeight: "600", color: theme.text }}>
                           {cr.name}
                         </Text>
                         <Text
                           style={{
-                            fontSize: 12,
-                            fontWeight: "700",
+                            fontSize: 13,
+                            fontWeight: "800",
                             color:
                               cr.score >= cr.maxScore * 0.7
-                                ? colors.brand[600]
+                                ? isDark ? "#4ade80" : "#16a34a"
                                 : cr.score > 0
-                                  ? "#d97706"
-                                  : "#dc2626",
+                                  ? isDark ? "#fbbf24" : "#d97706"
+                                  : isDark ? "#f87171" : "#dc2626",
                           }}
                         >
                           {cr.score}/{cr.maxScore}
                         </Text>
                       </View>
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          color: theme.textTertiary,
-                          lineHeight: 15,
-                        }}
-                      >
+                      <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
                         {cr.feedback}
                       </Text>
                     </View>
@@ -1682,63 +1803,80 @@ export function ExamResultsScreen() {
                 </View>
               )}
 
-              {/* Model answer */}
-              {currentGrading.modelAnswer && (
+              {/* Wzorcowa odpowiedź — tabele Markdown jako tabele (TextWithTables). */}
+              {currentGrading.modelAnswer ? (
                 <View
                   style={{
                     padding: 12,
                     borderRadius: 12,
-                    backgroundColor: isDark ? "#047857" + "10" : "#ecfdf5",
+                    backgroundColor: isDark ? "#064e3b40" : "#ecfdf5",
                     borderWidth: 1,
-                    borderColor: isDark ? "#04785730" : "#a7f3d0",
+                    borderColor: isDark ? "#065f46" : "#a7f3d0",
                   }}
                 >
                   <Text
                     style={{
                       fontSize: 10,
                       fontWeight: "700",
-                      color: "#059669",
+                      color: isDark ? "#34d399" : "#059669",
                       letterSpacing: 1,
-                      marginBottom: 4,
+                      marginBottom: 6,
                     }}
                   >
                     📝 WZORCOWA ODPOWIEDŹ
                   </Text>
                   <TextWithTables
                     text={currentGrading.modelAnswer}
-                    style={{ fontSize: 12, color: theme.text, lineHeight: 19 }}
+                    style={{ fontSize: 13, color: theme.text, lineHeight: 20 }}
                     theme={theme}
                     isDark={isDark}
                   />
                 </View>
-              )}
-            </Card>
+              ) : null}
+            </View>
           </View>
-        )}
+          );
+        })()}
       </ScrollView>
 
-      {/* ═══ BOTTOM NAV ═══ */}
+      {/* ═══ BOTTOM NAV ═══ Na podsumowaniu arkusza konta bez Premium ukryta —
+          rozpraszała przed kupnem (web, Karol 28.09.2026); zadania są pod
+          ikoną listy u góry. Premium bez zmian. */}
+      {!(isSummary && isPremium === false) && (
       <View
         style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
-          paddingHorizontal: 20,
-          paddingTop: 2,
-          paddingBottom: 0,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
           backgroundColor: theme.card,
           borderTopWidth: 1,
           borderTopColor: theme.borderLight,
           flexDirection: "row",
           alignItems: "center",
-          gap: 12,
+          gap: 8,
         }}
       >
-        <TouchableOpacity onPress={goPrev} style={{ padding: 10 }}>
-          <Ionicons name="chevron-back" size={22} color={theme.textSecondary} />
+        <TouchableOpacity
+          onPress={goPrev}
+          style={{ paddingVertical: 10, paddingHorizontal: 6, flexShrink: 1 }}
+        >
+          <Text
+            numberOfLines={1}
+            style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}
+          >
+            ←{" "}
+            {isSummary
+              ? "Ostatnie zadanie"
+              : currentIndex === 0
+                ? "Podsumowanie"
+                : "Poprzednie"}
+          </Text>
         </TouchableOpacity>
         <Text
+          numberOfLines={1}
           style={{
             flex: 1,
             textAlign: "center",
@@ -1746,22 +1884,264 @@ export function ExamResultsScreen() {
             color: theme.textTertiary,
           }}
         >
-          {isSummary
-            ? "Podsumowanie"
-            : `${currentIndex + 1} z ${allTasks.length}`}
+          {isSummary ? "" : `${currentIndex + 1} / ${allTasks.length}`}
         </Text>
         <Button
           title={
             isSummary
               ? "Zadanie 1 →"
               : currentIndex === allTasks.length - 1
-                ? "Podsumowanie"
+                ? "Podsumowanie →"
                 : "Następne →"
           }
           onPress={goNext}
           size="sm"
         />
       </View>
+      )}
+    </View>
+  );
+}
+
+// ═══ Twoja odpowiedź w formie zadania — lustro web AnswerDisplay ═══
+// ABCD: opcje z kluczem (zielona ramka) i Twoim błędnym wyborem (czerwona);
+// P/F: każde stwierdzenie z Twoim P/F i poprawką; dopasowanie: pary z kluczem.
+// Kolory tła w ciemnym motywie z przezroczystością, tekst zawsze theme.text —
+// wcześniej jasne pola z jasnym tekstem były nieczytelne.
+
+function toOptionList(v: any): { id: string; text: string }[] {
+  if (Array.isArray(v)) return v.map((o: any) => (typeof o === "object" ? o : { id: String(o), text: String(o) }));
+  if (v && typeof v === "object")
+    return Object.entries(v).map(([id, text]) =>
+      text && typeof text === "object" ? { id, ...(text as any) } : { id, text: String(text) },
+    );
+  return [];
+}
+
+function AnswerDisplay({
+  task,
+  tg,
+  theme,
+  isDark,
+}: {
+  task: any;
+  tg: any;
+  theme: any;
+  isDark: boolean;
+}) {
+  const r = tg?.userResponse;
+  const c = task?.content ?? {};
+  const okBg = isDark ? "rgba(34,197,94,0.16)" : "#f0fdf4";
+  const okBorder = isDark ? "#22c55e" : "#4ade80";
+  const badBg = isDark ? "rgba(239,68,68,0.16)" : "#fef2f2";
+  const badBorder = isDark ? "#ef4444" : "#f87171";
+  const neutralBg = isDark ? "rgba(255,255,255,0.05)" : "#fafafa";
+  const okText = isDark ? "#4ade80" : "#16a34a";
+  const badText = isDark ? "#f87171" : "#dc2626";
+  const chipOff = isDark ? "rgba(255,255,255,0.12)" : "#e4e4e7";
+
+  // P/F — stwierdzenia z kluczem isTrue i odpowiedź jako tablica booleanów.
+  const stmts: any[] = Array.isArray(c.statements) ? c.statements : [];
+  if (stmts.length > 0 && stmts.every((st) => typeof st?.isTrue === "boolean") && (Array.isArray(r) || r == null)) {
+    const ans = Array.isArray(r) ? r : [];
+    return (
+      <View style={{ gap: 6 }}>
+        {stmts.map((st: any, i: number) => {
+          const ua = ans[i];
+          const ok = ua === st.isTrue;
+          return (
+            <View
+              key={i}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: ok ? okBg : badBg,
+              }}
+            >
+              <Text style={{ flex: 1, fontSize: 13, color: theme.text, lineHeight: 19 }}>
+                {parseChemText(String(st.text ?? ""))}
+              </Text>
+              {(["P", "F"] as const).map((l) => {
+                const sel = l === "P" ? ua === true : ua === false;
+                return (
+                  <View
+                    key={l}
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
+                      borderRadius: 8,
+                      backgroundColor: sel ? (ok ? colors.brand[500] : "#ef4444") : chipOff,
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "800", color: sel ? "#fff" : theme.textSecondary }}>
+                      {l}
+                    </Text>
+                  </View>
+                );
+              })}
+              {!ok && (
+                <Text style={{ fontSize: 12, fontWeight: "800", color: okText }}>
+                  → {st.isTrue ? "P" : "F"}
+                </Text>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+
+  // ABCD — opcje + correctAnswer (bez wariantu złożonego „A2”).
+  const opts = toOptionList(c.options);
+  if (opts.length > 0 && !Array.isArray(c.leftOptions) && (typeof r === "string" || r == null)) {
+    const correct = c.correctAnswer;
+    // Bez klucza w treści (wstrzymany przy braku odpowiedzi) nie oznaczamy
+    // wyboru jako błędu — tylko zaznaczenie.
+    const noKey = correct == null;
+    return (
+      <View style={{ gap: 6 }}>
+        {opts.map((o) => {
+          const sel = r === o.id;
+          const isC = correct != null && o.id === correct;
+          return (
+            <View
+              key={o.id}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                padding: 10,
+                borderRadius: 12,
+                borderWidth: 2,
+                borderColor: isC ? okBorder : sel ? (noKey ? colors.navy[400] : badBorder) : "transparent",
+                backgroundColor: isC ? okBg : sel && !noKey ? badBg : neutralBg,
+              }}
+            >
+              <View
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isC ? colors.brand[500] : sel ? (noKey ? colors.navy[500] : "#ef4444") : chipOff,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "800", color: isC || sel ? "#fff" : theme.textSecondary }}>
+                  {o.id}
+                </Text>
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, color: theme.text, lineHeight: 19 }}>
+                {parseChemText(String(o.text ?? ""))}
+              </Text>
+              {isC && <Text style={{ fontSize: 14, fontWeight: "800", color: okText }}>✓</Text>}
+              {sel && !isC && !noKey && <Text style={{ fontSize: 14, fontWeight: "800", color: badText }}>✗</Text>}
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+
+  // Dopasowanie — correctPairs {lewy: prawy}.
+  if (c.correctPairs && typeof c.correctPairs === "object" && !Array.isArray(c.correctPairs)) {
+    const up = r && typeof r === "object" && !Array.isArray(r) ? r : {};
+    const left: any[] = Array.isArray(c.leftItems) ? c.leftItems : [];
+    return (
+      <View style={{ gap: 6 }}>
+        {Object.entries(c.correctPairs).map(([l, right]: [string, any]) => {
+          const ur = (up as any)[l];
+          const ok = String(ur ?? "") === String(right);
+          const li = left.find((x: any) => x?.id === l);
+          return (
+            <View
+              key={l}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 6,
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: ok ? okBg : badBg,
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "800", color: theme.text }}>{l}.</Text>
+              <Text style={{ flex: 1, minWidth: 120, fontSize: 13, color: theme.text, lineHeight: 19 }}>
+                {parseChemText(String(li?.text ?? l))}
+              </Text>
+              <Text style={{ fontSize: 13, color: theme.textTertiary }}>→</Text>
+              {ok ? (
+                <Text style={{ fontSize: 13, fontWeight: "800", color: okText }}>{String(right)}</Text>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 13, color: badText, textDecorationLine: "line-through" }}>
+                    {ur ? String(ur) : "—"}
+                  </Text>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: okText }}>→ {String(right)}</Text>
+                </>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+
+  // Wypowiedź pisemna / wypracowanie / notatka — tekst z liczbą słów.
+  const writingText =
+    typeof r === "string"
+      ? r
+      : r && typeof r === "object" && !Array.isArray(r)
+        ? String(r.text ?? r.writing ?? r.content ?? "")
+        : "";
+  const topic = r && typeof r === "object" && !Array.isArray(r) ? r.topic ?? r.chosen_topic ?? null : null;
+  const isWriting = /wypracowanie|notatka|writing|essay/.test(String(task?.type ?? ""));
+  if (isWriting) {
+    const wc = writingText.trim() ? writingText.trim().split(/\s+/).length : 0;
+    return (
+      <View>
+        {topic ? (
+          <Text style={{ fontSize: 12, fontWeight: "700", color: isDark ? colors.navy[300] : colors.navy[600], marginBottom: 6 }}>
+            Wybrany temat: {String(topic)}
+          </Text>
+        ) : null}
+        <View
+          style={{
+            backgroundColor: theme.inputBg,
+            borderRadius: 12,
+            padding: 12,
+            borderWidth: 1,
+            borderColor: theme.border,
+          }}
+        >
+          <Text style={{ fontSize: 13, color: writingText ? theme.text : theme.textTertiary, lineHeight: 20, fontStyle: writingText ? "normal" : "italic" }}>
+            {writingText || "Brak"}
+          </Text>
+        </View>
+        <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 4, textAlign: "right" }}>
+          {wc} słów
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={{
+        backgroundColor: theme.inputBg,
+        borderRadius: 12,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: theme.border,
+      }}
+    >
+      <Text style={{ fontSize: 13, color: hasResponse(r) ? theme.text : theme.textTertiary, lineHeight: 20 }}>
+        {parseChemText(formatUserResponse(r))}
+      </Text>
     </View>
   );
 }

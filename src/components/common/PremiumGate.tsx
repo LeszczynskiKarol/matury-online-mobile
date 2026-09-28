@@ -31,7 +31,7 @@ const MATURA_STARTS: Record<number, string> = {
   2028: "2028-05-04T09:00:00",
 };
 
-function daysToMatura(): number | null {
+export function daysToMatura(): number | null {
   const now = Date.now();
   for (const year of Object.keys(MATURA_STARTS).map(Number).sort()) {
     const t = new Date(MATURA_STARTS[year]).getTime();
