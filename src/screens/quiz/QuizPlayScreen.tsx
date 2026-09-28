@@ -1689,7 +1689,12 @@ export function QuizPlayScreen() {
                 content.mapEmbed ||
                 content.klimatogramData ||
                 content.svg ||
-                content.imageUrl
+                content.imageUrl ||
+                // tabela danych przy pytaniu dowolnego typu (TABLE_DATA rysuje
+                // własną niżej) — tabele Markdown z treści trafiają do content.table
+                (question.type !== "TABLE_DATA" &&
+                  Array.isArray(content.table?.headers) &&
+                  Array.isArray(content.table?.rows))
               ) && (
                 <MaterialRenderer
                   mat={{
@@ -1700,6 +1705,8 @@ export function QuizPlayScreen() {
                     klimatogramData: content.klimatogramData,
                     svg: content.svg,
                     imageUrl: content.imageUrl,
+                    table:
+                      question.type !== "TABLE_DATA" ? content.table : undefined,
                   }}
                   theme={theme}
                   isDark={isDark}

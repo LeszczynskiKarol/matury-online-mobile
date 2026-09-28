@@ -477,7 +477,7 @@ function TableMaterial({ mat, theme, isDark }: MaterialProps) {
                       color: theme.text,
                     }}
                   >
-                    {h}
+                    {parseChemText(String(h ?? ""))}
                   </Text>
                 </View>
               ))}
@@ -504,7 +504,7 @@ function TableMaterial({ mat, theme, isDark }: MaterialProps) {
                   }}
                 >
                   <Text style={{ fontSize: 11, color: theme.text }}>
-                    {cell}
+                    {parseChemText(String(cell ?? ""))}
                   </Text>
                 </View>
               ))}
@@ -521,7 +521,7 @@ function TableMaterial({ mat, theme, isDark }: MaterialProps) {
             marginTop: 6,
           }}
         >
-          {td.caption}
+          {parseChemText(String(td.caption))}
         </Text>
       )}
     </View>
