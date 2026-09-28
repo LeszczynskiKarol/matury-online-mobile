@@ -168,7 +168,7 @@ export function AdminExamList({ onOpen }: Props) {
   const resetMine = (e: AdminExam) =>
     Alert.alert(
       "Wyzerować Twoje podejścia?",
-      `Arkusz „${e.title}" pojawi się znów jako nierozwiązany. Dotyczy tylko Twojego konta.`,
+      `Arkusz „${e.title}” pojawi się znów jako nierozwiązany. Dotyczy tylko Twojego konta.`,
       [
         { text: "Anuluj", style: "cancel" },
         {
@@ -188,7 +188,7 @@ export function AdminExamList({ onOpen }: Props) {
   const remove = (e: AdminExam) =>
     Alert.alert(
       "Usunąć arkusz?",
-      `„${e.title}" zniknie razem z podejściami uczniów. Tego nie da się cofnąć.`,
+      `„${e.title}” zniknie razem z podejściami uczniów. Tego nie da się cofnąć.`,
       [
         { text: "Anuluj", style: "cancel" },
         {

@@ -1560,7 +1560,7 @@ export function QuizPlayScreen() {
                     color: isDark ? colors.navy[300] : "#4338ca",
                   }}
                 >
-                  „{content.word}"
+                  „{content.word}”
                 </Text>
               </View>
             )}
@@ -2339,7 +2339,7 @@ export function QuizPlayScreen() {
                         textAlign: "center",
                       }}
                     >
-                      „{content.quote}"
+                      „{content.quote}”
                     </Text>
                   </View>
                 )}
@@ -2373,7 +2373,7 @@ export function QuizPlayScreen() {
                         color: isDark ? "#c4b5fd" : "#5b21b6",
                       }}
                     >
-                      „{content.slogan}"
+                      „{content.slogan}”
                     </Text>
                   </View>
                 )}
@@ -2406,7 +2406,7 @@ export function QuizPlayScreen() {
                         color: isDark ? "#bae6fd" : "#0c4a6e",
                       }}
                     >
-                      „{content.originalSentence}"
+                      „{content.originalSentence}”
                     </Text>
                     {content.transformation && (
                       <Text
@@ -2451,7 +2451,7 @@ export function QuizPlayScreen() {
                         color: theme.text,
                       }}
                     >
-                      „{content.statement}"
+                      „{content.statement}”
                     </Text>
                   </View>
                 )}

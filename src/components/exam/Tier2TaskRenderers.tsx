@@ -245,7 +245,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
                 marginTop: 6,
               }}
             >
-              Pytanie: jakie jest prawdopodobieństwo fenotypu „{targetPhenotype}"?
+              Pytanie: jakie jest prawdopodobieństwo fenotypu „{targetPhenotype}”?
             </Text>
           ) : null}
         </View>
@@ -2005,7 +2005,7 @@ export function Tier2TaskRenderer(props: RenderProps) {
           }}
         >
           <Text style={{ fontSize: 13, color: "#b91c1c", fontWeight: "600" }}>
-            Tier 2: brak renderera dla „{props.task.type}"
+            Tier 2: brak renderera dla „{props.task.type}”
           </Text>
         </View>
       );

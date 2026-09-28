@@ -2452,7 +2452,7 @@ export function GermanTaskRenderer(props: RenderProps) {
       }}
     >
       <Text style={{ fontSize: 13, color: "#b91c1c", fontWeight: "600" }}>
-        Typ zadania „{props.task.type}" jeszcze nie ma renderera mobilnego.
+        Typ zadania „{props.task.type}” jeszcze nie ma renderera mobilnego.
       </Text>
     </View>
   );

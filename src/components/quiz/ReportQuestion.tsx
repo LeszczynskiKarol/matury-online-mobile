@@ -455,7 +455,7 @@ function ReportModal({
               onChangeText={setDescription}
               multiline
               maxLength={2000}
-              placeholder='Opisz co jest nie tak — np. "Poprawna odpowiedź to B, nie C, ponieważ..."'
+              placeholder='Opisz co jest nie tak — np. „Poprawna odpowiedź to B, nie C, ponieważ...”'
               placeholderTextColor={theme.textTertiary}
               style={{
                 backgroundColor: theme.inputBg,

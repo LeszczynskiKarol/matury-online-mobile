@@ -1175,8 +1175,8 @@ export function ExamResultsScreen() {
                         }}
                       >
                         {isPremium
-                          ? `Ćwicz ten dział — ${link.questionCount} pytań z „${link.topicName}" →`
-                          : `W Premium: ${link.questionCount} pytań z działu „${link.topicName}" →`}
+                          ? `Ćwicz ten dział — ${link.questionCount} pytań z „${link.topicName}” →`
+                          : `W Premium: ${link.questionCount} pytań z działu „${link.topicName}” →`}
                       </Text>
                     </TouchableOpacity>
                   );
