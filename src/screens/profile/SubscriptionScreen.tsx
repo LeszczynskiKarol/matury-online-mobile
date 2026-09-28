@@ -34,6 +34,15 @@ import { Button } from "../../components/ui/Button";
 import { colors } from "../../theme/colors";
 import { spacing } from "../../theme";
 import {
+  PlanFacts,
+  PAY_PLAY_ONE_OFF,
+  PAY_PLAY_SUB,
+  oneOffFacts,
+  packageBadge,
+  plus30Days,
+  subscriptionFacts,
+} from "../../utils/planFacts";
+import {
   SKU_PREMIUM_30DAYS,
   SKU_CREDITS_200,
   SKU_CREDITS_500,
@@ -560,20 +569,24 @@ export function SubscriptionScreen() {
           {showAnnual && annualPlay && (
             <Card style={{ borderWidth: 2, borderColor: colors.brand[500] }}>
               <Text style={{ fontSize: 10, fontWeight: "800", color: colors.brand[500], letterSpacing: 0.6 }}>
-                POLECANY · 🎁 30 DNI GRATIS
+                POLECANY · {packageBadge(annualPlay.fullPriceZl, annualPlay.priceZl)}
               </Text>
               <Text style={{ fontSize: 17, fontWeight: "700", color: theme.text, marginTop: 6 }}>
                 {annualName}{annualPrice ? ` — ${annualPrice}` : ""}
               </Text>
               <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, marginBottom: 12 }}>
-                Dostęp do {formatDate(annualPlay.endDate)}, jedna wpłata, bez odnowień. Obecne dni nie przepadają.
+                Wszystko z Premium, jedna wpłata. Obecne dni nie przepadają.
               </Text>
+              <PlanFacts rows={oneOffFacts(annualPrice, annualPlay.endDate)} theme={theme} />
               <Button
                 title={billing.pending === SKU_ANNUAL ? "Otwieranie..." : `Biorę pakiet${annualPrice ? ` — ${annualPrice}` : ""}`}
                 onPress={() => billing.buy(SKU_ANNUAL)}
                 loading={billing.pending === SKU_ANNUAL}
                 disabled={billing.pending !== null}
               />
+              <Text style={{ fontSize: 11, color: theme.textTertiary, textAlign: "center", marginTop: 8 }}>
+                {PAY_PLAY_ONE_OFF}
+              </Text>
             </Card>
           )}
           <Card style={showAnnual ? undefined : { borderWidth: 2, borderColor: colors.brand[500] }}>
@@ -581,11 +594,9 @@ export function SubscriptionScreen() {
               +30 dni{oneTimePrice ? ` — ${oneTimePrice}` : ""}
             </Text>
             <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, marginBottom: 12 }}>
-              {paidEnd
-                ? `Doklejamy 30 dni do obecnego dostępu — będziesz mieć Premium do ${formatDate(new Date(new Date(paidEnd).getTime() + 30 * 86_400_000).toISOString())}.`
-                : "Doklejamy 30 dni do obecnego dostępu."}{" "}
-              Bez subskrypcji.
+              Doklejamy 30 dni do obecnego dostępu. Bez subskrypcji.
             </Text>
+            <PlanFacts rows={oneOffFacts(oneTimePrice, plus30Days(status?.subscriptionEnd))} theme={theme} />
             <Button
               title={billing.pending === SKU_PREMIUM_30DAYS ? "Otwieranie..." : "Przedłuż o 30 dni"}
               onPress={() => billing.buy(SKU_PREMIUM_30DAYS)}
@@ -593,6 +604,9 @@ export function SubscriptionScreen() {
               disabled={!billing.hasProduct(SKU_PREMIUM_30DAYS) || billing.pending !== null}
               variant={showAnnual ? "outline" : undefined}
             />
+            <Text style={{ fontSize: 11, color: theme.textTertiary, textAlign: "center", marginTop: 8 }}>
+              {PAY_PLAY_ONE_OFF}
+            </Text>
           </Card>
           <Card>
             <Text style={{ fontSize: 17, fontWeight: "700", color: theme.text }}>
@@ -602,6 +616,7 @@ export function SubscriptionScreen() {
               Subskrypcja odnawiana co miesiąc, anulujesz kiedy chcesz. W Google Play płatność rusza od razu
               {daysLeft ? ` — pozostałe ${daysLeft} ${daysLeft === 1 ? "dzień" : "dni"} obecnego dostępu nie doliczą się do subskrypcji` : ""}.
             </Text>
+            <PlanFacts rows={subscriptionFacts(monthlyPrice)} theme={theme} />
             <Button
               title={billing.pending === SKU_PREMIUM_MONTHLY ? "Otwieranie..." : "Subskrybuj"}
               onPress={() => billing.buy(SKU_PREMIUM_MONTHLY)}
@@ -609,6 +624,9 @@ export function SubscriptionScreen() {
               disabled={!billing.hasProduct(SKU_PREMIUM_MONTHLY) || billing.pending !== null}
               variant="outline"
             />
+            <Text style={{ fontSize: 11, color: theme.textTertiary, textAlign: "center", marginTop: 8 }}>
+              {PAY_PLAY_SUB}
+            </Text>
           </Card>
         </View>
       )}
@@ -857,7 +875,7 @@ export function SubscriptionScreen() {
                 }}
               >
                 <Text style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}>
-                  🎁 OSTATNIE 30 DNI GRATIS
+                  {packageBadge(annualPlay.fullPriceZl, annualPlay.priceZl)}
                 </Text>
               </View>
               <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text, marginTop: 8 }}>
@@ -898,6 +916,7 @@ export function SubscriptionScreen() {
                   płacisz za {annualPlay.chargedDays}
                 </Text>
               </View>
+              <PlanFacts rows={oneOffFacts(annualPrice, annualPlay.endDate)} theme={theme} />
               <View style={{ gap: 8, marginBottom: 20 }}>
                 {[
                   `Wszystko z Premium — do ${formatDate(annualPlay.endDate)}`,
@@ -921,7 +940,7 @@ export function SubscriptionScreen() {
                 disabled={billing.pending !== null}
               />
               <Text style={{ fontSize: 11, color: theme.textTertiary, textAlign: "center", marginTop: 8 }}>
-                Płatność przez Google Play · jednorazowo, bez odnowień
+                {PAY_PLAY_ONE_OFF}
               </Text>
             </Card>
           )}
@@ -980,6 +999,7 @@ export function SubscriptionScreen() {
                 / miesiąc
               </Text>
             </View>
+            <PlanFacts rows={subscriptionFacts(monthlyPrice)} theme={theme} />
             <View style={{ gap: 8, marginBottom: 20 }}>
               {FEATURES.map((f, i) => (
                 <View
@@ -1020,7 +1040,7 @@ export function SubscriptionScreen() {
                 marginTop: 8,
               }}
             >
-              Płatność przez Google Play · Anuluj kiedy chcesz
+              {PAY_PLAY_SUB}
             </Text>
           </Card>
 
@@ -1051,11 +1071,11 @@ export function SubscriptionScreen() {
                 {oneTimePrice ?? "—"}
               </Text>
             </View>
+            <PlanFacts rows={oneOffFacts(oneTimePrice, plus30Days(status?.subscriptionEnd))} theme={theme} />
             <View style={{ gap: 8, marginBottom: 20 }}>
               {[
                 "Wszystko z Premium",
                 "Bez subskrypcji",
-                "Płatność przez Google Play",
               ].map((t, i) => (
                 <View
                   key={i}
@@ -1088,6 +1108,9 @@ export function SubscriptionScreen() {
               }
               variant="outline"
             />
+            <Text style={{ fontSize: 11, color: theme.textTertiary, textAlign: "center", marginTop: 8 }}>
+              {PAY_PLAY_ONE_OFF}
+            </Text>
           </Card>
         </View>
       )}
