@@ -19,6 +19,8 @@ import { colors } from "../../theme/colors";
 import { SvgViewer } from "./SvgViewer";
 import { ZoomableBox } from "./ZoomableBox";
 import { parseChemText } from "../../utils/chemText";
+import { CodeAwareText } from "../common/CodeAwareText";
+import { osmMapHtml, parseGeoportalPos } from "../../utils/osmMap";
 import { SqlSchemaView } from "./Tier2TaskRenderers";
 import { tableColWidths } from "../../lib/tableWidths";
 import { niceStep, formatTick } from "../../lib/graphSvg";
@@ -1138,25 +1140,24 @@ function MapEmbedMaterial({ mat, theme, isDark }: MaterialProps) {
   const url = mat.mapEmbed || mat.url || "";
   if (!url) return null;
 
-  // Geoportal blokuje iframe → fallback przez OpenStreetMap
+  // Geoportal blokuje iframe → mapa OpenStreetMap. Od 28.09.2026 rysowana
+  // Leafletem (utils/osmMap.ts) zamiast strony export/embed.html OSM, której
+  // atrybucja na wąskim ekranie łamała się na kilka linii i zasłaniała dół
+  // mapy. Atrybucja „© OpenStreetMap contributors” zostaje — mała, w rogu.
   // Parsuj URL Geoportal: pos=lon,lat,zoom
-  let embedUrl = url;
-  if (url.includes("geoportal.gov.pl")) {
-    const m = url.match(/pos=([-\d.]+),([-\d.]+),(\d+)/);
-    if (m) {
-      const lon = parseFloat(m[1]);
-      const lat = parseFloat(m[2]);
-      const z = Math.min(18, Math.max(2, parseInt(m[3], 10) || 10));
-      // OSM bbox dookoła punktu (~0.05° dla z=12)
-      const span = 1 / Math.pow(2, z - 8);
-      const bbox = [lon - span, lat - span * 0.6, lon + span, lat + span * 0.6];
-      embedUrl =
-        `https://www.openstreetmap.org/export/embed.html?` +
-        `bbox=${bbox.join(",")}&layer=mapnik&marker=${lat},${lon}`;
-    }
+  const pos = url.includes("geoportal.gov.pl") ? parseGeoportalPos(url) : null;
+  let html: string;
+  if (pos) {
+    const z = Math.min(18, Math.max(2, pos.zoom || 10));
+    // OSM bbox dookoła punktu (~0.05° dla z=12)
+    const span = 1 / Math.pow(2, z - 8);
+    html = osmMapHtml(
+      [pos.lon - span, pos.lat - span * 0.6, pos.lon + span, pos.lat + span * 0.6],
+      pos,
+    );
+  } else {
+    html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden}iframe{width:100%;height:100%;border:0}</style></head><body><iframe src="${url}" allow="geolocation"></iframe></body></html>`;
   }
-
-  const html = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden}iframe{width:100%;height:100%;border:0}</style></head><body><iframe src="${embedUrl}" allow="geolocation"></iframe></body></html>`;
 
   return (
     <View
@@ -1170,7 +1171,9 @@ function MapEmbedMaterial({ mat, theme, isDark }: MaterialProps) {
     >
       <WebView
         originWhitelist={["*"]}
-        source={{ html }}
+        // baseUrl: kafelki tile.openstreetmap.org wymagają nagłówka Referer
+        // (zasady OSM), a dokument z samego `html` go nie wysyła.
+        source={{ html, baseUrl: "https://matury-online.pl/" }}
         style={{ flex: 1, backgroundColor: "transparent" }}
       />
     </View>
@@ -1408,16 +1411,16 @@ function TextSourceMaterial({ mat, theme, isDark }: MaterialProps) {
         </Text>
       )}
       {mat.content && (
-        <Text
+        <CodeAwareText
+          text={mat.content}
           style={{
             fontSize: 13,
             color: theme.text,
             lineHeight: 21,
             fontStyle: mat.type === "document" ? "italic" : "normal",
           }}
-        >
-          {parseChemText(mat.content)}
-        </Text>
+          isDark={isDark}
+        />
       )}
     </View>
   );
@@ -1496,8 +1499,18 @@ function normalizeChart(chart: any): void {
   }
 }
 
-function normalizeMaterial(mat: any): any {
-  if (!mat || typeof mat !== "object") return mat;
+function normalizeMaterial(rawMat: any): any {
+  if (!rawMat || typeof rawMat !== "object") return rawMat;
+  // Tabela zapisana wprost na materiale (`headers` + `rows` obok `content`,
+  // 33 materiały biologii i 2 chemii) — TableMaterial czyta tylko
+  // mat.table / mat.tableData, więc rysował pustą ramkę. Podnosimy do `table`.
+  const mat =
+    rawMat.table === undefined &&
+    rawMat.tableData === undefined &&
+    Array.isArray(rawMat.headers) &&
+    Array.isArray(rawMat.rows)
+      ? { ...rawMat, table: { headers: rawMat.headers, rows: rawMat.rows } }
+      : rawMat;
   const c = mat.content;
   if (c == null || typeof c === "string") {
     // Materiały wizualne z pipeline'u obrazów (historia: poster/photo/cartoon)
@@ -1597,8 +1610,14 @@ export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) 
   const isChart =
     !isKlimatogram &&
     (type === "chart" || type === "experiment_chart" || !!chartDatasource);
+  // Materiał "table" BEZ danych tabeli (informatyka: opis pliku/schemat bazy
+  // w samym `content`, często z blokiem ```kodu```) rysował pustą ramkę,
+  // a cały tekst lądował w drobnym podpisie kursywą. Bez danych → zwykły tekst.
+  const hasTableData = [mat.tableData, mat.table].some(
+    (t: any) => t && (Array.isArray(t.headers) || Array.isArray(t.rows)),
+  );
   const isTable =
-    type === "table" ||
+    (type === "table" && hasTableData) ||
     (type === "statistics_table" && !!mat.tableData) ||
     // materiały innych typów (np. "text") ze strukturalną tabelą w mat.table
     !!(mat.table && Array.isArray(mat.table.headers));
@@ -1708,9 +1727,13 @@ export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) 
         !isImage &&
         !isTextSource &&
         mat.content && (
-          <Text style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}>
-            {parseChemText(mat.content)}
-          </Text>
+          // CodeAwareText: płoty ```kodu i `kod w linii` (informatyka —
+          // pseudokod w materiale był gołym tekstem z „```pseudokod”).
+          <CodeAwareText
+            text={mat.content}
+            style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
+            isDark={isDark}
+          />
         )}
 
       {/* Optional content text under graficznymi materiałami */}
@@ -1728,16 +1751,16 @@ export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) 
         mat.content &&
         // dla data_file content jest opisem nad plikiem — już pokazaliśmy
         !isDataFile && (
-          <Text
+          <CodeAwareText
+            text={mat.content}
             style={{
               fontSize: 11,
               color: theme.textSecondary,
-              marginTop: 8,
               fontStyle: "italic",
             }}
-          >
-            {parseChemText(mat.content)}
-          </Text>
+            containerStyle={{ marginTop: 8 }}
+            isDark={isDark}
+          />
         )}
 
       {/* Source */}

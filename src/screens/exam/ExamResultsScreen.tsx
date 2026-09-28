@@ -1385,18 +1385,19 @@ export function ExamResultsScreen() {
                 </Text>
               </View>
 
-              {/* Instruction */}
-              <Text
+              {/* Instruction — CodeAwareText jak w playerze: płoty ```kodu
+                  i `kod w linii` (informatyka) zamiast gołych backticków. */}
+              <CodeAwareText
+                text={cleanInstructionForDisplay(currentTask)}
                 style={{
                   fontSize: 15,
                   fontWeight: "600",
                   color: theme.text,
                   lineHeight: 23,
-                  marginBottom: 16,
                 }}
-              >
-                {parseChemText(cleanInstructionForDisplay(currentTask))}
-              </Text>
+                containerStyle={{ marginBottom: 16 }}
+                isDark={isDark}
+              />
 
               {/* Tabela w poleceniu (task.content.table) — jak web ExamResults;
                   do 28.09.2026 ekran wyników jej nie pokazywał. */}

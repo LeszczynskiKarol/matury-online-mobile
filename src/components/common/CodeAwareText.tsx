@@ -21,7 +21,39 @@ const FENCE_PARSE = /^```([^\n`]*)\n?([\s\S]*?)```$/;
 // bez spacji przy gwiazdkach i bez łamania linii w środku. Lustro web/Chem.tsx.
 const BOLD_SPLIT = /(\*\*\S(?:[^*\n]*?\S)?\*\*)/g;
 
-function renderProse(text: string): React.ReactNode {
+// Kod w linii: `rotuj(n)` → monospace na szarym tle (lustro web/Chem.tsx:
+// <code> różowy). Do 28.09.2026 apka pokazywała gołe backticki w poleceniach
+// informatyki. Wnętrze kodu NIE idzie przez parseChemText ani pogrubienie.
+const INLINE_CODE_SPLIT = /(`[^`\n]+`)/g;
+// Twarda spacja po obu stronach — tło kodu nie przylega do liter
+// (RN nie ma paddingu dla zagnieżdżonego <Text>).
+const NBSP = "\u00a0";
+
+function renderProse(text: string, isDark = false): React.ReactNode {
+  if (!text.includes("`")) return renderBoldProse(text);
+  return text.split(INLINE_CODE_SPLIT).map((chunk, i) => {
+    if (chunk.length > 2 && chunk.startsWith("`") && chunk.endsWith("`")) {
+      return (
+        <Text
+          key={i}
+          style={{
+            fontFamily: "monospace",
+            fontWeight: "500",
+            color: isDark ? "#f472b6" : "#db2777",
+            backgroundColor: isDark ? "#27272a" : "#f4f4f5",
+          }}
+        >
+          {NBSP}
+          {chunk.slice(1, -1)}
+          {NBSP}
+        </Text>
+      );
+    }
+    return chunk ? <React.Fragment key={i}>{renderBoldProse(chunk)}</React.Fragment> : null;
+  });
+}
+
+function renderBoldProse(text: string): React.ReactNode {
   if (!text.includes("**")) return parseChemText(text);
   return text.split(BOLD_SPLIT).map((chunk, i) => {
     if (chunk.length > 4 && chunk.startsWith("**") && chunk.endsWith("**")) {
@@ -51,7 +83,7 @@ export function CodeAwareText({
   if (!raw.includes("```")) {
     return (
       <View style={containerStyle}>
-        <Text style={style}>{renderProse(raw)}</Text>
+        <Text style={style}>{renderProse(raw, isDark)}</Text>
       </View>
     );
   }
@@ -105,7 +137,7 @@ export function CodeAwareText({
         if (!part.trim()) return null;
         return (
           <Text key={i} style={style}>
-            {renderProse(part)}
+            {renderProse(part, isDark)}
           </Text>
         );
       })}
