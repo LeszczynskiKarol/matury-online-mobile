@@ -2,7 +2,7 @@
   "expo": {
     "name": "Matury Online",
     "slug": "matury-online",
-    "version": "1.0.51",
+    "version": "1.0.52",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -32,7 +32,7 @@
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 57,
+      "versionCode": 58,
       "softwareKeyboardLayoutMode": "pan"
     },
     "plugins": [
