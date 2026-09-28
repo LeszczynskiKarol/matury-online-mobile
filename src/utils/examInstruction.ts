@@ -4,6 +4,8 @@
 // Bez tej normalizacji parseChemText traktuje "\nA" jako komendę LaTeX i zjada
 // tekst (widoczne było jako "3.ą urbanizacji" zamiast "3.\n\nFazą urbanizacji").
 
+import { gapTextLead } from "./gapText";
+
 type TaskLike = { type?: string; instruction?: string; content?: any };
 
 const TYPES_WITH_RENDERED_OPTIONS = new Set([
@@ -44,6 +46,10 @@ export function cleanInstructionForDisplay(task: TaskLike): string {
   const type = task.type || "";
   const content = task.content || {};
   const normalized = normalizeInstructionNewlines(task.instruction);
+
+  // 0. Tekst z lukami rysuje GapText (pola w zdaniu) — tu tylko polecenie.
+  const gapLead = gapTextLead(task);
+  if (gapLead !== null) return gapLead;
 
   // 1. Opcje A/B/C/D są w content.options / leftOptions+rightOptions —
   //    renderowane jako przyciski, więc wycinamy je z instrukcji.

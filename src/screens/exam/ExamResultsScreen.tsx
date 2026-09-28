@@ -6,6 +6,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { cleanInstructionForDisplay } from "../../utils/examInstruction";
+import { isGapTextType } from "../../utils/gapText";
+import { GapTextReview } from "../../components/exam/GapText";
 import { PASS_PERCENT, hasPassThreshold, verdictLineFor } from "../../utils/passThreshold";
 import {
   View,
@@ -1939,6 +1941,11 @@ function AnswerDisplay({
   const okText = isDark ? "#4ade80" : "#16a34a";
   const badText = isDark ? "#f87171" : "#dc2626";
   const chipOff = isDark ? "rgba(255,255,255,0.12)" : "#e4e4e7";
+
+  // Tekst z lukami — Twoje wpisy w zdaniu (zielone/czerwone) + klucz.
+  if (isGapTextType(task?.type)) {
+    return <GapTextReview task={task} response={r} theme={theme} isDark={isDark} />;
+  }
 
   // P/F — stwierdzenia z kluczem isTrue i odpowiedź jako tablica booleanów.
   const stmts: any[] = Array.isArray(c.statements) ? c.statements : [];

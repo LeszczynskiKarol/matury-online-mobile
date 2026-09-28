@@ -47,6 +47,8 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { OptionCard } from "../../components/quiz/OptionCard";
 import { cleanInstructionForDisplay } from "../../utils/examInstruction";
+import { isGapTextType } from "../../utils/gapText";
+import { GapTextInput } from "../../components/exam/GapText";
 import { parseChemText } from "../../utils/chemText";
 import { CodeAwareText } from "../../components/common/CodeAwareText";
 import {
@@ -1283,6 +1285,26 @@ function ExamTaskInput({
   const svgElement = svgString ? (
     <SvgViewer svg={svgString} theme={theme} />
   ) : null;
+
+  // ── Tekst z lukami (wos/biz_fill_text, info_fill_blank) — pola w zdaniu,
+  //    w miejscu „(1) …………”; polecenie nad tekstem tnie
+  //    cleanInstructionForDisplay (gapTextLead).
+  if (isGapTextType(task.type)) {
+    return (
+      <View>
+        {svgElement}
+        {graphElement}
+        {tableElement}
+        <GapTextInput
+          task={task}
+          value={value}
+          onChange={onChange}
+          theme={theme}
+          isDark={isDark}
+        />
+      </View>
+    );
+  }
 
   // ── Tier 2 specjalistyczne renderery — przed prefix mapperem,
   //    żeby sequence/cross_punnett/scheme_fill/fill_choose/info_*/table_fill/
