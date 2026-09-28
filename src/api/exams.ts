@@ -97,7 +97,7 @@ export interface ExamAttemptHistory {
   totalScore: number | null;
   percentage: number | null;
   timeSpentMs: number;
-  exam: ExamInfo & { level: string };
+  exam: ExamInfo & { level: string; subject?: { slug: string } };
 }
 
 // ── API calls ────────────────────────────────────────────────────────────

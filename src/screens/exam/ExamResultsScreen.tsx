@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from "react";
 import { cleanInstructionForDisplay } from "../../utils/examInstruction";
+import { PASS_PERCENT, hasPassThreshold, verdictLineFor } from "../../utils/passThreshold";
 import {
   View,
   Text,
@@ -41,9 +42,10 @@ type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
 // ── Framing wyniku: dystans w PUNKTACH, nie w procentach ────────────────────
 // „Masz 43%" nic uczniowi nie mówi. „Do progu brakuje Ci 5 pkt" mówi wszystko.
-// Progi: 30% to próg zdawalności CKE, 65% i 85% to poziomy, na których wynik
-// zaczyna się liczyć w rekrutacji. Identyczne z wersją webową.
-const PASS_PERCENT = 30;
+// Progi: 30% to próg zdawalności CKE (TYLKO matura PP z przedmiotu
+// obowiązkowego — utils/passThreshold.ts; rozszerzenia i przedmioty dodatkowe
+// progu nie mają), 65% i 85% to poziomy, na których wynik zaczyna się liczyć
+// w rekrutacji. Identyczne z wersją webową.
 const RECRUIT_PERCENT = 65;
 const TOP_PERCENT = 85;
 
@@ -55,11 +57,23 @@ function getOutcomeFraming(
   percentage: number,
   totalScore: number,
   maxScore: number,
+  threshold: boolean,
 ) {
   const toPass = pointsTo(PASS_PERCENT, totalScore, maxScore);
   const toRecruit = pointsTo(RECRUIT_PERCENT, totalScore, maxScore);
   const toTop = pointsTo(TOP_PERCENT, totalScore, maxScore);
   const passMargin = totalScore - Math.ceil((maxScore * PASS_PERCENT) / 100);
+
+  // Egzamin bez progu zdawalności (PR, przedmiot dodatkowy): ani „zdane”, ani
+  // „do progu brakuje” — sam dystans do poziomów rekrutacyjnych.
+  if (!threshold && percentage < RECRUIT_PERCENT) {
+    return {
+      distance: `Do wyniku, który liczy się w rekrutacji (${RECRUIT_PERCENT}%), brakuje Ci ${toRecruit} pkt.`,
+      upsellTitle: `Do progu rekrutacyjnego brakuje ${toRecruit} pkt`,
+      upsellBody:
+        "W Premium masz pytania dokładnie z działów, w których straciłeś punkty, i kolejne arkusze, żeby sprawdzić, czy różnica znika.",
+    };
+  }
 
   if (percentage < PASS_PERCENT) {
     return {
@@ -430,10 +444,17 @@ export function ExamResultsScreen() {
     : allTasks.findIndex((t: any) => t.id === currentTaskId);
   const currentGrading = currentTask ? gradingMap.get(currentTask.id) : null;
   const tier = getScoreTier(grading.percentage, isDark);
+  const threshold = hasPassThreshold(exam?.subject?.slug, exam?.level);
+  const verdict = verdictLineFor(
+    feedback?.predictedMatura,
+    exam?.subject?.slug,
+    exam?.level,
+  );
   const framing = getOutcomeFraming(
     grading.percentage,
     grading.totalScore,
     grading.maxScore,
+    threshold,
   );
 
   const goToTask = (id: string) => {
@@ -813,7 +834,7 @@ export function ExamResultsScreen() {
                   marginTop: 4,
                 }}
               >
-                {feedback.predictedMatura}
+                {verdict}
               </Text>
               {/* Dystans w punktach — dla wszystkich, bez sprzedaży.
                   To jest najużyteczniejsza liczba na całym ekranie. */}

@@ -14,6 +14,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { getExamHistory, type ExamAttemptHistory } from "../../api/exams";
+import { PASS_PERCENT, hasPassThreshold } from "../../utils/passThreshold";
 import type { ExamStackParamList } from "../../navigation/types";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
@@ -272,7 +273,9 @@ export function ExamHistoryScreen() {
                     <Text
                       style={{ fontSize: 11, fontWeight: "600", color: clr }}
                     >
-                      {pct}% — {pct >= 30 ? "zdany" : "niezdany"}
+                      {hasPassThreshold(a.exam.subject?.slug, a.exam.level)
+                        ? `${pct}% — ${pct >= PASS_PERCENT ? "zdany" : "niezdany"}`
+                        : `${pct}%`}
                     </Text>
                   </View>
                 </View>
