@@ -2,6 +2,7 @@
 // Quiz Play Screen — with live filters (1:1 with web QuizPlayer)
 // ============================================================================
 
+import { USED_MARK_COLOR } from "../../utils/matchingUsed";
 import { colors } from "../../theme/colors";
 import { stopAllListeningPlayers } from "../../hooks/useListeningPlayer";
 import { ListeningQuestion } from "../../components/quiz/ListeningQuestion";
@@ -2855,6 +2856,10 @@ export function QuizPlayScreen() {
                                           : theme.textSecondary,
                                     }}
                                   >
+                                    {/* Zielony ✓: już przy innym elemencie (bez blokady). */}
+                                    {!submitted && taken ? (
+                                      <Text style={{ color: USED_MARK_COLOR, fontWeight: "800" }}>✓ </Text>
+                                    ) : null}
                                     {parseChemText(right)}
                                   </Text>
                                 </TouchableOpacity>

@@ -3,6 +3,7 @@
 // 1:1 z frontend/src/components/exam/NiemieckiTaskRenderers.tsx
 // =============================================================================
 
+import { USED_MARK_COLOR } from "../../utils/matchingUsed";
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   View,
@@ -494,6 +495,9 @@ function PillPicker({
                     : theme.text,
               }}
             >
+              {isUsedByOther ? (
+                <Text style={{ color: USED_MARK_COLOR, fontWeight: "800" }}>✓ </Text>
+              ) : null}
               {opt}
             </Text>
           </TouchableOpacity>

@@ -3,6 +3,7 @@
 // ============================================================================
 // ExamPlayerScreen — Main exam interface (mobile version of ExamPlayer.tsx)
 // ============================================================================
+import { usedAt, USED_MARK_COLOR } from "../../utils/matchingUsed";
 import { MathGraph } from "../../components/quiz/MathGraph";
 import React, {
   useState,
@@ -1850,6 +1851,9 @@ function ExamTaskInput({
                 >
                   {right.map((r: any) => {
                     const isSel = ans[item.id] === r.id;
+                    // Zielony ✓: opcja wybrana już przy innym elemencie —
+                    // tylko podpowiedź, wybór działa jak dotąd.
+                    const usedElsewhere = usedAt(ans, item.id, r.id).length > 0;
                     return (
                       <TouchableOpacity
                         key={r.id}
@@ -1879,6 +1883,9 @@ function ExamTaskInput({
                               : theme.textSecondary,
                           }}
                         >
+                          {usedElsewhere && !isSel ? (
+                            <Text style={{ color: USED_MARK_COLOR, fontWeight: "800" }}>✓ </Text>
+                          ) : null}
                           {r.id}. {parseChemText(r.text)}
                         </Text>
                       </TouchableOpacity>
