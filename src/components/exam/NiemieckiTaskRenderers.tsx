@@ -462,7 +462,6 @@ function PillPicker({
         return (
           <TouchableOpacity
             key={opt}
-            disabled={isUsedByOther}
             onPress={() => onChange(isSelected ? "" : opt)}
             style={{
               minWidth: 38,
@@ -481,7 +480,7 @@ function PillPicker({
                 : isUsedByOther
                   ? theme.inputBg
                   : "transparent",
-              opacity: isUsedByOther ? 0.35 : 1,
+              opacity: isUsedByOther ? 0.65 : 1,
             }}
           >
             <Text
