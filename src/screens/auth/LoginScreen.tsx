@@ -2,7 +2,6 @@
 // Login Screen
 // ============================================================================
 
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
 import {
   View,
@@ -12,6 +11,7 @@ import {
   Platform,
   TouchableOpacity,
   Alert,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -130,29 +130,11 @@ export function LoginScreen() {
 
         {/* Logo */}
         <View style={{ alignItems: "center", marginTop: 40, marginBottom: 48 }}>
-          <LinearGradient
-            colors={[colors.brand[500], colors.navy[600]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: radius.xl,
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 16,
-            }}
-          >
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 24,
-                fontFamily: "Outfit_700Bold",
-              }}
-            >
-              M
-            </Text>
-          </LinearGradient>
+          <Image
+            source={require("../../../assets/logo.png")}
+            accessibilityLabel="Matury Online"
+            style={{ width: 56, height: 56, marginBottom: 16 }}
+          />
           <Text
             style={{
               fontSize: 28,
