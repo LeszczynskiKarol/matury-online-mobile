@@ -73,7 +73,7 @@ import type { QuizStackParamList } from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
 import { QuizReviewsModal } from "../../components/quiz/QuizReviewsPref";
 import { PremiumGate } from "../../components/common/PremiumGate";
-import { matchingOptionOrder } from "../../utils/matchingOrder";
+import { matchingOptionOrder, orderingInitialOrder } from "../../utils/matchingOrder";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -3618,11 +3618,15 @@ export function QuizPlayScreen() {
                 const items =
                   question.type === "ORDERING" ? content.items : content.steps;
                 if (!items) return null;
+                // Kolejność startowa: losowa, stała dla pytania i nigdy równa
+                // kluczowi (utils/matchingOrder.ts) — wcześniej kolejność zapisu,
+                // która w 8/47 ORDERING była kluczem („Sprawdź” bez ruszania = 100%).
                 const ord = Array.isArray(selectedAnswer)
                   ? selectedAnswer
-                  : question.type === "ORDERING"
-                    ? items.map((_: any, i: number) => i)
-                    : items.map((s: any) => s.id);
+                  : orderingInitialOrder(
+                      content,
+                      question.type === "ORDERING" ? "items" : "steps",
+                    );
                 if (!Array.isArray(selectedAnswer)) {
                   // Tylko gdy nic nie ma: przy powrocie do pytania (i w przeglądzie
                   // diagnozy) zapisana odpowiedź przychodzi w tym samym cyklu, a
