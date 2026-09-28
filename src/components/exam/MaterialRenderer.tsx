@@ -528,6 +528,24 @@ function TableMaterial({ mat, theme, isDark }: MaterialProps) {
   );
 }
 
+/**
+ * Tabela {headers, rows} poza materiałem — wzorcowa odpowiedź (tabela
+ * Markdown z tekstu, components/common/TextWithTables) i tabela w poleceniu
+ * zadania (task.content.table) na ekranie wyników. Ten sam wygląd co tabela
+ * materiału (TableMaterial), komórki przez parseChemText.
+ */
+export function StructTableView({
+  table,
+  theme,
+  isDark,
+}: {
+  table: { headers: string[]; rows: string[][]; caption?: string };
+  theme: any;
+  isDark: boolean;
+}) {
+  return <TableMaterial mat={{ table }} theme={theme} isDark={isDark} />;
+}
+
 // ── Mapa Europy (europeMapData) i diagram władzy (govDiagramData) ─────────
 // Oba typy leciały wcześniej w tekstowy fallback, więc na telefonie z całego
 // materiału zostawał jednozdaniowy opis — a zadania odwołują się wprost do

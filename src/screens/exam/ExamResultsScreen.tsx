@@ -26,7 +26,8 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { parseChemText } from "../../utils/chemText";
 import { CodeAwareText } from "../../components/common/CodeAwareText";
-import { MaterialRenderer } from "../../components/exam/MaterialRenderer";
+import { MaterialRenderer, StructTableView } from "../../components/exam/MaterialRenderer";
+import { TextWithTables } from "../../components/common/TextWithTables";
 import { getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
 import { api } from "../../api/client";
 import { getPracticeLinks, type PracticeLinks } from "../../api/premium";
@@ -1397,6 +1398,19 @@ export function ExamResultsScreen() {
                 {parseChemText(cleanInstructionForDisplay(currentTask))}
               </Text>
 
+              {/* Tabela w poleceniu (task.content.table) — jak web ExamResults;
+                  do 28.09.2026 ekran wyników jej nie pokazywał. */}
+              {Array.isArray(currentTask.content?.table?.headers) &&
+                Array.isArray(currentTask.content?.table?.rows) && (
+                  <View style={{ marginBottom: 16 }}>
+                    <StructTableView
+                      table={currentTask.content.table}
+                      theme={theme}
+                      isDark={isDark}
+                    />
+                  </View>
+                )}
+
               {/* User answer */}
               <View style={{ marginBottom: 12 }}>
                 <Text
@@ -1668,9 +1682,10 @@ export function ExamResultsScreen() {
                   >
                     📝 WZORCOWA ODPOWIEDŹ
                   </Text>
-                  <CodeAwareText
+                  <TextWithTables
                     text={currentGrading.modelAnswer}
                     style={{ fontSize: 12, color: theme.text, lineHeight: 19 }}
+                    theme={theme}
                     isDark={isDark}
                   />
                 </View>
