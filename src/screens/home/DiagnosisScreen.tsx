@@ -689,13 +689,15 @@ export function DiagnosisScreen() {
           </Card>
         )}
 
-        {/* Diagnoza to najczęściej kończona ścieżka — dobre miejsce na prośbę
-            o ocenę. Pod ofertą, żeby jej nie przykrywać (jak na webie). */}
-        <TestimonialPrompt
-          trigger="diagnosis"
-          context={{ percentage: r.scorePercent, subject: r.subject.slug }}
-          style={{ marginBottom: 16 }}
-        />
+        {/* Prośba o ocenę tylko przy dobrym wyniku (≥ 60%), jak na webie —
+            obok słabego wyniku i paywalla nikt nie oceniał (Karol 28.09.2026). */}
+        {(r.scorePercent ?? 0) >= 60 && (
+          <TestimonialPrompt
+            trigger="diagnosis"
+            context={{ percentage: r.scorePercent, subject: r.subject.slug }}
+            style={{ marginBottom: 16 }}
+          />
+        )}
 
         <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 10 }}>
           Pytania i odpowiedzi

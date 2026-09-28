@@ -863,9 +863,9 @@ export function ExamResultsScreen() {
             </Text>
             )}
 
-            {/* Opinia po arkuszu — próg 40% jak na webie (przy 60% prośba prawie
-                się nie pokazywała). Komponent pilnuje, żeby nie pytać dwa razy. */}
-            {grading.percentage >= 40 && (
+            {/* Opinia po arkuszu od 50%, jak na webie (Karol 28.09.2026).
+                Powtórki ogranicza backend (max 3 wyświetlenia, co 3 dni). */}
+            {grading.percentage >= 50 && (
               <TestimonialPrompt
                 trigger="exam"
                 context={{
