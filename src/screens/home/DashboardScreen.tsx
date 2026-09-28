@@ -26,6 +26,8 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/common/ProgressBar";
 import { FreePanel } from "../../components/common/FreePanel";
+import { ModeTiles } from "../../components/home/ModeTiles";
+import { DashboardUnlockBox } from "../../components/home/DashboardUnlockBox";
 import { AccountNote } from "../../components/common/AccountNote";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
 import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
@@ -232,9 +234,23 @@ export function DashboardScreen() {
             arkusza, ceną i Pakietem, a pod nim drugi raz diagnoza i arkusz
             (zdaj-angielski, 25.09.2026). Przy nieudanej płatności akcję
             przejmuje baner wyżej. */}
+        {/* Blok Premium wysoko, jak web PremiumGate „dashboard” (Karol
+            28.09.2026) — wcześniej o Premium była tylko drobna linijka na
+            dole karty „Za darmo”. Przy nieudanej płatności akcję ma baner. */}
+        {!paymentFailed && (
+          <DashboardUnlockBox
+            onUnlock={() =>
+              navigation.navigate("ProfileTab", { screen: "Subscription" })
+            }
+            subscriptionStatus={user?.subscriptionStatus}
+            hasTutor={!!user?.hasTutor}
+          />
+        )}
+
         {!paymentFailed && (
           <View style={{ marginBottom: 24 }}>
             <FreePanel
+              hidePremiumLine
               onPremium={() =>
                 navigation.navigate("ProfileTab", { screen: "Subscription" })
               }
@@ -612,142 +628,15 @@ export function DashboardScreen() {
         />
       )}
 
-      {/* ═══ 3 HERO TILES — Egzamin / Listening / Quiz ═══ */}
-      <View style={{ gap: 10, marginBottom: 20 }}>
-        {/* Egzamin Live — pełna szerokość, ale ta sama „waga" wizualna co
-            pozostałe tryby. Wcześniej był jedynym kaflem na pełnym kolorze
-            marki, z cieniem — przez co czytał się jak JEDYNY przycisk na
-            ekranie, a quiz i słuchanie wyglądały jak dodatek. Pierwszeństwo
-            daje mu teraz pozycja i szerokość, nie krzyk koloru. */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => navigation.navigate("ExamTab")}
-          style={{
-            padding: 16,
-            borderRadius: 20,
-            backgroundColor: isDark ? "#2e106533" : "#f5f3ff",
-            borderWidth: 1,
-            borderColor: isDark ? "#6d28d940" : "#ddd6fe",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 14,
-          }}
-        >
-          <Text style={{ fontSize: 32 }}>📝</Text>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "800",
-                color: isDark ? "#c4b5fd" : "#5b21b6",
-                marginBottom: 2,
-              }}
-            >
-              Egzamin Live
-            </Text>
-            <Text
-              style={{
-                fontSize: 11,
-                color: isDark ? "#a78bfa" : "#7c3aed",
-              }}
-            >
-              Pełny symulator matury z timerem
-            </Text>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={isDark ? "#a78bfa" : "#7c3aed"}
-          />
-        </TouchableOpacity>
-
-        {/* Listening + Quiz w 2 kolumnach */}
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate("ListeningHub")}
-            style={{
-              flex: 1,
-              padding: 16,
-              borderRadius: 20,
-              backgroundColor: isDark ? "#0c1e3e" : "#eff6ff",
-              borderWidth: 1,
-              borderColor: isDark ? "#1e40af40" : "#bfdbfe",
-              alignItems: "flex-start",
-              minHeight: 130,
-              justifyContent: "space-between",
-            }}
-          >
-            <Text style={{ fontSize: 32 }}>🎧</Text>
-            <View>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "800",
-                  color: isDark ? "#93c5fd" : "#1e40af",
-                }}
-              >
-                Listening
-              </Text>
-              <Text
-                style={{
-                  fontSize: 11,
-                  color: isDark ? "#60a5fa" : "#3b82f6",
-                  marginTop: 2,
-                }}
-              >
-                EN / DE z AI audio
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.85}
-            // Ta sama ścieżka co przycisk „Quiz" w dolnym menu: ekran wyboru
-            // przedmiotu i typu sesji. Wcześniej kafel prowadził na listę
-            // przedmiotów (SubjectsTab), czyli w zupełnie inny przepływ.
-            onPress={() =>
-              // Jak zakładka Quiz i link „Quiz” na webie: trwający quiz
-              // wraca, a bez niego — ekran nowej sesji (Karol 26.09.2026:
-              // kafel zawsze zaczynał nowy quiz, zakładka wznawiała).
-              navigation.navigate("QuizTab")
-            }
-            style={{
-              flex: 1,
-              padding: 16,
-              borderRadius: 20,
-              backgroundColor: isDark ? "#14532d20" : "#ecfdf5",
-              borderWidth: 1,
-              borderColor: isDark ? "#16653440" : "#a7f3d0",
-              alignItems: "flex-start",
-              minHeight: 130,
-              justifyContent: "space-between",
-            }}
-          >
-            <Text style={{ fontSize: 32 }}>🎯</Text>
-            <View>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "800",
-                  color: isDark ? "#86efac" : "#15803d",
-                }}
-              >
-                Quiz
-              </Text>
-              <Text
-                style={{
-                  fontSize: 11,
-                  color: isDark ? "#4ade80" : "#16a34a",
-                  marginTop: 2,
-                }}
-              >
-                Pytania per przedmiot
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* ═══ WYBIERZ TRYB — Egzamin Live / Quiz / Słuchanie ═══
+          Jednakowe karty jak web „Wybierz tryb” (components/home/ModeTiles).
+          Cele bez zmian: Egzamin → zakładka Egzamin, Quiz → zakładka Quiz
+          (trwający quiz wraca, bez niego — nowa sesja), Słuchanie → hub. */}
+      <ModeTiles
+        onExam={() => navigation.navigate("ExamTab")}
+        onQuiz={() => navigation.navigate("QuizTab")}
+        onListening={() => navigation.navigate("ListeningHub")}
+      />
 
       {/* Twoje przedmioty — zaraz pod trybami, nad statystykami (jak na webie) */}
       {data?.subjectProgress && data.subjectProgress.length > 0 && (

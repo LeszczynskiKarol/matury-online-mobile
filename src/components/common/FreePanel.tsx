@@ -41,9 +41,13 @@ function hoursLeft(ms: number): string {
 export function FreePanel({
   onPremium,
   premiumLabel = "Wszystko bez limitu:",
+  hidePremiumLine = false,
 }: {
   onPremium: () => void;
   premiumLabel?: string;
+  /** Pulpit ma nad kartą osobny blok Premium (DashboardUnlockBox) —
+   *  wtedy bez drugiej, drobnej linijki „Premium od 49 zł/mies.”. */
+  hidePremiumLine?: boolean;
 }) {
   const { colors: theme } = useTheme();
   const navigation = useNavigation<any>();
@@ -232,6 +236,7 @@ export function FreePanel({
         </Text>
       )}
 
+      {!hidePremiumLine && (
       <TouchableOpacity
         onPress={onPremium}
         style={{
@@ -254,6 +259,7 @@ export function FreePanel({
           od 49 zł/mies. →
         </Text>
       </TouchableOpacity>
+      )}
     </View>
   );
 }
