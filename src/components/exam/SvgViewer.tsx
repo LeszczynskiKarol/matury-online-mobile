@@ -6,13 +6,14 @@
 // scroll, bez żadnych gestów).
 // =============================================================================
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, Pressable } from "react-native";
 import { WebView } from "react-native-webview";
 import { ZoomableSvgModal } from "./ZoomableSvgModal";
+import { drawVectorArrows } from "../../utils/svgVectorArrows";
 
 export function SvgViewer({
-  svg,
+  svg: rawSvg,
   theme,
   isDark: isDarkProp,
 }: {
@@ -22,6 +23,8 @@ export function SvgViewer({
   isDark?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // Wektory „F⃗” w etykietach → litera + strzałka (bez pustych kwadratów).
+  const svg = useMemo(() => drawVectorArrows(rawSvg || ""), [rawSvg]);
   const baseH = 260;
   // Grafiki z TREŚCI (materiały arkuszy, schematy) są rysowane ciemną kreską
   // pod białe tło i zwykle nie mają własnego tła — na ciemnym podglądzie

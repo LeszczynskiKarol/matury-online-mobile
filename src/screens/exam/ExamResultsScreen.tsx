@@ -717,7 +717,7 @@ export function ExamResultsScreen() {
             <Text style={{ fontSize: 11, color: theme.textSecondary }}>
               {isSummary
                 ? "Podsumowanie"
-                : `Zad. ${currentTask?.number} / ${allTasks.length}`}
+                : `Zad. ${currentTask?.number} · ${currentIndex + 1} z ${allTasks.length}`}
             </Text>
           </View>
           <TouchableOpacity
@@ -1726,7 +1726,7 @@ export function ExamResultsScreen() {
         >
           {isSummary
             ? "Podsumowanie"
-            : `${currentIndex + 1} / ${allTasks.length}`}
+            : `${currentIndex + 1} z ${allTasks.length}`}
         </Text>
         <Button
           title={

@@ -857,7 +857,7 @@ export function ExamPlayerScreen() {
               </View>
             ) : null}
             <Text numberOfLines={1} style={{ fontSize: 11, color: theme.textSecondary, marginTop: 1 }}>
-              {currentIndex + 1}/{allTasks.length} · {answeredCount}{" "}
+              {currentIndex + 1} z {allTasks.length} · {answeredCount}{" "}
               {answeredCount === 1 ? "odpowiedź" : "odpowiedzi"}
               {saveFailed ? (
                 <Text style={{ color: "#ef4444", fontWeight: "700" }}> · ⚠ zapis nieudany</Text>
@@ -1125,7 +1125,7 @@ export function ExamPlayerScreen() {
             color: theme.textTertiary,
           }}
         >
-          {currentIndex + 1} / {allTasks.length}
+          {currentIndex + 1} z {allTasks.length}
         </Text>
 
         {currentIndex < allTasks.length - 1 ? (
