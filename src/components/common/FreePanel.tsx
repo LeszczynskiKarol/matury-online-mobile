@@ -20,6 +20,8 @@ import { api } from "../../api/client";
 import {
   getTrialStatus,
   claimTrial,
+  isFreePackBlocked,
+  FREE_PACK_BLOCKED_MESSAGE,
   type TrialStatus,
 } from "../../api/premium";
 
@@ -86,6 +88,10 @@ export function FreePanel({
       setTrial(await claimTrial("dashboard"));
       goExams();
     } catch (e: any) {
+      if (isFreePackBlocked(e)) {
+        setTrial((t) => (t ? { ...t, eligible: false, freePackBlocked: true } : t));
+        return;
+      }
       setClaimError(e?.message || "Nie udało się odebrać arkusza.");
     } finally {
       setClaiming(false);
@@ -136,6 +142,12 @@ export function FreePanel({
     examText = `Wybierz przedmiot — arkusz wylosujemy. Masz na to ${hoursLeft(trial.remainingMs)}.`;
     examCta = "Wybierz przedmiot";
     onExam = goExams;
+  } else if (isFreePackBlocked(trial)) {
+    // Pakiet startowy poszedł już z tej sieci/urządzenia — zamiast
+    // „Odbierz darmowy arkusz" prowadzimy do Premium.
+    examText = FREE_PACK_BLOCKED_MESSAGE;
+    examCta = "Zobacz Premium";
+    onExam = onPremium;
   } else if (trial?.eligible) {
     examText = "Pełny arkusz z oceną AI, bez limitu czasu.";
     examCta = "Odbierz darmowy arkusz";

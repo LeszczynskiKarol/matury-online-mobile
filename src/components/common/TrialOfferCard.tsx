@@ -19,7 +19,13 @@ import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
-import { getTrialStatus, claimTrial, type TrialStatus } from "../../api/premium";
+import {
+  getTrialStatus,
+  claimTrial,
+  isFreePackBlocked,
+  FREE_PACK_BLOCKED_MESSAGE,
+  type TrialStatus,
+} from "../../api/premium";
 
 function formatRemaining(ms: number): string {
   if (ms <= 0) return "chwilę";
@@ -74,6 +80,12 @@ export function TrialOfferCard({
       setStatus(d);
       setRemainingMs(d.remainingMs);
     } catch (e: any) {
+      // Pakiet poszedł już z tej sieci/urządzenia — zamiast błędu pokazujemy
+      // komunikat z drogą do Premium.
+      if (isFreePackBlocked(e)) {
+        setStatus((s) => (s ? { ...s, eligible: false, freePackBlocked: true } : s));
+        return;
+      }
       setError(e?.message || "Nie udało się odebrać oferty.");
     } finally {
       setClaiming(false);
@@ -81,10 +93,11 @@ export function TrialOfferCard({
   }
 
   if (!status) return null;
-  if (!status.eligible && !status.active) return null;
 
   const goToExams = () =>
     navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
+  const goToPremium = () =>
+    navigation.getParent()?.navigate("ProfileTab", { screen: "Subscription" });
 
   const shell =
     placement === "above"
@@ -100,6 +113,26 @@ export function TrialOfferCard({
           borderTopWidth: 1,
           borderTopColor: theme.border,
         } as const);
+
+  // ── Darmowy pakiet wykorzystany z tej sieci / urządzenia ──────────────
+  // Konto nie jest blokowane — tylko bez oferty. Zamiast „Odbieram za darmo"
+  // mówimy wprost, dlaczego, i prowadzimy do Premium.
+  if (!status.active && isFreePackBlocked(status)) {
+    return (
+      <View style={shell}>
+        <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19 }}>
+          {FREE_PACK_BLOCKED_MESSAGE}
+        </Text>
+        <TouchableOpacity onPress={goToPremium} style={{ marginTop: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: "800", color: colors.brand[500] }}>
+            Zobacz Premium →
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!status.eligible && !status.active) return null;
 
   // ── Arkusz już oddany ─────────────────────────────────────────────────
   // Okno oferty (48 h) trwa dalej, ale oferta jest wykorzystana: karta mówiła

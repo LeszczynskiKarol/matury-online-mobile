@@ -43,6 +43,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { submitAnswer, completeSession } from "../../api/sessions";
 import { api, ApiError } from "../../api/client";
+import { isFreePackBlocked, FREE_PACK_BLOCKED_MESSAGE } from "../../api/premium";
 import { maybeAskForReviewOnStreak } from "../../lib/reviewPrompt";
 import {
   skipQuestion as apiSkipQuestion,
@@ -1780,9 +1781,54 @@ export function QuizPlayScreen() {
               </>
             )}
 
+            {/* ── Diagnoza: zadanie AI bez oceny ─────────────────────────
+                Darmowy pakiet (z oceną AI w diagnozie) poszedł już z tej
+                sieci/urządzenia — backend zapisuje odpowiedź bez punktów
+                (aiLocked). Zamiast „Niestety, źle" mówimy, dlaczego, i dajemy
+                drogę do Premium. */}
+            {submitted && result && isDiag && (result.aiLocked || result.pendingAi) && (
+              <Card
+                style={{
+                  marginBottom: 20,
+                  borderColor: result.aiLocked ? "#f59e0b" : colors.navy[400],
+                  borderWidth: 2,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <Ionicons
+                    name={result.aiLocked ? "lock-closed" : "time-outline"}
+                    size={22}
+                    color={result.aiLocked ? "#f59e0b" : colors.navy[400]}
+                  />
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>
+                    {result.aiLocked ? "Bez oceny AI" : "Odpowiedź zapisana"}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 21 }}>
+                  {result.aiLocked || isFreePackBlocked(result)
+                    ? FREE_PACK_BLOCKED_MESSAGE
+                    : "Ocenę AI tego zadania zobaczysz w wyniku diagnozy."}
+                </Text>
+                {(result.aiLocked || isFreePackBlocked(result)) && (
+                  <View style={{ marginTop: 12 }}>
+                    <Button
+                      title="Zobacz Premium →"
+                      size="sm"
+                      onPress={() =>
+                        navigation
+                          .getParent()
+                          ?.navigate("ProfileTab", { screen: "Subscription" })
+                      }
+                    />
+                  </View>
+                )}
+              </Card>
+            )}
+
             {/* ── Feedback (above answer options) ──────────────────────── */}
             {submitted &&
               result &&
+              !(isDiag && (result.aiLocked || result.pendingAi)) &&
               !(
                 result.revealed && ["EXPERIMENT_DESIGN"].includes(question.type)
               ) &&

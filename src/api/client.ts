@@ -5,6 +5,7 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { getInstallId } from "../lib/installId";
 
 // Wersja z app.json (bare: trzymana w zgodzie z build.gradle). Idzie w nagłówku
 // X-App-Version, żeby panel widział, ile osób siedzi na starym buildzie.
@@ -120,6 +121,13 @@ export async function api<T = any>(
     // (lib/answerKeys.ts), więc backend oddaje pytania bez klucza.
     "X-Answer-Reveal": "server",
   };
+
+  // Losowy identyfikator instalacji — backend daje darmowy pakiet startowy
+  // raz na urządzenie. Brak (błąd magazynu) = zapytanie idzie bez nagłówka.
+  try {
+    const installId = await getInstallId();
+    if (installId) headers["X-Install-Id"] = installId;
+  } catch {}
 
   if (auth) {
     const token = await getToken();

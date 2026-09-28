@@ -48,6 +48,10 @@ export interface User {
   // Powtórki w quizie (do 30% sesji z pytań, które sprawiły trudność).
   // Brak pola = włączone (domyślnie true w bazie).
   quizReviews?: boolean;
+  // Darmowy pakiet startowy (arkusz + kredyty AI + ocena AI w diagnozie)
+  // przysługuje raz na sieć / Gmail / urządzenie. Brak pola = przysługuje.
+  freePackEligible?: boolean;
+  freePackReason?: "device" | "gmail" | "network" | null;
 }
 
 interface AuthResponse {

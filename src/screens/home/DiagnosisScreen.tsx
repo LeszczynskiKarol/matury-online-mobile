@@ -39,7 +39,13 @@ import { Button } from "../../components/ui/Button";
 import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { TYPE_LABELS } from "../quiz/QuizPlayScreen";
 import { difficultyLabel, difficultyColor } from "../../lib/difficulty";
-import { getTrialStatus, claimTrial, type TrialStatus } from "../../api/premium";
+import {
+  getTrialStatus,
+  claimTrial,
+  isFreePackBlocked,
+  FREE_PACK_BLOCKED_MESSAGE,
+  type TrialStatus,
+} from "../../api/premium";
 import { colors } from "../../theme/colors";
 import { radius, spacing } from "../../theme";
 import { parseChemText } from "../../utils/chemText";
@@ -85,6 +91,11 @@ interface FullResult {
   examKind?: "OSMOKLASISTA" | "MATURA" | "FCE" | "CAE";
   topicBreakdown: TopicRow[];
   questions: ResultQuestion[];
+  /** Zadania oceniane przez AI, których nie oceniono, bo darmowy pakiet
+   *  (z oceną AI w diagnozie) poszedł już z tej sieci/urządzenia. */
+  aiLockedCount?: number;
+  freePackBlocked?: boolean;
+  freePackMessage?: string;
 }
 
 type Phase =
@@ -92,6 +103,14 @@ type Phase =
   | { kind: "loading"; label: string }
   | { kind: "result"; result: FullResult; token: string }
   | { kind: "error"; message: string };
+
+/** „1 zadanie”, „3 zadania”, „5 zadań”. */
+const lockedLabel = (n: number) =>
+  n === 1
+    ? "1 zadanie"
+    : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)
+      ? `${n} zadania`
+      : `${n} zadań`;
 
 /** „Język polski — egzamin ósmoklasisty” → „Język polski”. */
 const shortName = (name: string, _slug?: string) =>
@@ -342,6 +361,10 @@ export function DiagnosisScreen() {
       setTrial(await claimTrial("diagnosis"));
       navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
     } catch (e: any) {
+      if (isFreePackBlocked(e)) {
+        setTrial((t) => (t ? { ...t, eligible: false, freePackBlocked: true } : t));
+        return;
+      }
       Alert.alert("Nie udało się", e?.message || "Nie udało się odebrać arkusza.");
     } finally {
       setClaiming(false);
@@ -474,7 +497,7 @@ export function DiagnosisScreen() {
       const key = cleanTopic(q.topicName || "Inne");
       const t = byTopic.get(key) ?? { wrong: 0, partial: 0, skipped: 0, total: 0 };
       t.total += 1;
-      if (q.answered === false) t.skipped += 1;
+      if (q.answered === false || q.feedback?.aiLocked) t.skipped += 1;
       else if (!q.isCorrect) {
         if (q.score > 0) t.partial += 1;
         else t.wrong += 1;
@@ -585,10 +608,27 @@ export function DiagnosisScreen() {
           )}
         </Card>
 
+        {/* Darmowy pakiet (z oceną AI) poszedł już z tej sieci/urządzenia —
+            zadania otwarte zostały bez oceny. Mówimy to wprost; tuż pod spodem
+            jest karta „Zobacz Premium" (trial.eligible = false). */}
+        {((r.aiLockedCount ?? 0) > 0 || r.freePackBlocked === true) && (
+          <Card style={{ marginBottom: 16, borderColor: "#f59e0b" }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 4 }}>
+              {(r.aiLockedCount ?? 0) > 0
+                ? `Bez oceny AI: ${lockedLabel(r.aiLockedCount!)}`
+                : "Bez oceny AI"}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19 }}>
+              {FREE_PACK_BLOCKED_MESSAGE}
+            </Text>
+          </Card>
+        )}
+
         {/* Następny krok: darmowy arkusz (póki przysługuje), potem Premium. */}
         {trial &&
         trial.attemptStatus !== "COMPLETED" &&
         trial.attemptStatus !== "GRADING" &&
+        !(isFreePackBlocked(trial) && !trial.active && !trial.examId) &&
         (trial.eligible || trial.active || trial.examId) ? (
           <Card style={{ marginBottom: 16, backgroundColor: colors.brand[500] + "14", borderColor: colors.brand[500] }}>
             <Text style={{ fontSize: 11, fontWeight: "800", color: colors.brand[500], letterSpacing: 1, marginBottom: 4 }}>
@@ -664,7 +704,9 @@ export function DiagnosisScreen() {
           {r.questions.map((q, i) => {
             const open = openQ === q.id;
             const skipped = q.answered === false;
-            const badge = skipped
+            // Zadanie AI bez oceny (darmowy pakiet wykorzystany) — nie „✗".
+            const locked = !skipped && q.feedback?.aiLocked === true;
+            const badge = skipped || locked
               ? theme.textTertiary
               : q.isCorrect
                 ? colors.brand[500]
@@ -705,7 +747,7 @@ export function DiagnosisScreen() {
                     }}
                   >
                     <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-                      {skipped ? "–" : q.isCorrect ? "✓" : q.score > 0 ? "½" : "✗"}
+                      {skipped ? "–" : locked ? "🔒" : q.isCorrect ? "✓" : q.score > 0 ? "½" : "✗"}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
@@ -721,7 +763,7 @@ export function DiagnosisScreen() {
                             {difficultyLabel(q.difficulty)}
                           </Text>
                         ) : null}
-                        {q.answered === false ? " · bez odpowiedzi" : ""}
+                        {q.answered === false ? " · bez odpowiedzi" : locked ? " · bez oceny AI" : ""}
                       </Text>
                     )}
                   </View>
