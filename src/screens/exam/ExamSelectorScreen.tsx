@@ -479,8 +479,8 @@ export function ExamSelectorScreen() {
             🎁 Masz odblokowany 1 darmowy arkusz
           </Text>
           <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 18 }}>
-            Wybierz przedmiot i poziom — arkusz wylosujemy spośród najlepszych arkuszy tego
-            przedmiotu. <Text style={{ fontWeight: "800" }}>To wybór na raz</Text>, więc weź
+            Wybierz przedmiot i poziom — dostaniesz pełny arkusz do rozwiązania we
+            własnym tempie. <Text style={{ fontWeight: "800" }}>To wybór na raz</Text>, więc weź
             przedmiot, na którym najbardziej Ci zależy. Masz też{" "}
             {trial.credits} kredytów AI na ocenę zadań otwartych.
           </Text>

@@ -139,7 +139,7 @@ export function FreePanel({
         params: { examId: trial!.examId!, subjectId: "" },
       });
   } else if (trial?.active) {
-    examText = `Wybierz przedmiot — arkusz wylosujemy. Masz na to ${hoursLeft(trial.remainingMs)}.`;
+    examText = `Wybierz przedmiot i rozwiąż pełny arkusz. Masz na to ${hoursLeft(trial.remainingMs)}.`;
     examCta = "Wybierz przedmiot";
     onExam = goExams;
   } else if (isFreePackBlocked(trial)) {
