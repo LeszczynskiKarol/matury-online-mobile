@@ -47,6 +47,10 @@ import {
   type TrialStatus,
 } from "../../api/premium";
 import { colors } from "../../theme/colors";
+import { hasPassThreshold, PASS_PERCENT } from "../../utils/passThreshold";
+
+/** Wynik matury, od którego zaczyna się liczyć w rekrutacji (jak w wynikach arkusza). */
+const RECRUIT_PERCENT = 65;
 import { radius, spacing } from "../../theme";
 import { parseChemText } from "../../utils/chemText";
 
@@ -519,15 +523,28 @@ export function DiagnosisScreen() {
       if (t.skipped) parts.push(t.skipped === 1 ? "1 bez odpowiedzi" : `${t.skipped} bez odpowiedzi`);
       return parts.join(" · ");
     };
-    const hasThreshold = r.passThreshold !== null && r.passThreshold !== undefined;
-    const rp = hasThreshold ? null : recruitPoints(r.scorePercent, r.subject.slug);
+    // Próg zdawalności ma tylko matura PP z przedmiotu obowiązkowego
+    // (utils/passThreshold.ts; backend wysyła wtedy passThreshold: 30).
+    // Matura bez progu (biologia, WOS…) → dystans do 65% (rekrutacja);
+    // ósmoklasista → punkty rekrutacyjne. Starszy backend dawał 30 przy każdym
+    // przedmiocie maturalnym — sprawdzamy też slug.
+    const isE8 = r.examKind === "OSMOKLASISTA";
+    const hasThreshold =
+      r.passThreshold !== null &&
+      r.passThreshold !== undefined &&
+      (r.examKind !== "MATURA" && r.examKind !== undefined
+        ? true
+        : hasPassThreshold(r.subject.slug, "PODSTAWOWY"));
+    const rp = !hasThreshold && isE8 ? recruitPoints(r.scorePercent, r.subject.slug) : null;
     const ringSub = hasThreshold
-        ? r.passed
+        ? r.scorePercent >= (r.passThreshold ?? PASS_PERCENT)
           ? `zdana (próg ${r.passThreshold}%)`
           : `poniżej progu ${r.passThreshold}%`
-        : `${rp!.pts} pkt z ${rp!.max}`;
+        : rp
+          ? `${rp.pts} pkt z ${rp.max}`
+          : `cel: ${RECRUIT_PERCENT}% (rekrutacja)`;
     const headline = hasThreshold
-      ? r.passed
+      ? r.scorePercent >= (r.passThreshold ?? PASS_PERCENT)
         ? r.scorePercent >= 70
           ? "Dobry wynik — czas dopracować szczegóły."
           : "Próg jest, teraz podnieś wynik."
