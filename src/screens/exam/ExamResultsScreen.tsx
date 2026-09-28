@@ -842,7 +842,9 @@ export function ExamResultsScreen() {
                 }}
               >
                 <Text style={{ fontSize: 13, color: theme.text, lineHeight: 19 }}>
-                  ℹ️ Podsumowanie i omówienie arkusza pojawią się, gdy odpowiesz na co najmniej 30% zadań. Zadania bez odpowiedzi nie pokazują klucza.
+                  {(data as any).keysVisible
+                    ? "ℹ️ Ogólne omówienie arkusza pojawi się, gdy odpowiesz na co najmniej 30% zadań — rozwiązania wszystkich zadań masz poniżej."
+                    : "ℹ️ Podsumowanie i omówienie arkusza pojawią się, gdy odpowiesz na co najmniej 30% zadań. Zadania bez odpowiedzi nie pokazują klucza."}
                 </Text>
               </View>
             ) : (
