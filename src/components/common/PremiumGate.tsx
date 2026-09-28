@@ -379,7 +379,7 @@ function ExamPreview() {
           Zadanie 7 z 32
         </Text>
         <Text style={{ fontSize: 12, color: theme.textSecondary }}>
-          0–46 pkt · próg 30%
+          0–50 pkt · próg 30%
         </Text>
       </View>
     </View>

@@ -1652,11 +1652,11 @@ function ExamTaskInput({
             <MathEditor
               value={cur.text || ""}
               onChange={(text) => onChange({ ...cur, text })}
-              placeholder="Napisz wypracowanie (min. 300 słów)..."
+              placeholder={`Napisz wypracowanie (min. ${content.minWords || 300} słów)...`}
               taskType="math_extended_calc"
               plain
             />
-            <WordCounter text={cur.text || ""} min={300} theme={theme} />
+            <WordCounter text={cur.text || ""} min={content.minWords || 300} theme={theme} />
           </View>
         );
       }
