@@ -141,7 +141,7 @@ export function TrialOfferCard({
         <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 12 }}>
           {status.examId
             ? "Wróć do niego, oddaj i zobacz ocenę AI do każdego zadania otwartego."
-            : `Wybierz przedmiot i poziom — pełny arkusz bez limitu czasu, punktacja wg klucza i feedback AI. Do tego ${status.credits} kredytów AI.`}
+            : `Wybierz przedmiot i poziom — wylosujemy pełny arkusz spośród najlepszych, bez limitu czasu, punktacja wg klucza i feedback AI. Do tego ${status.credits} kredytów AI.`}
         </Text>
 
         <TouchableOpacity
@@ -154,7 +154,7 @@ export function TrialOfferCard({
           }}
         >
           <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
-            {status.examId ? "Wróć do arkusza →" : "Wybierz arkusz →"}
+            {status.examId ? "Wróć do arkusza →" : "Wybierz przedmiot →"}
           </Text>
         </TouchableOpacity>
       </View>

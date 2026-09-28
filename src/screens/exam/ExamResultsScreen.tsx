@@ -381,6 +381,9 @@ export function ExamResultsScreen() {
   }
 
   const { grading, feedback, exam } = data;
+  // Poniżej 30% zadań z odpowiedzią backend wstrzymuje podsumowanie AI
+  // i klucz przy zadaniach bez odpowiedzi (exam-live.ts /results).
+  const summaryWithheld = !!(data.summaryWithheld || feedback?.summaryWithheld);
   if (!grading?.tasks) {
     return (
       <View
@@ -827,6 +830,22 @@ export function ExamResultsScreen() {
             </View>
 
             {/* Motivational */}
+            {summaryWithheld ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 16,
+                  marginBottom: 20,
+                  borderWidth: 1,
+                  borderColor: isDark ? "#1e3a8a" : "#bfdbfe",
+                  backgroundColor: isDark ? "#1e3a8a22" : "#eff6ff",
+                }}
+              >
+                <Text style={{ fontSize: 13, color: theme.text, lineHeight: 19 }}>
+                  ℹ️ Podsumowanie i omówienie arkusza pojawią się, gdy odpowiesz na co najmniej 30% zadań. Zadania bez odpowiedzi nie pokazują klucza.
+                </Text>
+              </View>
+            ) : (
             <Text
               style={{
                 fontSize: 13,
@@ -839,6 +858,7 @@ export function ExamResultsScreen() {
             >
               {feedback.motivationalMessage}
             </Text>
+            )}
 
             {/* Opinia po arkuszu — próg 40% jak na webie (przy 60% prośba prawie
                 się nie pokazywała). Komponent pilnuje, żeby nie pytać dwa razy. */}
@@ -935,6 +955,8 @@ export function ExamResultsScreen() {
               </TouchableOpacity>
             )}
 
+            {/* Podsumowanie AI — wstrzymane poniżej progu 30% odpowiedzi */}
+            {!summaryWithheld && (<>
             {/* Strengths + Weaknesses */}
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
               <Card style={{ flex: 1 }}>
@@ -1137,6 +1159,7 @@ export function ExamResultsScreen() {
                 })()}
               </Card>
             ))}
+            </>)}
 
             {/* Powtórka arkusza — tylko Premium (patrz komentarz przy stanie) */}
             {isPremium === false ? (
@@ -1403,9 +1426,9 @@ export function ExamResultsScreen() {
               </View>
 
               {/* Analysis */}
-              {(currentGrading.analysis.correct.length > 0 ||
-                currentGrading.analysis.incorrect.length > 0 ||
-                currentGrading.analysis.missing.length > 0) && (
+              {((currentGrading.analysis?.correct ?? []).length > 0 ||
+                (currentGrading.analysis?.incorrect ?? []).length > 0 ||
+                (currentGrading.analysis?.missing ?? []).length > 0) && (
                 <View
                   style={{
                     backgroundColor: theme.inputBg,
@@ -1416,7 +1439,7 @@ export function ExamResultsScreen() {
                     borderColor: theme.border,
                   }}
                 >
-                  {currentGrading.analysis.correct.map(
+                  {(currentGrading.analysis?.correct ?? []).map(
                     (c: string, i: number) => (
                       <View
                         key={`c${i}`}
@@ -1448,7 +1471,7 @@ export function ExamResultsScreen() {
                       </View>
                     ),
                   )}
-                  {currentGrading.analysis.incorrect.map(
+                  {(currentGrading.analysis?.incorrect ?? []).map(
                     (c: string, i: number) => (
                       <View
                         key={`i${i}`}
@@ -1480,7 +1503,7 @@ export function ExamResultsScreen() {
                       </View>
                     ),
                   )}
-                  {currentGrading.analysis.missing.map(
+                  {(currentGrading.analysis?.missing ?? []).map(
                     (c: string, i: number) => (
                       <View
                         key={`m${i}`}
@@ -1512,7 +1535,7 @@ export function ExamResultsScreen() {
                       </View>
                     ),
                   )}
-                  {currentGrading.analysis.suggestion && (
+                  {currentGrading.analysis?.suggestion && (
                     <Text
                       style={{
                         fontSize: 12,
@@ -1521,7 +1544,7 @@ export function ExamResultsScreen() {
                         lineHeight: 18,
                       }}
                     >
-                      💡 {currentGrading.analysis.suggestion}
+                      💡 {currentGrading.analysis?.suggestion}
                     </Text>
                   )}
                 </View>

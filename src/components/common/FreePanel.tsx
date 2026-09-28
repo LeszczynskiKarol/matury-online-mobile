@@ -133,8 +133,8 @@ export function FreePanel({
         params: { examId: trial!.examId!, subjectId: "" },
       });
   } else if (trial?.active) {
-    examText = `Wybierz arkusz — masz na to ${hoursLeft(trial.remainingMs)}.`;
-    examCta = "Wybierz arkusz";
+    examText = `Wybierz przedmiot — arkusz wylosujemy. Masz na to ${hoursLeft(trial.remainingMs)}.`;
+    examCta = "Wybierz przedmiot";
     onExam = goExams;
   } else if (trial?.eligible) {
     examText = "Pełny arkusz z oceną AI, bez limitu czasu.";

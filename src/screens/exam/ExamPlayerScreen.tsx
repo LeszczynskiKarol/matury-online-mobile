@@ -213,6 +213,20 @@ export function ExamPlayerScreen() {
           navigation.replace("ExamResults", { attemptId: err.data.attemptId });
           return;
         }
+        // Darmowy arkusz jest losowany (backend trial-pick.ts): trasa może
+        // wskazywać arkusz, o który apka prosiła, a przypięty jest inny.
+        // Przechodzimy do przypiętego — raz (flaga w parametrach przeciw pętli).
+        const pinned = err?.data?.pinnedExamId;
+        if (
+          err?.status === 403 &&
+          err?.code === "TRIAL_EXAM_USED" &&
+          pinned &&
+          pinned !== examId &&
+          !(route.params as any)?.pinnedRedirect
+        ) {
+          navigation.replace("ExamPlay", { examId: pinned, subjectId: "", pinnedRedirect: true } as any);
+          return;
+        }
         setError(err.message || "Nie udało się rozpocząć egzaminu.");
       }
     })();
@@ -530,6 +544,11 @@ export function ExamPlayerScreen() {
         <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 20 }}>
           {data.exam.title}
         </Text>
+        {data.trialDrawn && !!data.substitutedFromExamId && (
+          <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: -12, marginBottom: 16, lineHeight: 18 }}>
+            ℹ️ Darmowy arkusz jest losowany z najlepszych arkuszy tego przedmiotu.
+          </Text>
+        )}
         {/* Na mobile tylko etykieta, tytuł i „Od czego chcesz zacząć?” —
             opis i lista punktów zajmowały cały ekran (Karol 26.09.2026). */}
         <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, letterSpacing: 1, marginBottom: 10 }}>
@@ -978,7 +997,7 @@ export function ExamPlayerScreen() {
               da się odtworzyć bez szukania rekordu w bazie po opisie. */}
           <AdminCopyBar>
             <AdminCopyButton value={currentTask} label="⧉ JSON zadania" />
-            <AdminCopyButton value={examId} label="⧉ ID egzaminu" />
+            <AdminCopyButton value={data?.exam?.id ?? examId} label="⧉ ID egzaminu" />
             <AdminCopyButton value={currentTask.id} label="⧉ ID zadania" />
           </AdminCopyBar>
 
@@ -1011,7 +1030,8 @@ export function ExamPlayerScreen() {
             {/* Zgłoszenie błędu w zadaniu — jak „Zgłoś" w quizie i jak na webie. */}
             <ReportButton
               exam={{
-                examId,
+                // Arkusz z odpowiedzi /start — darmowy bywa wylosowany inny niż w trasie.
+                examId: data?.exam?.id ?? examId,
                 taskId: currentTask.id,
                 taskLabel: String(currentTask.number ?? ""),
               }}

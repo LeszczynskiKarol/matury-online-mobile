@@ -45,6 +45,11 @@ export interface ExamStartData {
   resumed: boolean;
   /** Arkusz z darmowej oferty — bez zegara ściennego (backend: exam-live.ts). */
   untimed?: boolean;
+  /** Darmowy arkusz wylosowany przez backend (trial-pick.ts). */
+  trialDrawn?: boolean;
+  /** Arkusz, o który prosiła apka, gdy wylosował się inny (null = ten sam). */
+  substitutedFromExamId?: string | null;
+  requestedExamId?: string;
   savedAnswers: Record<string, any>;
   currentTaskId: string | null;
   startedAt: string;

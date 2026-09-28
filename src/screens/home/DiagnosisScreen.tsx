@@ -611,7 +611,7 @@ export function DiagnosisScreen() {
                 trial.examId
                   ? "Kontynuuj arkusz →"
                   : trial.active
-                    ? "Wybierz arkusz →"
+                    ? "Wybierz przedmiot →"
                     : "Odbierz darmowy arkusz →"
               }
               loading={claiming}
