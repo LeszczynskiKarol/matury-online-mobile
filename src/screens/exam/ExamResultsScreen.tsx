@@ -30,7 +30,7 @@ import { Button } from "../../components/ui/Button";
 import { parseChemText } from "../../utils/chemText";
 import { CodeAwareText } from "../../components/common/CodeAwareText";
 import { MaterialRenderer, StructTableView } from "../../components/exam/MaterialRenderer";
-import { PunnettResponseView } from "../../components/exam/Tier2TaskRenderers";
+import { PunnettResponseView, looksLikePunnettResponse } from "../../components/exam/Tier2TaskRenderers";
 import { TextWithTables } from "../../components/common/TextWithTables";
 import { getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
 import { api } from "../../api/client";
@@ -2097,7 +2097,7 @@ function AnswerDisplay({
 
   // Krzyżówka genetyczna — szachownica z odpowiedzi (nowy i stary kształt),
   // zamiast „gridCells: [object Object]” z formatUserResponse.
-  if (/cross_punnett$/.test(String(task?.type ?? ""))) {
+  if (/cross_punnett$/.test(String(task?.type ?? "")) || looksLikePunnettResponse(r)) {
     return <PunnettResponseView response={r} theme={theme} />;
   }
 

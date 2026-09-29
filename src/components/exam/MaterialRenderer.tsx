@@ -1687,6 +1687,16 @@ export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) 
           <ChartMaterial mat={mat} theme={theme} isDark={isDark} />
         </ZoomableBox>
       )}
+      {/* Tabela jak na webie: najpierw tekst materiału (zwykłą czcionką),
+          pod nim tabela. Wcześniej tekst lądował pod tabelą drobną kursywą. */}
+      {isTable && mat.content ? (
+        <CodeAwareText
+          text={mat.content}
+          style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
+          containerStyle={{ marginBottom: 8 }}
+          isDark={isDark}
+        />
+      ) : null}
       {isTable && <TableMaterial mat={mat} theme={theme} isDark={isDark} />}
       {isMapPoland && (
         <ZoomableBox theme={theme} isDark={isDark} title={mat.title}>
@@ -1743,11 +1753,11 @@ export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) 
         isCrossSection ||
         isMapEmbed ||
         isChart ||
-        isTable ||
         isMapPoland ||
         isGenealogy ||
         isMapEurope ||
         isGovDiagram) &&
+        !isTable &&
         mat.content &&
         // dla data_file content jest opisem nad plikiem — już pokazaliśmy
         !isDataFile && (

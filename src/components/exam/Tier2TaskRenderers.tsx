@@ -509,6 +509,17 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
   );
 }
 
+/** Czy odpowiedź ma kształt krzyżówki? Zadanie mogło zmienić typ po jej
+ *  zapisaniu (Biologia PR #30 zad. 33: bio_cross_punnett → bio_open_extended). */
+export function looksLikePunnettResponse(r: any): boolean {
+  if (!r || typeof r !== "object" || Array.isArray(r)) return false;
+  const k = Object.keys(r);
+  return (
+    k.some((x) => ["grid", "gridCells", "motherGametes", "fatherGametes", "motherGenotype", "fatherGenotype"].includes(x)) ||
+    (k.includes("genotypes") && k.some((x) => ["cross", "phenotypes", "probability"].includes(x)))
+  );
+}
+
 /** Widok wyniku: odpowiedź ucznia z szachownicą (nowy i stary kształt). */
 export function PunnettResponseView({ response, theme }: { response: any; theme: any }) {
   const v = normalizePunnettValue(response);

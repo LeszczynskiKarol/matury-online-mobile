@@ -1,3 +1,4 @@
+import { protectCellRefs, restoreCellRefs } from "./cellRefs";
 // ============================================================================
 // chemText.ts — Converts LaTeX/mhchem notation to readable Unicode
 //
@@ -263,7 +264,8 @@ export function parseChemText(text: string): string {
   }
   if (!text) return "";
 
-  let result = text;
+  // Adresy komórek arkusza ($B$2, $A1) nie otwierają wzoru — utils/cellRefs.ts.
+  let result = protectCellRefs(text);
 
   // ── Step 1: Handle \ce{...} chemistry blocks ──
   result = result.replace(/\$\\ce\{([^}]+)\}\$/g, (_, inner) =>
@@ -281,7 +283,7 @@ export function parseChemText(text: string): string {
     result = parseMathBlock(result);
   }
 
-  return result;
+  return restoreCellRefs(result);
 }
 
 // ── Parse a single $...$ math block ─────────────────────────────────────
