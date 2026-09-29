@@ -922,6 +922,10 @@ export function SubscriptionScreen() {
                   `Wszystko z Premium — do ${formatDate(annualPlay.endDate)}`,
                   "600 kredytów AI co miesiąc",
                   "Zero odnowień — płacisz raz i masz z głowy",
+                  // „Oszczędzasz” tylko powyżej 20 zł — jak web (Karol 29.09.2026).
+                  ...(annualPlay.fullPriceZl - annualPlay.priceZl > 20
+                    ? [`Oszczędzasz ${annualPlay.fullPriceZl - annualPlay.priceZl} zł względem subskrypcji na ten sam czas`]
+                    : []),
                 ].map((t, i) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Text style={{ fontSize: 12, color: colors.brand[500] }}>✓</Text>
