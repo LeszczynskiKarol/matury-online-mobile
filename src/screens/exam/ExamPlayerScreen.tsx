@@ -68,6 +68,7 @@ import { handlePremiumError } from "../../lib/premiumAlert";
 import { tableColWidths } from "../../lib/tableWidths";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
 import { stripSheetNumber } from "../../lib/freeSheet";
+import { examPartName } from "../../utils/languageTaskLabels";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -561,7 +562,7 @@ export function ExamPlayerScreen() {
           >
             <Text style={{ fontSize: 24 }}>{icon(part.name)}</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>{part.name}</Text>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>{examPartName(part.name)}</Text>
               <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
                 {part.tasks.length} {zadan(part.tasks.length)}
                 {part.maxPoints ? ` · ${part.maxPoints} pkt` : ""}
@@ -724,9 +725,7 @@ export function ExamPlayerScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    {part.name
-                      .replace("Część ", "Cz. ")
-                      .replace("Arkusz 2. ", "")}
+                    {examPartName(part.name.replace("Arkusz 2. ", ""), { short: true })}
                   </Text>
                   <View
                     style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
@@ -936,7 +935,7 @@ export function ExamPlayerScreen() {
             <Text
               style={{ fontSize: 16, fontWeight: "700", color: theme.text }}
             >
-              {currentPart.name}
+              {examPartName(currentPart.name)}
             </Text>
           </View>
         )}

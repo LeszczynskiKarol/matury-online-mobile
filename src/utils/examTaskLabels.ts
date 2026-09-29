@@ -3,18 +3,13 @@
 // zadania na ekranie wyników. Lustro web ExamResults.tsx → getTypeLabel
 // (jawna mapa + etykiety z rendererów przedmiotowych). Typ nieznany: pusty
 // napis zamiast surowej nazwy („biz_abcd”), jak web po poprawce z 18.09.2026.
+// Arkusze językowe (EN/DE, matura i E8) — polskie etykiety z jednego słownika
+// (utils/languageTaskLabels.ts, lustro webowego lib/language-task-labels.ts).
 // ============================================================================
 
+import { languageTaskLabel } from "./languageTaskLabels";
+
 const EXPLICIT: Record<string, string> = {
-  // Niemiecki PR
-  listening_mcq_pr_de: "Hörverstehen – MCQ",
-  reading_paragraph_match_de: "Leseverstehen – dopasowanie",
-  reading_gapped_text_pr_de: "Leseverstehen – luki",
-  reading_two_texts_de: "Leseverstehen – dwa teksty",
-  mcq_cloze_de: "Środki jęz. – MCQ cloze",
-  word_three_sentences_de: "Środki jęz. – wyraz w 3 zdaniach",
-  sentence_transform_pr_de: "Środki jęz. – transformacja",
-  writing_de_pr: "Wypowiedź pisemna",
   // Polski
   open_short: "Krótka odpowiedź",
   open_explain: "Wyjaśnij",
@@ -25,32 +20,6 @@ const EXPLICIT: Record<string, string> = {
   fill_table: "Tabela",
   notatka: "Notatka",
   wypracowanie: "Wypracowanie",
-  // Angielski
-  listening_matching: "Listening — dopasuj",
-  listening_mcq: "Listening — MCQ",
-  listening_mcq_pr: "Listening — MCQ",
-  listening_fill: "Listening — uzupełnij",
-  reading_heading_match: "Reading — nagłówki",
-  reading_mixed: "Reading — mieszane",
-  reading_mcq: "Reading — MCQ",
-  reading_gapped_text: "Reading — luki",
-  reading_gapped_text_pr: "Reading — luki",
-  reading_paragraph_match: "Reading — dopasowanie",
-  reading_two_texts: "Reading — dwa teksty",
-  reading_text_match: "Reading — dopasuj",
-  reading_short_texts_mcq: "Reading — MCQ",
-  reading_polish_gaps: "Reading — luki",
-  mini_dialogues: "Mini-dialogi",
-  both_sentences: "Obydwa zdania",
-  open_cloze: "Luka otwarta",
-  mcq_cloze: "Luki — MCQ",
-  word_bank_cloze: "Luki — bank słów",
-  word_formation: "Słowotwórstwo",
-  functions_mcq: "Funkcje językowe",
-  sentence_completion_pr: "Uzupełnij zdania",
-  transformation: "Transformacja",
-  writing_eng: "Wypowiedź pisemna",
-  writing_eng_pr: "Wypowiedź pisemna",
   // Matematyka
   math_abcd: "ABCD",
   math_abcd_justified: "ABCD + uzasad.",
@@ -68,19 +37,6 @@ const EXPLICIT: Record<string, string> = {
   math_pr_proof: "Dowód / Wykaż",
   math_pr_optimization: "Optymalizacja",
   math_pr_parametric: "Z parametrem",
-  // Niemiecki PP
-  listening_matching_de: "Hörverstehen – dopasuj",
-  listening_mcq_de: "Hörverstehen – MCQ",
-  listening_fill_de: "Hörverstehen – uzupełnij",
-  reading_heading_match_de: "Leseverstehen – nagłówki",
-  reading_mixed_de: "Leseverstehen – mieszane",
-  reading_mcq_de: "Leseverstehen – MCQ",
-  reading_gapped_text_de: "Leseverstehen – luki",
-  mini_dialogues_de: "Minidialogi",
-  both_sentences_de: "Oba zdania",
-  open_cloze_de: "Luka otwarta",
-  transformation_de: "Transformacja",
-  writing_de: "Wypowiedź pisemna",
   // Historia / WOS — wypracowania
   hist_essay_15pt: "Wypracowanie",
   wos_essay_5pt: "Wypowiedź",
@@ -143,6 +99,8 @@ const SUFFIX: Record<string, string> = {
 export function examTaskTypeLabel(type: string | null | undefined): string {
   const t = String(type ?? "");
   if (!t) return "";
+  const lang = languageTaskLabel(t);
+  if (lang) return lang;
   if (EXPLICIT[t]) return EXPLICIT[t];
   const m = t.match(/^(hist|bio|chem|phys|geo|wos|info|biz|math)_(.+)$/);
   if (m && SUFFIX[m[2]]) return SUFFIX[m[2]];

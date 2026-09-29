@@ -41,6 +41,7 @@ import type { ExamStackParamList } from "../../navigation/types";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
 import { examTaskTypeLabel } from "../../utils/examTaskLabels";
 import { daysToMatura } from "../../components/common/PremiumGate";
+import { examPartName } from "../../utils/languageTaskLabels";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -772,10 +773,7 @@ export function ExamResultsScreen() {
                       paddingHorizontal: 4,
                     }}
                   >
-                    {String(part.name)
-                      .replace("Część ", "Cz. ")
-                      .replace("Arkusz 2. ", "")
-                      .toUpperCase()}
+                    {examPartName(String(part.name).replace("Arkusz 2. ", ""), { short: true }).toUpperCase()}
                     {pr ? (
                       <Text style={{ color: scoreTone(prPct, isDark) }}>
                         {"  "}({pr.score}/{pr.maxScore})
@@ -1131,9 +1129,7 @@ export function ExamResultsScreen() {
                         }}
                       >
                         <Text style={{ flex: 1, fontSize: 13, color: theme.text }}>
-                          {String(pr.partName ?? "")
-                            .replace("Część ", "Cz. ")
-                            .replace("Arkusz 2. ", "")}
+                          {examPartName(String(pr.partName ?? "").replace("Arkusz 2. ", ""), { short: true })}
                         </Text>
                         <Text style={{ fontSize: 13, fontWeight: "800", color: scoreTone(pct, isDark) }}>
                           {pr.score}/{pr.maxScore}
@@ -1531,7 +1527,7 @@ export function ExamResultsScreen() {
                   borderBottomColor: theme.borderLight,
                 }}
               >
-                {currentPart.name}
+                {examPartName(currentPart.name)}
               </Text>
             )}
 
