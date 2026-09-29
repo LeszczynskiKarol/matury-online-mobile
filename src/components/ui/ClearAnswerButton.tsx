@@ -1,24 +1,25 @@
 // ============================================================================
-// ClearAnswerButton — „✕” czyszczący odpowiedź + „Wyczyszczono · Cofnij”
+// ClearAnswerButton — „✕” czyszczący odpowiedź, w tym samym miejscu „↶ Cofnij”
 // src/components/ui/ClearAnswerButton.tsx (kopiowany 1:1 między apkami)
 //
 //  • ClearableTextInput — zamiennik <TextInput> z tymi samymi propsami.
 //    Czyszczenie i Cofnij wołają ZWYKŁE onChangeText rodzica, więc idą tą samą
 //    ścieżką zapisu (stan → autosave arkusza), co pisanie.
-//  • ClearAnswerButton + useClearWithUndo — dla pól, gdzie wrapper nie pasuje.
+//  • ClearUndoButton + useClearWithUndo — dla pól, gdzie wrapper nie pasuje.
 //
 // Zasady (jak na webie, zatwierdzone przez Karola 29.09.2026):
 //  • ✕ widać tylko przy niepustym, edytowalnym polu; cel dotyku ≥ 40 dp,
-//  • klik czyści od razu (bez potwierdzenia), snackbar na 8 s,
+//  • klik czyści od razu (bez potwierdzenia); w miejscu ✕ przez 8 s stoi
+//    „↶ Cofnij” (bez paska na dole — zasłaniał nawigację),
 //  • Cofnij przywraca dokładnie poprzedni tekst, kursor na końcu,
-//  • cofnąć można tylko ostatnie czyszczenie,
-//  • gdy uczeń zacznie pisać po wyczyszczeniu, snackbar znika (Cofnij nie
-//    nadpisze nowego tekstu); tak samo przy odmontowaniu pola.
+//  • gdy uczeń zacznie pisać po wyczyszczeniu, „Cofnij” znika (nie nadpisze
+//    nowego tekstu); przy odmontowaniu pola znika razem z nim.
 // ============================================================================
 
 import React, { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import {
   Pressable,
+  Text,
   TextInput,
   View,
   type StyleProp,
@@ -27,9 +28,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
-import { dismissUndoSnackbar, showUndoSnackbar } from "./UndoSnackbar";
+import { colors } from "../../theme/colors";
 
 export const CLEAR_LABEL = "Wyczyść odpowiedź";
+export const UNDO_LABEL = "Cofnij wyczyszczenie";
+const UNDO_MS = 8000;
 
 export function useClearWithUndo({
   value,
@@ -41,56 +44,74 @@ export function useClearWithUndo({
   /** Po Cofnij: fokus + kursor na końcu. */
   focus?: (len: number) => void;
 }) {
-  const [owner] = useState(() => Symbol("clear-answer"));
-  const saved = useRef<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef({ value, setValue, focus });
   latest.current = { value, setValue, focus };
 
-  useEffect(() => {
-    if (saved.current !== null && value !== "") {
-      saved.current = null;
-      dismissUndoSnackbar(owner);
-    }
-  }, [value, owner]);
+  const drop = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    setSaved(null);
+  }, []);
 
-  useEffect(() => () => dismissUndoSnackbar(owner), [owner]);
+  // Uczeń pisze coś nowego po wyczyszczeniu → „Cofnij” znika.
+  useEffect(() => {
+    if (saved !== null && value !== "") drop();
+  }, [value, saved, drop]);
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
 
   const clear = useCallback(() => {
     const prev = latest.current.value;
     if (!prev) return;
-    saved.current = prev;
+    setSaved(prev);
     latest.current.setValue("");
-    showUndoSnackbar(owner, "Wyczyszczono", () => {
-      const text = saved.current;
-      saved.current = null;
-      if (text === null) return;
-      latest.current.setValue(text);
-      setTimeout(() => latest.current.focus?.(text.length), 50);
-    });
-  }, [owner]);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setSaved(null), UNDO_MS);
+  }, []);
 
-  return { clear, canClear: value.length > 0 };
+  const undo = useCallback(() => {
+    const text = saved;
+    drop();
+    if (text === null) return;
+    latest.current.setValue(text);
+    setTimeout(() => latest.current.focus?.(text.length), 50);
+  }, [saved, drop]);
+
+  return { clear, undo, canClear: value.length > 0, canUndo: saved !== null };
 }
 
-export function ClearAnswerButton({
-  onClear,
+/**
+ * ✕ czyści, a po kliknięciu — w tym samym miejscu — przez 8 s stoi ↶ „Cofnij”
+ * (Karol 29.09.2026: cofanie tam, gdzie się kliknęło, bez paska na dole).
+ */
+export function ClearUndoButton({
+  ctl,
   style,
 }: {
-  onClear: () => void;
+  ctl: { clear: () => void; undo: () => void; canClear: boolean; canUndo: boolean };
   style?: StyleProp<ViewStyle>;
 }) {
   const { colors: theme } = useTheme();
+  const undoMode = ctl.canUndo;
+  if (!undoMode && !ctl.canClear) return null;
   return (
     <Pressable
-      onPress={onClear}
+      onPress={undoMode ? ctl.undo : ctl.clear}
       accessibilityRole="button"
-      accessibilityLabel={CLEAR_LABEL}
+      accessibilityLabel={undoMode ? UNDO_LABEL : CLEAR_LABEL}
       hitSlop={6}
       style={({ pressed }) => [
         {
-          width: 40,
+          minWidth: 40,
           height: 40,
+          paddingHorizontal: undoMode ? 10 : 0,
           borderRadius: 20,
+          flexDirection: "row",
+          gap: 4,
           alignItems: "center",
           justifyContent: "center",
           opacity: pressed ? 0.5 : 1,
@@ -98,7 +119,14 @@ export function ClearAnswerButton({
         style,
       ]}
     >
-      <Ionicons name="close" size={18} color={theme.textTertiary} />
+      {undoMode ? (
+        <>
+          <Ionicons name="arrow-undo" size={16} color={colors.brand[500]} />
+          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.brand[500] }}>Cofnij</Text>
+        </>
+      ) : (
+        <Ionicons name="close" size={18} color={theme.textTertiary} />
+      )}
     </Pressable>
   );
 }
@@ -114,7 +142,7 @@ export const ClearableTextInput = forwardRef<TextInput, Props>(function Clearabl
 ) {
   const inner = useRef<TextInput | null>(null);
   const value = typeof rest.value === "string" ? rest.value : "";
-  const { clear, canClear } = useClearWithUndo({
+  const ctl = useClearWithUndo({
     value,
     setValue: (v) => rest.onChangeText?.(v),
     focus: (len) => {
@@ -122,7 +150,7 @@ export const ClearableTextInput = forwardRef<TextInput, Props>(function Clearabl
       inner.current?.setSelection?.(len, len);
     },
   });
-  const show = canClear && rest.editable !== false && !!rest.onChangeText;
+  const show = rest.editable !== false && !!rest.onChangeText;
   return (
     <View style={[{ position: "relative" }, containerStyle]}>
       <TextInput
@@ -136,8 +164,8 @@ export const ClearableTextInput = forwardRef<TextInput, Props>(function Clearabl
         style={[style, { paddingRight: 44 }]}
       />
       {show && (
-        <ClearAnswerButton
-          onClear={clear}
+        <ClearUndoButton
+          ctl={ctl}
           style={
             rest.multiline
               ? { position: "absolute", top: 2, right: 2 }

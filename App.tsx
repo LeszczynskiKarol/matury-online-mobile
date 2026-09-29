@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { GamificationToasts } from "./src/components/common/GamificationToasts";
-import { UndoSnackbarHost } from "./src/components/ui/UndoSnackbar";
 import { UpdatePrompt } from "./src/components/common/UpdatePrompt";
 import {
   NavigationContainer,
@@ -187,7 +186,6 @@ function AppInner() {
         <RootNavigator />
       </NavigationContainer>
       <GamificationToasts />
-      <UndoSnackbarHost />
       {/* „Jest nowa wersja” — tylko sugestia, nie blokuje apki */}
       <UpdatePrompt />
     </KeyboardAvoidingView>
