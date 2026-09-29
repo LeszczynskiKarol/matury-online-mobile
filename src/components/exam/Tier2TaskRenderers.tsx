@@ -169,39 +169,203 @@ function SequenceRenderer({ task, value, onChange, theme, isDark }: RenderProps)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PUNNETT — krzyżówka Punnetta (genotypy rodziców + grid + prawdopodobieństwo)
+// PUNNETT — krzyżówka genetyczna: genotypy rodziców + szachownica n×m +
+// fenotypy + prawdopodobieństwo.
+//
+// Szachownica ma tyle wierszy/kolumn, ile gamet ustali uczeń (2×2 przy jednym
+// genie, 4×4 przy dwóch, 4×2 przy AaBb × Aabb…); nagłówki są edytowalne, bo
+// wyznaczenie gamet jest częścią zadania. Genotypów rodziców, szukanego
+// fenotypu i prawdopodobieństwa NIE pokazujemy — to odpowiedź (API wycina je
+// z /start). Wyjątek: `content.givenParents === true`.
+// Kształt odpowiedzi (wspólny z webem): backend/src/services/punnett-response.ts
+// — { genotypes, motherGametes[], fatherGametes[], grid[][], cross,
+//     phenotypes, probability }. Stary kształt apki (motherGenotype,
+//     fatherGenotype, gridCells{"r_c"}, targetProbability) jest czytany
+//     przy wznowieniu podejścia i przepisywany przy pierwszej edycji.
 // ─────────────────────────────────────────────────────────────────────────────
+
+const PUNNETT_MIN = 1;
+const PUNNETT_MAX = 8;
+
+type PunnettValue = {
+  genotypes?: string;
+  motherGametes?: string[];
+  fatherGametes?: string[];
+  grid?: string[][];
+  cross?: string;
+  phenotypes?: string;
+  probability?: string;
+};
+
+const fitArray = (a: string[] | undefined, n: number) =>
+  Array.from({ length: n }, (_, i) => (a && typeof a[i] === "string" ? a[i] : ""));
+const fitGrid = (g: string[][] | undefined, rows: number, cols: number) =>
+  Array.from({ length: rows }, (_, r) => fitArray(g?.[r], cols));
+const clampPunnett = (n: number) =>
+  Math.min(PUNNETT_MAX, Math.max(PUNNETT_MIN, Math.round(n) || 2));
+const splitGametes = (s: unknown) =>
+  typeof s === "string" ? s.split(/[\s,;]+/).filter(Boolean) : [];
+
+/** Odpowiedź w nowym kształcie; stary kształt apki przepisany. */
+export function normalizePunnettValue(value: any): PunnettValue {
+  const v = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  if (!("gridCells" in v) && !("motherGenotype" in v) && !("targetProbability" in v)) return v;
+  const mother = Array.isArray(v.motherGametes) ? v.motherGametes : splitGametes(v.motherGenotype);
+  const father = Array.isArray(v.fatherGametes) ? v.fatherGametes : splitGametes(v.fatherGenotype);
+  const rows = clampPunnett(mother.length || 2);
+  const cols = clampPunnett(father.length || 2);
+  const cells = v.gridCells && typeof v.gridCells === "object" ? v.gridCells : {};
+  return {
+    genotypes: v.genotypes,
+    motherGametes: fitArray(mother, rows),
+    fatherGametes: fitArray(father, cols),
+    grid: Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: cols }, (_, c) => String(cells[`${r}_${c}`] ?? "")),
+    ),
+    cross: v.cross,
+    phenotypes: v.phenotypes,
+    probability: v.probability ?? v.targetProbability,
+  };
+}
+
+function PunnettStepper({
+  label,
+  value,
+  onChange,
+  theme,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  theme: any;
+}) {
+  const btn = (disabled: boolean) => ({
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    opacity: disabled ? 0.35 : 1,
+  });
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <Text style={{ fontSize: 12, color: theme.textSecondary }}>{label}</Text>
+      <TouchableOpacity
+        disabled={value <= PUNNETT_MIN}
+        onPress={() => onChange(value - 1)}
+        style={btn(value <= PUNNETT_MIN)}
+        accessibilityLabel={`${label}: mniej`}
+      >
+        <Ionicons name="remove" size={16} color={theme.text} />
+      </TouchableOpacity>
+      <Text style={{ width: 16, textAlign: "center", fontWeight: "800", color: theme.text }}>
+        {value}
+      </Text>
+      <TouchableOpacity
+        disabled={value >= PUNNETT_MAX}
+        onPress={() => onChange(value + 1)}
+        style={btn(value >= PUNNETT_MAX)}
+        accessibilityLabel={`${label}: więcej`}
+      >
+        <Ionicons name="add" size={16} color={theme.text} />
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) {
   const c = task.content || {};
-  const mother = c.parentGenotypes?.mother || "";
-  const father = c.parentGenotypes?.father || "";
-  const alleleNotation = c.alleleNotation || "";
-  const targetPhenotype = c.targetPhenotype || "";
+  const current = normalizePunnettValue(value);
+  const alleleNotation = typeof c.alleleNotation === "string" ? c.alleleNotation : "";
+  const given = c.givenParents === true ? c.parentGenotypes : null;
 
-  const v =
-    typeof value === "object" && value && !Array.isArray(value)
-      ? value
-      : {
-          motherGenotype: "",
-          fatherGenotype: "",
-          gridCells: {} as Record<string, string>,
-          targetProbability: "",
-        };
+  // Rozmiar zmieniony przed wpisaniem czegokolwiek zostaje lokalnie — pusta
+  // szachownica nie może liczyć się jako odpowiedź.
+  const [localSize, setLocalSize] = React.useState<[number, number]>(() => [
+    clampPunnett(Number(c.gridSize?.rows) || 2),
+    clampPunnett(Number(c.gridSize?.cols) || 2),
+  ]);
+  const rows = current.motherGametes?.length
+    ? clampPunnett(current.motherGametes.length)
+    : localSize[0];
+  const cols = current.fatherGametes?.length
+    ? clampPunnett(current.fatherGametes.length)
+    : localSize[1];
+  const mother = fitArray(current.motherGametes, rows);
+  const father = fitArray(current.fatherGametes, cols);
+  const grid = fitGrid(current.grid, rows, cols);
 
-  const update = (patch: any) => onChange({ ...v, ...patch });
-  const updateCell = (id: string, val: string) =>
-    update({ gridCells: { ...(v.gridCells || {}), [id]: val } });
+  const update = (patch: Partial<PunnettValue>) =>
+    onChange({
+      genotypes: current.genotypes ?? "",
+      cross: current.cross ?? "",
+      phenotypes: current.phenotypes ?? "",
+      probability: current.probability ?? "",
+      motherGametes: mother,
+      fatherGametes: father,
+      grid,
+      ...patch,
+    });
+  const hasText = [...mother, ...father, ...grid.flat()].some((x) => x.trim());
+  const resize = (r: number, col: number) => {
+    setLocalSize([r, col]);
+    if (hasText || current.motherGametes?.length)
+      update({
+        motherGametes: fitArray(mother, r),
+        fatherGametes: fitArray(father, col),
+        grid: fitGrid(grid, r, col),
+      });
+  };
 
-  // Domyślny grid 2×2 — user wpisuje gamety na osiach + iloczyny w środku.
-  // Backend może wystawiać puste content {} — wtedy genotypy są w instruction.
-  const hasContentData =
-    !!mother || !!father || !!alleleNotation || !!targetPhenotype;
+  const label = {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: theme.textTertiary,
+    marginBottom: 4,
+  };
+  const field = {
+    backgroundColor: theme.inputBg,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: theme.text,
+  };
+  const CELL_W = 72;
+  const cellBase = {
+    width: CELL_W,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    textAlign: "center" as const,
+    fontSize: 14,
+    color: theme.text,
+    fontFamily: "monospace",
+    backgroundColor: theme.inputBg,
+  };
+  const headCell = {
+    ...cellBase,
+    borderWidth: 2,
+    borderColor: colors.brand[500],
+    fontWeight: "800" as const,
+  };
+  const bodyCell = { ...cellBase, borderWidth: 1, borderColor: theme.border, fontWeight: "600" as const };
+  const noAuto = {
+    autoComplete: "off" as const,
+    importantForAutofill: "no" as const,
+    textContentType: "none" as const,
+    autoCorrect: false,
+    spellCheck: false,
+    autoCapitalize: "none" as const,
+  };
 
   return (
     <View style={{ gap: 14 }}>
-      {/* Info o zadaniu — pokazujemy tylko jeśli backend coś dał */}
-      {hasContentData && (
+      {(given?.mother || given?.father || alleleNotation) ? (
         <View
           style={{
             padding: 12,
@@ -209,163 +373,219 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
             backgroundColor: isDark ? "#15803d20" : "#ecfdf5",
             borderWidth: 1,
             borderColor: isDark ? "#15803d40" : "#a7f3d0",
+            gap: 2,
           }}
         >
-          {mother ? (
+          {given?.mother ? (
             <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text }}>
-              Genotyp matki:{" "}
-              <Text style={{ fontWeight: "800" }}>{mother}</Text>
+              Genotyp matki (podany): <Text style={{ fontWeight: "800" }}>{String(given.mother)}</Text>
             </Text>
           ) : null}
-          {father ? (
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: "700",
-                color: theme.text,
-                marginTop: 2,
-              }}
-            >
-              Genotyp ojca:{" "}
-              <Text style={{ fontWeight: "800" }}>{father}</Text>
+          {given?.father ? (
+            <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text }}>
+              Genotyp ojca (podany): <Text style={{ fontWeight: "800" }}>{String(given.father)}</Text>
             </Text>
           ) : null}
           {alleleNotation ? (
-            <Text
-              style={{ fontSize: 11, color: theme.textSecondary, marginTop: 4 }}
-            >
-              Allele: {alleleNotation}
-            </Text>
-          ) : null}
-          {targetPhenotype ? (
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: "700",
-                color: colors.brand[600],
-                marginTop: 6,
-              }}
-            >
-              Pytanie: jakie jest prawdopodobieństwo fenotypu „{targetPhenotype}”?
+            <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+              Oznaczenia alleli: {alleleNotation}
             </Text>
           ) : null}
         </View>
-      )}
+      ) : null}
 
-      {/* Gamety rodziców (user wpisuje) */}
       <View>
-        <Text style={{ fontSize: 11, fontWeight: "700", color: theme.textTertiary, marginBottom: 4 }}>
-          GAMETY MATKI (rozdziel spacją)
-        </Text>
-        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
-          value={v.motherGenotype}
-          onChangeText={(t) => update({ motherGenotype: t })}
-          placeholder="np. IA IB"
+        <Text style={label}>GENOTYPY RODZICÓW</Text>
+        <ClearableTextInput
+          {...noAuto}
+          value={current.genotypes ?? ""}
+          onChangeText={(t) => update({ genotypes: t })}
+          placeholder="np. matka: Aa, ojciec: aa"
           placeholderTextColor={theme.textTertiary}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          style={{
-            backgroundColor: theme.inputBg,
-            borderWidth: 1,
-            borderColor: theme.border,
-            borderRadius: 10,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            fontSize: 14,
-            color: theme.text,
-            fontFamily: "monospace",
-          }}
-        />
-      </View>
-      <View>
-        <Text style={{ fontSize: 11, fontWeight: "700", color: theme.textTertiary, marginBottom: 4 }}>
-          GAMETY OJCA (rozdziel spacją)
-        </Text>
-        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
-          value={v.fatherGenotype}
-          onChangeText={(t) => update({ fatherGenotype: t })}
-          placeholder="np. i i"
-          placeholderTextColor={theme.textTertiary}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          style={{
-            backgroundColor: theme.inputBg,
-            borderWidth: 1,
-            borderColor: theme.border,
-            borderRadius: 10,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            fontSize: 14,
-            color: theme.text,
-            fontFamily: "monospace",
-          }}
+          style={field}
         />
       </View>
 
-      {/* Grid 2×2 (najczęstszy wariant) */}
       <View>
-        <Text style={{ fontSize: 11, fontWeight: "700", color: theme.textTertiary, marginBottom: 6 }}>
-          KOMÓRKI TABELI (genotypy potomstwa)
+        <Text style={label}>SZACHOWNICA PUNNETTA</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 6 }}>
+          <PunnettStepper label="Gamety w wierszach" value={rows} onChange={(n) => resize(n, cols)} theme={theme} />
+          <PunnettStepper label="w kolumnach" value={cols} onChange={(n) => resize(rows, n)} theme={theme} />
+        </View>
+        <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 6, lineHeight: 16 }}>
+          W obramowanych polach wpisz gamety rodziców (wiersze — jeden rodzic,
+          kolumny — drugi), w pozostałych genotypy potomstwa.
         </Text>
-        <View style={{ gap: 6 }}>
-          {[0, 1].map((r) => (
-            <View key={r} style={{ flexDirection: "row", gap: 6 }}>
-              {[0, 1].map((c2) => {
-                const cellId = `${r}_${c2}`;
-                return (
-                  <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
-                    key={cellId}
-                    value={v.gridCells?.[cellId] || ""}
-                    onChangeText={(t) => updateCell(cellId, t)}
+        <ScrollView horizontal showsHorizontalScrollIndicator={cols > 3}>
+          <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <View style={{ width: CELL_W, justifyContent: "center" }}>
+                <Text style={{ fontSize: 10, color: theme.textTertiary, textAlign: "center" }}>gamety</Text>
+              </View>
+              {father.map((g, ci) => (
+                <TextInput
+                  key={`f${ci}`}
+                  {...noAuto}
+                  value={g}
+                  onChangeText={(t) => update({ fatherGametes: father.map((x, i) => (i === ci ? t : x)) })}
+                  placeholder="gameta"
+                  placeholderTextColor={theme.textTertiary}
+                  accessibilityLabel={`Gameta w kolumnie ${ci + 1}`}
+                  style={headCell}
+                />
+              ))}
+            </View>
+            {grid.map((row, ri) => (
+              <View key={ri} style={{ flexDirection: "row", gap: 6 }}>
+                <TextInput
+                  {...noAuto}
+                  value={mother[ri]}
+                  onChangeText={(t) => update({ motherGametes: mother.map((x, i) => (i === ri ? t : x)) })}
+                  placeholder="gameta"
+                  placeholderTextColor={theme.textTertiary}
+                  accessibilityLabel={`Gameta w wierszu ${ri + 1}`}
+                  style={headCell}
+                />
+                {row.map((cell, ci) => (
+                  <TextInput
+                    key={ci}
+                    {...noAuto}
+                    value={cell}
+                    onChangeText={(t) =>
+                      update({
+                        grid: grid.map((r2, i) => (i === ri ? r2.map((x, j) => (j === ci ? t : x)) : r2)),
+                      })
+                    }
                     placeholder="—"
                     placeholderTextColor={theme.textTertiary}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    style={{
-                      flex: 1,
-                      backgroundColor: theme.inputBg,
-                      borderWidth: 2,
-                      borderColor: theme.border,
-                      borderRadius: 10,
-                      paddingHorizontal: 10,
-                      paddingVertical: 12,
-                      textAlign: "center",
-                      fontSize: 16,
-                      fontWeight: "700",
-                      color: theme.text,
-                      fontFamily: "monospace",
-                    }}
+                    accessibilityLabel={`Genotyp potomstwa: wiersz ${ri + 1}, kolumna ${ci + 1}`}
+                    style={bodyCell}
                   />
-                );
-              })}
-            </View>
-          ))}
-        </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </View>
 
-      {/* Prawdopodobieństwo */}
       <View>
-        <Text style={{ fontSize: 11, fontWeight: "700", color: theme.textTertiary, marginBottom: 4 }}>
-          PRAWDOPODOBIEŃSTWO (%)
-        </Text>
-        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
-          value={v.targetProbability}
-          onChangeText={(t) => update({ targetProbability: t })}
-          placeholder="np. 25%"
+        <Text style={label}>INNY ZAPIS KRZYŻÓWKI (OPCJONALNIE)</Text>
+        <ClearableTextInput
+          {...noAuto}
+          value={current.cross ?? ""}
+          onChangeText={(t) => update({ cross: t })}
+          placeholder="np. druga krzyżówka (AB0 i Rh osobno), geny sprzężone"
           placeholderTextColor={theme.textTertiary}
-          keyboardType="numbers-and-punctuation"
-          style={{
-            backgroundColor: theme.inputBg,
-            borderWidth: 1,
-            borderColor: theme.border,
-            borderRadius: 10,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            fontSize: 14,
-            color: theme.text,
-          }}
+          multiline
+          style={{ ...field, minHeight: 64, textAlignVertical: "top", fontFamily: "monospace" }}
         />
       </View>
+
+      <View>
+        <Text style={label}>FENOTYPY POTOMSTWA</Text>
+        <ClearableTextInput
+          {...noAuto}
+          value={current.phenotypes ?? ""}
+          onChangeText={(t) => update({ phenotypes: t })}
+          placeholder="np. 3 szare : 1 białe"
+          placeholderTextColor={theme.textTertiary}
+          style={field}
+        />
+      </View>
+
+      <View>
+        <Text style={label}>PRAWDOPODOBIEŃSTWO</Text>
+        <ClearableTextInput
+          {...noAuto}
+          value={current.probability ?? ""}
+          onChangeText={(t) => update({ probability: t })}
+          placeholder="ułamek lub procent"
+          placeholderTextColor={theme.textTertiary}
+          keyboardType="numbers-and-punctuation"
+          style={field}
+        />
+      </View>
+    </View>
+  );
+}
+
+/** Widok wyniku: odpowiedź ucznia z szachownicą (nowy i stary kształt). */
+export function PunnettResponseView({ response, theme }: { response: any; theme: any }) {
+  const v = normalizePunnettValue(response);
+  const mother = v.motherGametes ?? [];
+  const father = v.fatherGametes ?? [];
+  const grid = v.grid ?? [];
+  const hasGrid = [...mother, ...father, ...grid.flat()].some((x) => typeof x === "string" && x.trim());
+  const box = {
+    backgroundColor: theme.inputBg,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+    gap: 4,
+  };
+  const cap = { fontSize: 11, fontWeight: "700" as const, color: theme.textTertiary };
+  const txt = { fontSize: 13, color: theme.text, lineHeight: 19 };
+  const cell = (head: boolean) => ({
+    minWidth: 56,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: head ? colors.brand[500] : theme.border,
+    textAlign: "center" as const,
+    fontFamily: "monospace",
+    fontSize: 13,
+    fontWeight: head ? ("800" as const) : ("600" as const),
+    color: theme.text,
+  });
+  const rowsOut: { label: string; value?: string }[] = [
+    { label: "Genotypy rodziców", value: v.genotypes },
+    { label: "Inny zapis krzyżówki", value: v.cross },
+    { label: "Fenotypy", value: v.phenotypes },
+    { label: "Prawdopodobieństwo", value: v.probability },
+  ].filter((x) => typeof x.value === "string" && x.value.trim());
+  if (!hasGrid && rowsOut.length === 0)
+    return (
+      <View style={box}>
+        <Text style={{ ...txt, color: theme.textTertiary }}>Brak odpowiedzi</Text>
+      </View>
+    );
+  return (
+    <View style={box}>
+      {rowsOut.filter((x) => x.label === "Genotypy rodziców").map((x) => (
+        <Text key={x.label} style={txt}>
+          <Text style={cap}>{x.label}: </Text>
+          {x.value}
+        </Text>
+      ))}
+      {hasGrid ? (
+        <ScrollView horizontal style={{ marginVertical: 6 }}>
+          <View>
+            <View style={{ flexDirection: "row" }}>
+              <Text style={{ ...cell(false), borderColor: "transparent", color: theme.textTertiary, fontSize: 10 }}>
+                gamety
+              </Text>
+              {father.map((g, i) => (
+                <Text key={i} style={cell(true)}>{g || "—"}</Text>
+              ))}
+            </View>
+            {grid.map((row, ri) => (
+              <View key={ri} style={{ flexDirection: "row" }}>
+                <Text style={cell(true)}>{mother[ri] || "—"}</Text>
+                {row.map((x, ci) => (
+                  <Text key={ci} style={cell(false)}>{x || "—"}</Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      ) : null}
+      {rowsOut.filter((x) => x.label !== "Genotypy rodziców").map((x) => (
+        <Text key={x.label} style={txt}>
+          <Text style={cap}>{x.label}: </Text>
+          {x.value}
+        </Text>
+      ))}
     </View>
   );
 }
