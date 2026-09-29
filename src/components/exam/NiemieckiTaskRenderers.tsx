@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { useListeningPlayer } from "../../hooks/useListeningPlayer";
+import { ClearableTextInput } from "../ui/ClearAnswerButton";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1023,7 +1024,8 @@ function ListeningFillDe({ task, answers, onAnswer, theme, isDark }: RenderProps
                     {q.blankLabel}:
                   </Text>
                 )}
-                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                <ClearableTextInput
+                  containerStyle={{ flex: 1 }} autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={answers[q.id] || ""}
                   onChangeText={(t) => onAnswer(q.id, t)}
                   placeholder="Wpisz odpowiedź po niemiecku"
@@ -1170,7 +1172,7 @@ function ReadingMcq({ task, answers, onAnswer, theme, isDark }: RenderProps) {
                   ))}
                 </View>
               ) : (
-                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={answers[q.id] || ""}
                   onChangeText={(t) => onAnswer(q.id, t)}
                   placeholder={
@@ -2094,7 +2096,7 @@ function Transformation({ task, answers, onAnswer, theme, isDark }: RenderProps)
                   ({hintWord})
                 </Text>
               ) : null}
-              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+              <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                 value={answers[row.id] || ""}
                 onChangeText={(t) => onAnswer(row.id, t)}
                 placeholder="Wpisz odpowiedź"
@@ -2337,7 +2339,7 @@ Adresat: ${brief.recipient}` : ""}
             </View>
           )}
 
-          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+          <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={text}
             onChangeText={(t) => onAnswer(qId, t)}
             placeholder="Napisz swoją wypowiedź..."

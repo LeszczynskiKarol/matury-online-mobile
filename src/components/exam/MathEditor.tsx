@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { MathEditorExample } from "./MathEditorExample";
+import { ClearableTextInput } from "../ui/ClearAnswerButton";
 
 interface MathEditorProps {
   value: string;
@@ -361,7 +362,7 @@ export function MathEditor({
       )}
 
       {/* Single text input */}
-      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+      <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
         ref={inputRef}
         value={value}
         onChangeText={onChange}

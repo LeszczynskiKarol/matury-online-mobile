@@ -14,6 +14,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { OptionCard } from "./OptionCard";
 import { useListeningPlayer } from "../../hooks/useListeningPlayer";
+import { ClearableTextInput } from "../ui/ClearAnswerButton";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -305,7 +306,7 @@ export function ListeningQuestion({
 
             {/* OPEN */}
             {sq.type === "OPEN" && (
-              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+              <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                 value={ans[sq.id] || ""}
                 onChangeText={(text) => set(sq.id, text)}
                 editable={!disabled}
@@ -337,7 +338,7 @@ export function ListeningQuestion({
                   );
                 return (
                   <View>
-                    <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                    <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                       value={ans[sq.id] || ""}
                       onChangeText={(text) => set(sq.id, text)}
                       editable={!disabled}

@@ -8,6 +8,7 @@ import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, TextInput, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../theme/colors";
+import { ClearableTextInput } from "../ui/ClearAnswerButton";
 
 interface RenderProps {
   task: any;
@@ -380,7 +381,7 @@ function SchemeFillRenderer({ task, value, onChange, theme, isDark }: RenderProp
 
   if (blanks.length === 0) {
     return (
-      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+      <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
         value={typeof value === "string" ? value : ""}
         onChangeText={onChange}
         placeholder="Napisz schemat reakcji..."
@@ -631,7 +632,7 @@ function CodeEditor({
   minHeight?: number;
 }) {
   return (
-    <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+    <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
       value={value}
       onChangeText={onChange}
       placeholder={placeholder}
@@ -782,7 +783,7 @@ function AnalysisRenderer({ task, value, onChange, theme, isDark }: RenderProps)
           </ScrollView>
         </View>
       )}
-      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+      <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
         value={typeof value === "string" ? value : ""}
         onChangeText={onChange}
         placeholder="Wpisz analizę kodu..."
@@ -1701,7 +1702,7 @@ function EssayRenderer({ task, value, onChange, theme, isDark }: RenderProps) {
 
       {(topics.length === 0 || selectedTopic) && (
         <>
-          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+          <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={text}
             onChangeText={(t) => update({ text: t })}
             placeholder="Napisz wypowiedź..."
@@ -1822,7 +1823,7 @@ function DecideJustifyRenderer({ task, value, onChange, theme, isDark }: RenderP
         >
           UZASADNIENIE:
         </Text>
-        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+        <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           value={v.justification || ""}
           onChangeText={(t) => onChange({ ...v, justification: t })}
           placeholder="Uzasadnij swoją decyzję..."

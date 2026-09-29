@@ -74,6 +74,7 @@ import { useAuth } from "../../context/AuthContext";
 import { QuizReviewsModal } from "../../components/quiz/QuizReviewsPref";
 import { PremiumGate } from "../../components/common/PremiumGate";
 import { matchingOptionOrder, orderingInitialOrder } from "../../utils/matchingOrder";
+import { ClearableTextInput } from "../../components/ui/ClearAnswerButton";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -2676,7 +2677,7 @@ export function QuizPlayScreen() {
                     taskType="math_short_calc"
                   />
                 ) : (
-                  <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                  <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                     value={openAnswer}
                     onChangeText={setOpenAnswer}
                     multiline
@@ -4016,7 +4017,7 @@ export function QuizPlayScreen() {
                                 showExample={i === firstOpenIdx}
                               />
                             ) : (
-                              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                              <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                                 value={ans[sq.id] || ""}
                                 onChangeText={(text) => set(sq.id, text)}
                                 editable={!submitted}
@@ -4598,7 +4599,7 @@ export function QuizPlayScreen() {
                               </Text>
                             )}
                           </View>
-                          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                          <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                             value={ans[field.id] || ""}
                             onChangeText={(text) =>
                               !submitted &&
