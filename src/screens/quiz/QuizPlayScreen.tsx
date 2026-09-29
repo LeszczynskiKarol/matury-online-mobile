@@ -1223,7 +1223,7 @@ export function QuizPlayScreen() {
             <ActivityIndicator size="small" color={colors.brand[500]} />
             <Text style={{ fontSize: 12, color: theme.textSecondary }}>
               {isListeningOnly
-                ? "🤖 AI generuje nagranie..."
+                ? "🎧 Przygotowuję nagranie…"
                 : "Ładuję pytania..."}
             </Text>
             {isListeningOnly && (
@@ -1235,7 +1235,7 @@ export function QuizPlayScreen() {
                   maxWidth: 260,
                 }}
               >
-                Claude pisze transkrypt, Google TTS syntezuje głos — ~20-30s
+                Zwykle to chwila; nowe nagranie (gdy w bazie zabraknie) do ~30 s
               </Text>
             )}
           </View>

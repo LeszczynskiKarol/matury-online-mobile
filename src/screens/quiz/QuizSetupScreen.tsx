@@ -245,7 +245,7 @@ const SUBJECT_CATEGORIES: Record<string, SessionCategory[]> = {
       label: "Słuchanie",
       icon: "🎧",
       types: ["LISTENING"],
-      desc: "AI generuje nagrania w czasie rzeczywistym",
+      desc: "Nagrania w formacie egzaminu",
     },
   ],
   angielski: [
@@ -280,7 +280,7 @@ const SUBJECT_CATEGORIES: Record<string, SessionCategory[]> = {
       label: "Słuchanie",
       icon: "🎧",
       types: ["LISTENING"],
-      desc: "AI generuje nagrania w czasie rzeczywistym",
+      desc: "Nagrania w formacie egzaminu",
     },
   ],
   wos: [

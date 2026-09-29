@@ -122,7 +122,7 @@ export function ListeningHubScreen() {
           lineHeight: 21,
         }}
       >
-        Wybierz język — AI wygeneruje świeże nagrania w czasie rzeczywistym.
+        Wybierz język — nagrania i zadania są jak na maturze.
       </Text>
 
       {loading ? (
@@ -221,7 +221,8 @@ export function ListeningHubScreen() {
                 lineHeight: 18,
               }}
             >
-              Każde zadanie ma świeże, unikalne nagranie generowane przez AI.
+              Najpierw dostajesz nagrania z bazy, których jeszcze nie
+              słyszałeś; nowe AI dogrywa w tle, gdy baza się kończy.
               Odsłuchujesz je bez limitu, aż zrozumiesz.
             </Text>
           </View>
