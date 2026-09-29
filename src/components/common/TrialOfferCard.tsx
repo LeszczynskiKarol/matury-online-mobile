@@ -21,11 +21,12 @@ import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
 import {
   getTrialStatus,
-  claimTrial,
   isFreePackBlocked,
   FREE_PACK_BLOCKED_MESSAGE,
   type TrialStatus,
 } from "../../api/premium";
+import { FreeSheetPicker } from "./FreeSheetPicker";
+import { FS_CTA_OPEN, FS_PICK_CTA } from "../../lib/freeSheet";
 
 function formatRemaining(ms: number): string {
   if (ms <= 0) return "chwilę";
@@ -48,8 +49,10 @@ export function TrialOfferCard({
   const { colors: theme } = useTheme();
   const navigation = useNavigation<any>();
   const [status, setStatus] = useState<TrialStatus | null>(null);
-  const [claiming, setClaiming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const claiming = false;
+  const error: string | null = null;
+  // Wybór przedmiotu (i poziomu) przed odebraniem — jak /darmowy-arkusz na webie.
+  const [picker, setPicker] = useState(false);
   // Odliczanie tykane lokalnie co minutę — countdown ma budować pilność,
   // a nie odpytywać serwer co sekundę.
   const [remainingMs, setRemainingMs] = useState(0);
@@ -71,26 +74,6 @@ export function TrialOfferCard({
     );
     return () => clearInterval(t);
   }, [status?.active]);
-
-  async function onClaim() {
-    setClaiming(true);
-    setError(null);
-    try {
-      const d = await claimTrial(trigger);
-      setStatus(d);
-      setRemainingMs(d.remainingMs);
-    } catch (e: any) {
-      // Pakiet poszedł już z tej sieci/urządzenia — zamiast błędu pokazujemy
-      // komunikat z drogą do Premium.
-      if (isFreePackBlocked(e)) {
-        setStatus((s) => (s ? { ...s, eligible: false, freePackBlocked: true } : s));
-        return;
-      }
-      setError(e?.message || "Nie udało się odebrać oferty.");
-    } finally {
-      setClaiming(false);
-    }
-  }
 
   if (!status) return null;
 
@@ -144,10 +127,29 @@ export function TrialOfferCard({
   )
     return null;
 
+  const pickerEl = (
+    <FreeSheetPicker
+      visible={picker}
+      onClose={() => setPicker(false)}
+      trial={status}
+      trigger={trigger}
+      onFreePackBlocked={() =>
+        setStatus((s) => (s ? { ...s, eligible: false, active: false, freePackBlocked: true } : s))
+      }
+    />
+  );
+  // Przypięty arkusz — prosto do niego (jak web), bez wyboru przedmiotu.
+  const openSheet = () =>
+    navigation.getParent()?.navigate("ExamTab", {
+      screen: "ExamPlay",
+      params: { examId: status.examId!, subjectId: "" },
+    });
+
   // ── Oferta odebrana i wciąż ważna ──────────────────────────────────────
   if (status.active) {
     return (
       <View style={shell}>
+        {pickerEl}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <View
             style={{
@@ -178,7 +180,7 @@ export function TrialOfferCard({
         </Text>
 
         <TouchableOpacity
-          onPress={goToExams}
+          onPress={status.examId ? openSheet : () => setPicker(true)}
           style={{
             backgroundColor: colors.brand[500],
             paddingVertical: 12,
@@ -187,7 +189,7 @@ export function TrialOfferCard({
           }}
         >
           <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
-            {status.examId ? "Wróć do arkusza →" : "Wybierz przedmiot →"}
+            {status.examId ? FS_CTA_OPEN : FS_PICK_CTA}
           </Text>
         </TouchableOpacity>
       </View>
@@ -197,6 +199,7 @@ export function TrialOfferCard({
   // ── Oferta do odebrania ────────────────────────────────────────────────
   return (
     <View style={shell}>
+      {pickerEl}
       <Text
         style={{
           fontSize: 11,
@@ -223,7 +226,7 @@ export function TrialOfferCard({
       ))}
 
       <TouchableOpacity
-        onPress={onClaim}
+        onPress={() => setPicker(true)}
         disabled={claiming}
         style={{
           backgroundColor: colors.brand[500],
@@ -238,7 +241,7 @@ export function TrialOfferCard({
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
-            Odbieram za darmo
+            {FS_PICK_CTA}
           </Text>
         )}
       </TouchableOpacity>

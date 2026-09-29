@@ -19,11 +19,19 @@ import { radius } from "../../theme";
 import { api } from "../../api/client";
 import {
   getTrialStatus,
-  claimTrial,
   isFreePackBlocked,
   FREE_PACK_BLOCKED_MESSAGE,
   type TrialStatus,
 } from "../../api/premium";
+import { FreeSheetPicker } from "./FreeSheetPicker";
+import {
+  FS_CTA_OPEN,
+  FS_CTA_RESULT,
+  FS_CTA_UNAVAILABLE,
+  FS_MSG_EXPIRED,
+  FS_MSG_NOT_ELIGIBLE,
+  FS_PICK_CTA,
+} from "../../lib/freeSheet";
 
 interface DiagnosisRow {
   subjectSlug: string;
@@ -59,8 +67,8 @@ export function FreePanel({
     answeredCount: number;
     questionCount: number;
   } | null>(null);
-  const [claiming, setClaiming] = useState(false);
-  const [claimError, setClaimError] = useState<string | null>(null);
+  // Wybór przedmiotu (i poziomu) przed odebraniem — jak /darmowy-arkusz na webie.
+  const [picker, setPicker] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -85,22 +93,9 @@ export function FreePanel({
   const goExams = () =>
     navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
 
-  const claim = async () => {
-    setClaiming(true);
-    setClaimError(null);
-    try {
-      setTrial(await claimTrial("dashboard"));
-      goExams();
-    } catch (e: any) {
-      if (isFreePackBlocked(e)) {
-        setTrial((t) => (t ? { ...t, eligible: false, freePackBlocked: true } : t));
-        return;
-      }
-      setClaimError(e?.message || "Nie udało się odebrać arkusza.");
-    } finally {
-      setClaiming(false);
-    }
-  };
+  // Claim odbity FREE_PACK_USED_NETWORK — wiersz pokaże komunikat z Premium.
+  const markFreePackBlocked = () =>
+    setTrial((t) => (t ? { ...t, eligible: false, active: false, freePackBlocked: true } : t));
 
   // ── Diagnoza: jedno zdanie + jeden przycisk ──────────────────────────────
   const diag = diagnoses[0];
@@ -120,22 +115,25 @@ export function FreePanel({
     navigation.navigate("Diagnosis", diag ? { token: diag.token } : undefined);
 
   // ── Darmowy arkusz ───────────────────────────────────────────────────────
+  // Teksty przycisków = web (components/free-sheet/FreeSheetState.astro).
+  // Konto z przypiętym arkuszem widzi WYŁĄCZNIE jego stan — bez wyboru
+  // przedmiotu, bo arkusz jest jeden na konto.
   const examDone =
     trial?.attemptStatus === "COMPLETED" || trial?.attemptStatus === "GRADING";
   let examText: string;
   let examCta: string | null = null;
   let onExam: (() => void) | null = null;
-  if (examDone) {
+  if (examDone && trial?.examAttemptId) {
     examText = "Oddany. Wynik zostaje na stałe.";
-    examCta = "Zobacz wynik";
+    examCta = FS_CTA_RESULT;
     onExam = () =>
       navigation.getParent()?.navigate("ExamTab", {
         screen: "ExamResults",
         params: { attemptId: trial!.examAttemptId! },
       });
   } else if (trial?.examId) {
-    examText = "Zaczęty — bez limitu czasu. Dokończ albo oddaj to, co masz.";
-    examCta = "Kontynuuj arkusz";
+    examText = "Otwarty i czeka na Ciebie — bez limitu czasu, odpowiedzi zapisują się same.";
+    examCta = FS_CTA_OPEN;
     // Prosto do arkusza, nie do listy (jak na webie).
     onExam = () =>
       navigation.getParent()?.navigate("ExamTab", {
@@ -143,21 +141,25 @@ export function FreePanel({
         params: { examId: trial!.examId!, subjectId: "" },
       });
   } else if (trial?.active) {
-    examText = `Wybierz przedmiot i rozwiąż pełny arkusz. Masz na to ${hoursLeft(trial.remainingMs)}.`;
-    examCta = "Wybierz przedmiot";
-    onExam = goExams;
+    examText = `Oferta odebrana — wybierz przedmiot, a arkusz otworzy się od razu. Masz na to ${hoursLeft(trial.remainingMs)}.`;
+    examCta = FS_PICK_CTA;
+    onExam = () => setPicker(true);
   } else if (isFreePackBlocked(trial)) {
     // Pakiet startowy poszedł już z tej sieci/urządzenia — zamiast
     // „Odbierz darmowy arkusz" prowadzimy do Premium.
     examText = FREE_PACK_BLOCKED_MESSAGE;
-    examCta = "Zobacz Premium";
+    examCta = FS_CTA_UNAVAILABLE;
     onExam = onPremium;
   } else if (trial?.eligible) {
-    examText = "Pełny arkusz z oceną AI, bez limitu czasu.";
-    examCta = "Odbierz darmowy arkusz";
-    onExam = claim;
+    examText = "Pełny arkusz z oceną AI, bez limitu czasu. Najpierw wybierasz przedmiot — arkusz otworzy się od razu.";
+    examCta = FS_PICK_CTA;
+    onExam = () => setPicker(true);
+  } else if (trial) {
+    examText = trial.claimedAt ? FS_MSG_EXPIRED : FS_MSG_NOT_ELIGIBLE;
+    examCta = FS_CTA_UNAVAILABLE;
+    onExam = onPremium;
   } else {
-    examText = "Już wykorzystany.";
+    examText = "Pełny arkusz z oceną AI, bez limitu czasu.";
   }
 
   const row = (
@@ -229,12 +231,14 @@ export function FreePanel({
       <View
         style={{ height: 1, backgroundColor: theme.border, marginVertical: 14 }}
       />
-      {row("📝", "Darmowy arkusz", examText, examCta, onExam, claiming)}
-      {claimError && (
-        <Text style={{ fontSize: 12, color: colors.red[500], marginTop: 8 }}>
-          {claimError}
-        </Text>
-      )}
+      {row("📝", "Darmowy arkusz", examText, examCta, onExam)}
+      <FreeSheetPicker
+        visible={picker}
+        onClose={() => setPicker(false)}
+        trial={trial}
+        trigger="dashboard"
+        onFreePackBlocked={markFreePackBlocked}
+      />
 
       {!hidePremiumLine && (
       <TouchableOpacity

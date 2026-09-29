@@ -369,7 +369,7 @@ export function ExamSelectorScreen() {
             }}
           >
             <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
-              {done ? "Zobacz wynik i feedback AI →" : "Wróć do arkusza →"}
+              {done ? "Zobacz wynik →" : "Otwórz arkusz →"}
             </Text>
           </TouchableOpacity>
         </View>

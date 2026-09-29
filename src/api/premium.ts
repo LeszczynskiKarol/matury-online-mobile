@@ -76,10 +76,14 @@ export function getTrialStatus(): Promise<TrialStatus> {
   return api<TrialStatus>("/premium/trial");
 }
 
-export function claimTrial(trigger: string): Promise<TrialStatus> {
+/**
+ * `subject` — slug przedmiotu wybranego przed odebraniem (FreeSheetPicker).
+ * Backend zapisuje go w logu, a w zdaj ustawia ścieżkę konta bez ścieżki.
+ */
+export function claimTrial(trigger: string, subject?: string): Promise<TrialStatus> {
   return api<TrialStatus>("/premium/trial/claim", {
     method: "POST",
-    body: { trigger },
+    body: subject ? { trigger, subject } : { trigger },
   });
 }
 

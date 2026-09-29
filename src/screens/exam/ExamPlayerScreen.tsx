@@ -67,6 +67,7 @@ import type { ExamStackParamList } from "../../navigation/types";
 import { handlePremiumError } from "../../lib/premiumAlert";
 import { tableColWidths } from "../../lib/tableWidths";
 import { ReportButton } from "../../components/quiz/ReportQuestion";
+import { stripSheetNumber } from "../../lib/freeSheet";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -545,7 +546,7 @@ export function ExamPlayerScreen() {
           {started ? `DARMOWY ARKUSZ TESTOWY · ROZWIĄZANE ${answeredCount}/${allTasks.length}` : "DARMOWY ARKUSZ TESTOWY"}
         </Text>
         <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 20 }}>
-          {data.exam.title}
+          {stripSheetNumber(data.exam.title)}
         </Text>
         {/* Na mobile tylko etykieta, tytuł i „Od czego chcesz zacząć?” —
             opis i lista punktów zajmowały cały ekran (Karol 26.09.2026). */}
