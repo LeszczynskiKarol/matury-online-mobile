@@ -486,7 +486,13 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const bullets = special?.bullets ?? cfg.bullets;
   // Cena w osobnej linii pod przyciskiem, jak web („Od 49 zł miesięcznie”) —
   // w jednym tytule „— 49 zł/mies.” łamało się na 360 dp.
-  const ctaTitle = special?.cta ?? "Przejdź na Premium";
+  // Wezwanie mówi, co uczeń dostaje w tej zakładce, a nie jak nazywa się plan.
+  const DEFAULT_CTA: Record<GateMode, string> = {
+    exam: "Odblokuj nielimitowane arkusze",
+    listening: "Odblokuj słuchanie bez limitu",
+    quiz: "Odblokuj cały bank pytań",
+  };
+  const ctaTitle = special?.cta ?? DEFAULT_CTA[mode];
 
   return (
     <ScrollView
