@@ -181,6 +181,12 @@ export function ExamPlayerScreen() {
   const dataRef = useRef<ExamStartData | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
+  // „Dokończ pozostałe zadania” (darmowy arkusz oddany niepełny): zadania
+  // ocenione przy pierwszym oddaniu są tylko do odczytu. Backend
+  // (exam-continue.ts) i tak nadpisuje je przy zapisie i oddaniu.
+  const [lockedIds, setLockedIds] = useState<Set<string>>(() => new Set());
+  const lockedIdsRef = useRef<Set<string>>(lockedIds);
+  lockedIdsRef.current = lockedIds;
 
   // ── Load exam ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -190,6 +196,9 @@ export function ExamPlayerScreen() {
         const examData = normalizeOptionMaps(await startExam(examId));
         setData(examData);
         setAnswers(examData.savedAnswers || {});
+        setLockedIds(
+          new Set(Array.isArray(examData.lockedTaskIds) ? examData.lockedTaskIds : []),
+        );
         if (
           (examData as any).untimed &&
           Object.keys(examData.savedAnswers || {}).length === 0
@@ -344,12 +353,18 @@ export function ExamPlayerScreen() {
   // Jak answerIsNonEmpty w backendzie: temat bez tekstu czy mapa pustych
   // luk to wciąż brak odpowiedzi.
   const answeredCount = allTasks.filter((t: any) => isFilled(answers[t.id])).length;
+  // Dokańczanie: ile zadań (poza zablokowanymi) wciąż czeka na odpowiedź.
+  const remainingToDo =
+    lockedIds.size > 0
+      ? allTasks.filter((t: any) => !lockedIds.has(t.id) && !isFilled(answers[t.id])).length
+      : 0;
   const openAnswered = allTasks.filter(
     (t: any) => t.gradingType !== "deterministic" && isFilled(answers[t.id]),
   ).length;
 
   // ── Helpers ────────────────────────────────────────────────────────
   const setAnswer = useCallback((taskId: string, value: any) => {
+    if (lockedIdsRef.current.has(taskId)) return;
     setAnswers((prev) => ({ ...prev, [taskId]: value }));
   }, []);
 
@@ -381,9 +396,15 @@ export function ExamPlayerScreen() {
     if (!data) return;
     setConfirmModal(false);
     setPhase("submitting");
+    let res: { status?: string; continuationCancelled?: boolean } | null = null;
     try {
-      await discardExam(data.attemptId);
+      res = await discardExam(data.attemptId);
     } catch {}
+    // Porzucenie dokańczania: backend przywraca wynik sprzed „Dokończ”.
+    if (res?.continuationCancelled) {
+      navigation.replace("ExamResults", { attemptId: data.attemptId });
+      return;
+    }
     navigation.replace("ExamSelector", { noAutoOpen: true });
   }, [data, navigation]);
 
@@ -731,8 +752,9 @@ export function ExamPlayerScreen() {
                     style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
                   >
                     {part.tasks.map((task: any) => {
+                      const isLocked = lockedIds.has(task.id);
                       const hasAns =
-                        answers[task.id] != null && answers[task.id] !== "";
+                        isLocked || (answers[task.id] != null && answers[task.id] !== "");
                       const isCur = task.id === currentTaskId;
                       return (
                         <TouchableOpacity
@@ -768,6 +790,14 @@ export function ExamPlayerScreen() {
                           >
                             {task.number}
                           </Text>
+                          {isLocked && !isCur ? (
+                            <Ionicons
+                              name="lock-closed"
+                              size={10}
+                              color={colors.brand[600]}
+                              style={{ position: "absolute", top: 3, right: 3 }}
+                            />
+                          ) : null}
                         </TouchableOpacity>
                       );
                     })}
@@ -915,6 +945,25 @@ export function ExamPlayerScreen() {
         ref={scrollRef}
         contentContainerStyle={{ padding: 20, paddingBottom: examBarH + 16 }}
       >
+        {/* Dokańczanie darmowego arkusza — jedna linia informacji. */}
+        {lockedIds.size > 0 && (
+          <View
+            style={{
+              marginBottom: 14,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: isDark ? colors.brand[800] : colors.brand[200],
+              backgroundColor: isDark ? colors.brand[900] + "33" : colors.brand[50],
+            }}
+          >
+            <Text style={{ fontSize: 12, color: theme.text, lineHeight: 17 }}>
+              Dokańczasz arkusz: rozwiązane zadania są zablokowane, zostało {remainingToDo} do zrobienia.
+            </Text>
+          </View>
+        )}
+
         {/* Part header */}
         {currentPart && (
           <View
@@ -1057,6 +1106,29 @@ export function ExamPlayerScreen() {
             )}
           </View>
 
+          {lockedIds.has(currentTask.id) && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                alignSelf: "flex-start",
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 99,
+                marginBottom: 12,
+                backgroundColor: theme.inputBg,
+                borderWidth: 1,
+                borderColor: theme.border,
+              }}
+            >
+              <Ionicons name="lock-closed" size={12} color={theme.textSecondary} />
+              <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary }}>
+                Oceniono — odpowiedź zablokowana
+              </Text>
+            </View>
+          )}
+
           {/* Instruction */}
           <SectionErrorBoundary
             label="treść zadania"
@@ -1076,13 +1148,21 @@ export function ExamPlayerScreen() {
             />
 
             {/* ═══ TASK INPUT RENDERERS ═══ */}
-            <ExamTaskInput
-              task={currentTask}
-              value={answers[currentTask.id]}
-              onChange={(v: any) => setAnswer(currentTask.id, v)}
-              theme={theme}
-              isDark={isDark}
-            />
+            {/* Zadanie zablokowane (dokańczanie): jeden mechanizm dla
+                wszystkich typów zadań — bez dotyku i przygaszone; setAnswer
+                i tak odrzuca zmiany zablokowanych zadań. */}
+            <View
+              pointerEvents={lockedIds.has(currentTask.id) ? "none" : "auto"}
+              style={lockedIds.has(currentTask.id) ? { opacity: 0.6 } : undefined}
+            >
+              <ExamTaskInput
+                task={currentTask}
+                value={answers[currentTask.id]}
+                onChange={(v: any) => setAnswer(currentTask.id, v)}
+                theme={theme}
+                isDark={isDark}
+              />
+            </View>
           </SectionErrorBoundary>
         </Card>
       </ScrollView>
