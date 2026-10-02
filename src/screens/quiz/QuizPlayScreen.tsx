@@ -44,7 +44,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { submitAnswer, completeSession } from "../../api/sessions";
 import { api, ApiError } from "../../api/client";
-import { isFreePackBlocked, FREE_PACK_BLOCKED_MESSAGE } from "../../api/premium";
+import { isFreePackBlocked } from "../../api/premium";
+import { FreePackText } from "../../components/common/FreePackText";
 import { maybeAskForReviewOnStreak } from "../../lib/reviewPrompt";
 import {
   skipQuestion as apiSkipQuestion,
@@ -64,6 +65,9 @@ import { parseChemText } from "../../utils/chemText";
 import { CodeAwareText } from "../../components/common/CodeAwareText";
 import { QuestionText } from "../../components/quiz/QuestionText";
 import { MathEditor } from "../../components/exam/MathEditor";
+import { SymbolScope, withSymbols } from "../../components/exam/SymbolPalette";
+
+const SymTextInput = withSymbols(TextInput);
 import { spacing } from "../../theme";
 import {
   AdminCopyBar,
@@ -328,24 +332,23 @@ export function QuizPlayScreen() {
     [question?.content, result?.reveal],
   );
 
+  // Przedmioty ścisłe (jak MATH_EDITOR_SLUGS na webie): paleta symboli
+  // w dużych polach i pasek „∑ Symbole” nad lukami / krótkimi polami.
   const MATH_SUBJECT_NAMES = [
     "matematyka",
     "fizyka",
     "chemia",
     "informatyka",
     "biologia",
+    "geografia",
+    "biznes",
   ];
   const needsMathEditor =
     MATH_SUBJECT_NAMES.some((s) => subjectName?.toLowerCase().includes(s)) ||
     MATH_SUBJECT_NAMES.some((s) =>
       question?.topic?.name?.toLowerCase().includes(s),
     );
-  console.log(
-    "[MATH-DEBUG] subjectName:",
-    JSON.stringify(subjectName),
-    "needsMathEditor:",
-    needsMathEditor,
-  );
+  const symbolsOn = needsMathEditor && !submitted;
   const hasActiveFilters =
     filters.topicIds.length > 0 ||
     filters.types.length > 0 ||
@@ -938,31 +941,12 @@ export function QuizPlayScreen() {
     goToResults();
   }, [sessionId]);
 
+  // ✕ bez pytań (Karol 2.10.2026): każda odpowiedź jest zapisana od razu po
+  // sprawdzeniu (quiz: /answers, darmowy quiz: /diagnosis/v2/answer), więc
+  // nie ma czego potwierdzać — prosto na pulpit. Darmowy quiz wznawia się
+  // z karty „Za darmo” na tym samym pytaniu.
   const handleQuit = () => {
-    if (diagnosis) {
-      if (diagnosis.mode === "review") {
-        navigation.goBack();
-        return;
-      }
-      Alert.alert(
-        "Przerwać quiz?",
-        "Odpowiedzi są zapisane — wrócisz do tego samego pytania z pulpitu.",
-        [
-          { text: "Zostaję", style: "cancel" },
-          { text: "Przerwij", onPress: () => navigation.goBack() },
-          { text: "Zakończ i pokaż wynik", onPress: () => void finishDiagnosis() },
-        ],
-      );
-      return;
-    }
-    Alert.alert("Zakończyć?", "Twój postęp zostanie zapisany.", [
-      { text: "Kontynuuj", style: "cancel" },
-      {
-        text: "Zakończ",
-        style: "destructive",
-        onPress: () => navigation.goBack(),
-      },
-    ]);
+    (navigation as any).getParent()?.navigate("HomeTab", { screen: "Dashboard" });
   };
 
   // ── Option state helper ─────────────────────────────────────────────────
@@ -1222,6 +1206,30 @@ export function QuizPlayScreen() {
           </TouchableOpacity>
         </View>
         <ProgressBar progress={progress} height={4} animated={false} />
+        {/* Przegląd ukończonego darmowego quizu: numery zadań ze statusem,
+            jak siatka na webie, ale w jednym przewijanym wierszu (ekran jest
+            ciasny). Stuknięcie = przejście do zadania (Karol 2.10.2026). */}
+        {isDiag && diagnosis!.mode === "review" && (
+          <DiagNavStrip
+            questions={questions}
+            results={resultsMap}
+            current={currentIndex}
+            isDark={isDark}
+            theme={theme}
+            onGo={(i) => {
+              if (i === currentIndex) return;
+              // Jak „Poprzednie”: czyścimy stan w tym samym renderze, inaczej
+              // przez chwilę nowe pytanie dostaje wynik poprzedniego (np. pary
+              // z dopasowania pod pytaniem wielokrotnego wyboru → crash).
+              setCurrentIndex(i);
+              setSelectedAnswer(null);
+              setOpenAnswer("");
+              setSubmitted(false);
+              setResult(null);
+              scrollRef.current?.scrollTo({ y: 0, animated: false });
+            }}
+          />
+        )}
       </View>
 
       <ScrollView
@@ -1792,6 +1800,7 @@ export function QuizPlayScreen() {
                 dokładnie w miejscach luk (components/quiz/FillInInline.tsx). */}
             {question.type === "FILL_IN" &&
               canRenderInline(content.question, content.blanks) && (
+                <SymbolScope enabled={symbolsOn}>
                 <FillInInline
                   text={content.question}
                   blanks={content.blanks}
@@ -1806,6 +1815,7 @@ export function QuizPlayScreen() {
                   submitted={submitted}
                   theme={theme}
                 />
+                </SymbolScope>
               )}
             {question.type !== "LISTENING" &&
               !(
@@ -1888,7 +1898,7 @@ export function QuizPlayScreen() {
                 </View>
                 <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 21 }}>
                   {result.aiLocked || isFreePackBlocked(result)
-                    ? FREE_PACK_BLOCKED_MESSAGE
+                    ? <FreePackText message={result.message} />
                     : "Ocenę AI tego zadania zobaczysz w wyniku quizu."}
                 </Text>
                 {(result.aiLocked || isFreePackBlocked(result)) && (
@@ -2979,6 +2989,7 @@ export function QuizPlayScreen() {
                   /(\{\{[^}]+\}\}|\(\d+\))/g,
                 );
                 return (
+<SymbolScope enabled={symbolsOn}>
                   <View>
                     {content.instruction && (
                       <Text
@@ -3064,7 +3075,7 @@ export function QuizPlayScreen() {
                               key={i}
                               style={{ marginHorizontal: 4, marginVertical: 2 }}
                             >
-                              <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                              <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                                 value={
                                   submitted &&
                                   !isOk &&
@@ -3114,6 +3125,7 @@ export function QuizPlayScreen() {
                       </View>
                     </View>
                   </View>
+</SymbolScope>
                 );
               })()}
 
@@ -3136,6 +3148,7 @@ export function QuizPlayScreen() {
                       ([id, b]: [string, any]) => ({ id, ...b }),
                     );
                 return (
+<SymbolScope enabled={symbolsOn}>
                   <View style={{ gap: 12 }}>
                     {blanks.map((b: any, i: number) => {
                       const userVal = (ans[b.id] || "").trim().toLowerCase();
@@ -3160,7 +3173,7 @@ export function QuizPlayScreen() {
                                 : `Luka ${i + 1}`
                               : b.label || b.hint || b.baseWord || "Odpowiedź"}
                           </Text>
-                          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                          <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                             value={
                               submitted && !isOk && b.acceptedAnswers?.[0]
                                 ? b.acceptedAnswers[0]
@@ -3195,6 +3208,7 @@ export function QuizPlayScreen() {
                       );
                     })}
                   </View>
+</SymbolScope>
                 );
               })()}
 
@@ -4379,6 +4393,7 @@ export function QuizPlayScreen() {
                         taskType="math_short_calc"
                       />
                     ) : (
+                      <SymbolScope enabled={symbolsOn}>
                       <View>
                         <Text
                           style={{
@@ -4391,7 +4406,7 @@ export function QuizPlayScreen() {
                           Twoja odpowiedź
                           {answer?.unit ? ` (${answer.unit})` : ""}:
                         </Text>
-                        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                        <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                           value={openAnswer}
                           onChangeText={setOpenAnswer}
                           editable={!submitted}
@@ -4417,6 +4432,7 @@ export function QuizPlayScreen() {
                           }}
                         />
                       </View>
+                      </SymbolScope>
                     )}
 
                     {/* Po submicie — poprawna odpowiedź */}
@@ -4485,6 +4501,7 @@ export function QuizPlayScreen() {
                     ? (selectedAnswer as Record<string, string>)
                     : {};
                 return (
+<SymbolScope enabled={symbolsOn}>
                   <View style={{ gap: 14 }}>
                     {content.labels.map((lbl: any) => {
                       const userVal = (ans[lbl.id] || "").trim().toLowerCase();
@@ -4526,7 +4543,7 @@ export function QuizPlayScreen() {
                             >
                               {parseChemText(lbl.question || `Element ${lbl.id}`)}
                             </Text>
-                            <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                            <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                               value={
                                 showCorrect ? lbl.acceptedAnswers[0] : ans[lbl.id] || ""
                               }
@@ -4560,11 +4577,13 @@ export function QuizPlayScreen() {
                       );
                     })}
                   </View>
+</SymbolScope>
                 );
               })()}
 
             {/* CROSS_PUNNETT — krzyżówka genetyczna (components/quiz/CrossPunnett.tsx) */}
             {question.type === "CROSS_PUNNETT" && (
+              <SymbolScope enabled={symbolsOn}>
               <CrossPunnett
                 content={content}
                 values={
@@ -4578,6 +4597,7 @@ export function QuizPlayScreen() {
                 submitted={submitted}
                 theme={theme}
               />
+              </SymbolScope>
             )}
 
             {/* EXPERIMENT_DESIGN */}
@@ -5410,6 +5430,108 @@ function clozeLayout(
         ))}
       </View>
     ),
+  );
+}
+
+// ── Nawigacja przeglądu darmowego quizu ─────────────────────────────────────
+function diagStatus(r: any): { bg: string; fg: string; dashed?: boolean; label: string } {
+  if (!r) return { bg: "transparent", fg: "", label: "do rozwiązania" };
+  if (r.revealed) return { bg: "transparent", fg: "", dashed: true, label: "pokazana odpowiedź" };
+  if (r.aiLocked || r.pendingAi) return { bg: "#a1a1aa", fg: "#fff", label: "bez oceny" };
+  if (r.isCorrect) return { bg: colors.brand[500], fg: "#fff", label: "poprawna" };
+  if ((r.score ?? 0) > 0) return { bg: "#f59e0b", fg: "#fff", label: "częściowo" };
+  return { bg: "#ef4444", fg: "#fff", label: "błędna" };
+}
+
+function DiagNavStrip({
+  questions,
+  results,
+  current,
+  onGo,
+  theme,
+  isDark,
+}: {
+  questions: { id: string }[];
+  results: Record<string, any>;
+  current: number;
+  onGo: (i: number) => void;
+  theme: any;
+  isDark: boolean;
+}) {
+  const ref = React.useRef<ScrollView>(null);
+  const [w, setW] = React.useState(0);
+  const SIZE = 30;
+  const GAP = 6;
+  // Bieżące zadanie zawsze widoczne: przewijamy tak, by stało mniej więcej
+  // na środku paska.
+  React.useEffect(() => {
+    if (!w) return;
+    const x = current * (SIZE + GAP) - w / 2 + SIZE / 2;
+    ref.current?.scrollTo({ x: Math.max(0, x), animated: true });
+  }, [current, w]);
+  // Zadania bez odpowiedzi (nie „Pokaż odpowiedź”) da się jeszcze rozwiązać —
+  // wyróżnione na bursztynowo i wymienione pod paskiem, bo przy wielu
+  // podejrzanych odpowiedziach (szare, kreskowane) ginęły (Karol 2.10.2026).
+  const AMBER = "#f59e0b";
+  const todo = questions.map((q, i) => (results[q.id] ? -1 : i)).filter((i) => i >= 0);
+  return (
+    <View>
+    <ScrollView
+      ref={ref}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      contentContainerStyle={{ gap: GAP, paddingTop: 8, paddingBottom: 2, paddingHorizontal: 2 }}
+      accessibilityLabel="Nawigacja po zadaniach"
+    >
+      {questions.map((q, i) => {
+        const st = diagStatus(results[q.id]);
+        const cur = i === current;
+        const empty = st.bg === "transparent";
+        const open = !results[q.id];
+        return (
+          <TouchableOpacity
+            key={q.id}
+            onPress={() => onGo(i)}
+            accessibilityLabel={`Zadanie ${i + 1}, ${st.label}`}
+            style={{
+              width: SIZE,
+              height: SIZE,
+              borderRadius: 9,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: empty ? (isDark ? "#27272a" : "#f4f4f5") : st.bg,
+              borderWidth: cur || open ? 2 : empty ? 1 : 0,
+              borderStyle: st.dashed && !cur ? "dashed" : "solid",
+              borderColor: cur ? theme.text : open ? AMBER : isDark ? "#52525b" : "#a1a1aa",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "700",
+                color: open ? AMBER : empty ? theme.textSecondary : st.fg,
+              }}
+            >
+              {i + 1}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+    {todo.length > 0 && (
+      <TouchableOpacity
+        onPress={() => onGo(todo.find((i) => i > current) ?? todo[0])}
+        hitSlop={6}
+        style={{ paddingTop: 6 }}
+        accessibilityRole="button"
+      >
+        <Text style={{ fontSize: 12, fontWeight: "700", color: AMBER }}>
+          Do rozwiązania: {todo.map((i) => i + 1).join(", ")} →
+        </Text>
+      </TouchableOpacity>
+    )}
+    </View>
   );
 }
 

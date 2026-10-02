@@ -27,12 +27,16 @@ import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/common/ProgressBar";
 import { FreePanel } from "../../components/common/FreePanel";
 import { ModeTiles } from "../../components/home/ModeTiles";
+import {
+  useContinueLearning,
+  ContinueLearningCard,
+} from "../../components/common/ContinueLearning";
 import { DashboardUnlockBox } from "../../components/home/DashboardUnlockBox";
 import { AccountNote } from "../../components/common/AccountNote";
 import { PaymentFailedBanner } from "../../components/common/PaymentFailedBanner";
 import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { TutorHomeCard } from "../../components/tutor/TutorHomeCard";
-import { SprawdzianLektura } from "../../components/common/SprawdzianLektura";
+import { QuickReview } from "../../components/common/QuickReview";
 import { SubjectTile } from "../../components/common/SubjectTile";
 import {
   RecentActivityList,
@@ -51,6 +55,9 @@ export function DashboardScreen() {
   const { colors: theme, isDark, toggle } = useTheme();
   const { user, isPremium } = useAuth();
   const navigation = useNavigation<any>();
+  // „Kontynuuj naukę”: ostatnia sesja Quizu w toku (dowolny przedmiot), a bez
+  // niej nowa sesja z ostatnio ćwiczonego przedmiotu (Karol 2.10.2026).
+  const cl = useContinueLearning(navigation, { enabled: isPremium });
 
   const [data, setData] = useState<DashboardData | null>(null);
   // „＋ Dodaj przedmiot” — rozwinięta lista przedmiotów spoza panelu.
@@ -632,6 +639,9 @@ export function DashboardScreen() {
         />
       )}
 
+      {/* ═══ KONTYNUUJ NAUKĘ: co się wznowi + jeden przycisk ═══ */}
+      <ContinueLearningCard cl={cl} style={{ marginBottom: 20 }} />
+
       {/* ═══ WYBIERZ TRYB — Egzamin Live / Quiz / Słuchanie ═══
           Jednakowe karty jak web „Wybierz tryb” (components/home/ModeTiles).
           Cele bez zmian: Egzamin → zakładka Egzamin, Quiz → zakładka Quiz
@@ -640,6 +650,13 @@ export function DashboardScreen() {
         onExam={() => navigation.navigate("ExamTab")}
         onQuiz={() => navigation.navigate("QuizTab")}
         onListening={() => navigation.navigate("ListeningHub")}
+      />
+
+      {/* ═══ SZYBKA POWTÓRKA (pod „Wybierz tryb”, nad „Twoje przedmioty”): przedmiot → dział/epoka → temat/lektura ═══ */}
+      <QuickReview
+        subjects={subjects as any}
+        progress={data?.subjectProgress as any}
+        navigation={navigation}
       />
 
       {/* Twoje przedmioty — zaraz pod trybami, nad statystykami (jak na webie) */}
@@ -799,11 +816,8 @@ export function DashboardScreen() {
         </View>
       )}
 
-      {/* Sprawdzian z lektury / epoki — pod przedmiotami, jak na webie */}
-      <SprawdzianLektura
-        subject={subjects.find((s) => s.slug === "polski") as any}
-        navigation={navigation}
-      />
+      {/* Sprawdzian z lektury / epoki zastąpiła „Szybka powtórka” wyżej
+          (polski: epoka → lektura; pozostałe przedmioty: dział → temat). */}
 
       {/* Stats row */}
       <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>

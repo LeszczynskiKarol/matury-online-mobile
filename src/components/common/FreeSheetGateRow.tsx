@@ -46,7 +46,7 @@ export function FreeSheetGateRow() {
     onPress = () => openFreeSheet(navigation, trial);
   } else if (trial.examId) {
     text = "Otwarty i czeka na Ciebie, bez limitu czasu.";
-    cta = "Kontynuuj arkusz →";
+    cta = "Zobacz swój arkusz →";
     onPress = () =>
       navigation.getParent()?.navigate("ExamTab", {
         screen: "ExamPlay",
@@ -76,8 +76,12 @@ export function FreeSheetGateRow() {
         onClose={() => setPicker(false)}
         trial={trial}
         trigger="gate:exam"
-        onFreePackBlocked={() =>
-          setTrial((s) => (s ? { ...s, eligible: false, active: false, freePackBlocked: true } : s))
+        onFreePackBlocked={(message) =>
+          setTrial((s) =>
+            s
+              ? { ...s, eligible: false, active: false, freePackBlocked: true, freePackMessage: message || s.freePackMessage }
+              : s,
+          )
         }
       />
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

@@ -31,6 +31,27 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { stopAllListeningPlayers } from "../../hooks/useListeningPlayer";
 import { MathEditor } from "../../components/exam/MathEditor";
+import { SymbolScope, withSymbols } from "../../components/exam/SymbolPalette";
+
+const SymTextInput = withSymbols(TextInput);
+
+// Przedmioty ścisłe (jak MATH_EDITOR_SLUGS na webie). Typ zadania jako zapas,
+// gdy podejście nie niesie slugu przedmiotu.
+const MATH_EXAM_SLUGS = new Set([
+  "matematyka",
+  "chemia",
+  "fizyka",
+  "informatyka",
+  "biologia",
+  "geografia",
+  "biznes-zarzadzanie",
+]);
+function isMathExam(exam: any, taskType: string): boolean {
+  return (
+    MATH_EXAM_SLUGS.has(exam?.subjectSlug || "") ||
+    /^(math|phys|chem|bio|info|geo)_/.test(taskType || "")
+  );
+}
 import {
   isGermanTaskType,
   GermanTaskRenderer,
@@ -56,6 +77,7 @@ import {
   saveExamAnswers,
   submitExam,
   discardExam,
+  getExamResults,
   estimateExam,
   type ExamStartData,
 } from "../../api/exams";
@@ -125,7 +147,17 @@ export function ExamPlayerScreen() {
   // `attempt` = nonce z zadania korepetytora: ten sam examId otwarty drugi
   // raz (np. po błędzie dostępu) ma zrobić świeży start, a nie pokazywać
   // zapamiętany stan ekranu, który został w stosie ExamTab.
-  const { examId, attempt } = route.params as { examId: string; attempt?: number };
+  const { examId, attempt, reviewAttemptId } = route.params as {
+    examId: string;
+    attempt?: number;
+    /** Przegląd oddanego darmowego arkusza (bez pustych zadań): wszystkie
+     *  zadania tylko do odczytu, z oceną, bez zapisu i bez „Oddaj”. */
+    reviewAttemptId?: string;
+  };
+  const isReview = !!reviewAttemptId;
+  // Dokańczanie/przegląd: czy uczeń wpisał coś nowego. Bez zmian zamiast
+  // „Oddaj” jest ✕ prosto na pulpit (Karol 2.10.2026).
+  const [dirty, setDirty] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
 
@@ -198,7 +230,9 @@ export function ExamPlayerScreen() {
     setError(null);
     (async () => {
       try {
-        const examData = normalizeOptionMaps(await startExam(examId));
+        const examData = normalizeOptionMaps(
+          reviewAttemptId ? await reviewDataFrom(reviewAttemptId) : await startExam(examId),
+        );
         setData(examData);
         setAnswers(examData.savedAnswers || {});
         setLockedIds(
@@ -206,6 +240,7 @@ export function ExamPlayerScreen() {
         );
         setLockedGradings(examData.lockedGradings || {});
         if (
+          !reviewAttemptId &&
           (examData as any).untimed &&
           Object.keys(examData.savedAnswers || {}).length === 0
         ) {
@@ -215,7 +250,16 @@ export function ExamPlayerScreen() {
         const allTasks = examData.exam.content.parts.flatMap(
           (p: any) => p.tasks,
         );
-        setCurrentTaskId(examData.currentTaskId || allTasks[0]?.id || "");
+        // Dokańczanie i przegląd oddanego arkusza: od zadania 1, a nie skok
+        // na pierwsze puste zadanie (Karol 2.10.2026).
+        const reopened = Array.isArray(examData.lockedTaskIds) && examData.lockedTaskIds.length > 0;
+        if (reopened) {
+          // Prosto do zadania 1, bez ekranu startowego (tylko przy pierwszym
+          // otwarciu) — Karol 2.10.2026.
+          setCurrentTaskId(allTasks[0]?.id || "");
+        } else {
+          setCurrentTaskId(examData.currentTaskId || allTasks[0]?.id || "");
+        }
 
         examStartedAtRef.current = new Date(examData.startedAt).getTime();
         totalTimeMsRef.current = examData.exam.timeMinutes * 60 * 1000;
@@ -250,7 +294,7 @@ export function ExamPlayerScreen() {
         setError(err.message || "Nie udało się rozpocząć egzaminu.");
       }
     })();
-  }, [examId, attempt]);
+  }, [examId, attempt, reviewAttemptId]);
 
   // ── Timer ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -286,7 +330,7 @@ export function ExamPlayerScreen() {
   // ── Zapis odpowiedzi ───────────────────────────────────────────────
   const saveNow = useCallback(() => {
     const d = dataRef.current;
-    if (!d) return;
+    if (!d || (d as any).reviewOnly) return;
     saveExamAnswers(d.attemptId, {
       answers: answersRef.current,
       currentTaskId: currentTaskIdRef.current || undefined,
@@ -371,8 +415,22 @@ export function ExamPlayerScreen() {
   // ── Helpers ────────────────────────────────────────────────────────
   const setAnswer = useCallback((taskId: string, value: any) => {
     if (lockedIdsRef.current.has(taskId)) return;
+    setDirty(true);
     setAnswers((prev) => ({ ...prev, [taskId]: value }));
   }, []);
+
+  // ✕ w przeglądzie / dokańczaniu bez zmian: prosto na pulpit. Dokańczanie
+  // otworzyło arkusz na nowo (/continue) — cofamy to, żeby wynik wrócił
+  // i karta „Za darmo” nie pokazywała arkusza jako otwartego.
+  const closeWithoutChanges = useCallback(async () => {
+    const d = dataRef.current;
+    if (d && !(d as any).reviewOnly && lockedIdsRef.current.size > 0) {
+      try {
+        await discardExam(d.attemptId);
+      } catch {}
+    }
+    navigation.getParent()?.navigate("HomeTab", { screen: "Dashboard" });
+  }, [navigation]);
 
   const goToTask = useCallback(
     (id: string) => {
@@ -544,7 +602,9 @@ export function ExamPlayerScreen() {
       if (typeof a === "object") return Object.keys(a).length > 0;
       return true;
     };
-    const started = answeredCount > 0;
+    // Arkusz otwarty ponownie (dokańczanie / przegląd): jak za pierwszym razem.
+    const reopened = lockedIds.size > 0;
+    const started = answeredCount > 0 && !reopened;
     // „Rozumienie tekstów pisanych" to czytanie, nie pisanie — stąd kolejność.
     const kindOf = (name: string) =>
       /słuch|listening/i.test(name)
@@ -560,7 +620,9 @@ export function ExamPlayerScreen() {
       .filter((p) => kindOf(p.name) !== "writing")
       .reduce((m: any, p: any) => (!m || p.tasks.length < m.tasks.length ? p : m), null);
     const startAt = (part: any) => {
-      const t = part.tasks.find((x: any) => !isAns(x.id)) ?? part.tasks[0];
+      const t = reopened
+        ? part.tasks[0]
+        : (part.tasks.find((x: any) => !isAns(x.id)) ?? part.tasks[0]);
       setCurrentTaskId(t.id);
       setShowIntro(false);
     };
@@ -908,6 +970,10 @@ export function ExamPlayerScreen() {
               color={theme.textSecondary}
             />
           </TouchableOpacity>
+          {/* Bez zmian w tym otwarciu: ✕ wraca od razu na pulpit, bez okna
+              potwierdzenia (Karol 2.10.2026). „Oddaj” zostaje, gdy jest co
+              oddać: po zmianie albo przy zapisanych wcześniej odpowiedziach. */}
+          {!isReview && (dirty || (lockedIds.size === 0 && answeredCount > 0)) && (
           <TouchableOpacity
             onPress={openConfirm}
             style={{
@@ -921,6 +987,17 @@ export function ExamPlayerScreen() {
               {untimed ? "Oddaj" : "Zakończ"}
             </Text>
           </TouchableOpacity>
+          )}
+          {(isReview || !dirty) && (
+            <TouchableOpacity
+              onPress={closeWithoutChanges}
+              hitSlop={10}
+              accessibilityLabel="Zamknij i wróć do panelu"
+              style={{ padding: 6 }}
+            >
+              <Ionicons name="close" size={24} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Progress bar */}
@@ -948,25 +1025,8 @@ export function ExamPlayerScreen() {
         ref={scrollRef}
         contentContainerStyle={{ padding: 20, paddingBottom: examBarH + 16 }}
       >
-        {/* Dokańczanie darmowego arkusza — jedna linia informacji. */}
-        {lockedIds.size > 0 && (
-          <View
-            style={{
-              marginBottom: 14,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: isDark ? colors.brand[800] : colors.brand[200],
-              backgroundColor: isDark ? colors.brand[900] + "33" : colors.brand[50],
-            }}
-          >
-            <Text style={{ fontSize: 12, color: theme.text, lineHeight: 17 }}>
-              Dokańczasz arkusz. Rozwiązane zadania mają już ocenę. Do zrobienia: {remainingToDo}.
-            </Text>
-          </View>
-        )}
-
+        {/* Bez banera „Dokańczasz arkusz” (Karol 2.10.2026): status jest
+            przy każdym zadaniu („Rozwiązane” / „Do rozwiązania”). */}
         {/* Part header */}
         {currentPart && (
           <View
@@ -989,6 +1049,49 @@ export function ExamPlayerScreen() {
             >
               {examPartName(currentPart.name)}
             </Text>
+            {/* Ponownie otwarty arkusz: status zadania na samej górze, pod
+                nazwą części (Karol 2.10.2026). Stuknięcie wyjaśnia znaczenie. */}
+            {lockedIds.size > 0 && (() => {
+              const done = lockedIds.has(currentTask.id);
+              const g = lockedGradings[currentTask.id];
+              const tone = done ? "#10b981" : "#f59e0b";
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityHint="Pokazuje, co oznacza ten status"
+                  onPress={() =>
+                    Alert.alert(
+                      done ? "Rozwiązane" : "Do rozwiązania",
+                      done
+                        ? "Odpowiedź na to zadanie została już oddana i oceniona, więc nie da się jej zmienić. Pod odpowiedzią widzisz ocenę, prawidłową odpowiedź i uzasadnienie."
+                        : "To zadanie zostało bez odpowiedzi. Możesz je teraz rozwiązać, a po oddaniu arkusza wynik przeliczy się z nową odpowiedzią.",
+                      [{ text: "Jasne" }],
+                    )
+                  }
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    alignSelf: "flex-start",
+                    paddingHorizontal: 12,
+                    paddingVertical: 5,
+                    borderRadius: 99,
+                    marginTop: 8,
+                    backgroundColor: tone + (isDark ? "2E" : "1F"),
+                    borderWidth: 1,
+                    borderColor: tone + "66",
+                  }}
+                >
+                  <Ionicons name={done ? "checkmark-circle" : "create-outline"} size={14} color={tone} />
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: isDark ? tone : done ? "#047857" : "#b45309" }}>
+                    {done ? "Rozwiązane" : "Do rozwiązania"}
+                    {done && g ? ` · ${g.pointsEarned}/${g.maxPoints} pkt` : ""}
+                  </Text>
+                  <Ionicons name="information-circle-outline" size={14} color={tone} />
+                </TouchableOpacity>
+              );
+            })()}
           </View>
         )}
 
@@ -1109,35 +1212,6 @@ export function ExamPlayerScreen() {
             )}
           </View>
 
-          {lockedIds.has(currentTask.id) && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                alignSelf: "flex-start",
-                paddingHorizontal: 10,
-                paddingVertical: 4,
-                borderRadius: 99,
-                marginBottom: 12,
-                backgroundColor: theme.inputBg,
-                borderWidth: 1,
-                borderColor: theme.border,
-              }}
-            >
-              <Ionicons
-                name={lockedGradings[currentTask.id]?.isCorrect ? "checkmark-circle" : "ribbon-outline"}
-                size={13}
-                color={colors.brand[600]}
-              />
-              <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text }}>
-                {lockedGradings[currentTask.id]
-                  ? `Twoja ocena: ${lockedGradings[currentTask.id].pointsEarned}/${lockedGradings[currentTask.id].maxPoints} pkt`
-                  : "Zadanie ocenione"}
-              </Text>
-            </View>
-          )}
-
           {/* Instruction */}
           <SectionErrorBoundary
             label="treść zadania"
@@ -1164,13 +1238,26 @@ export function ExamPlayerScreen() {
             <View
               pointerEvents={lockedIds.has(currentTask.id) ? "none" : "auto"}
             >
-              <ExamTaskInput
-                task={currentTask}
-                value={answers[currentTask.id]}
-                onChange={(v: any) => setAnswer(currentTask.id, v)}
-                theme={theme}
-                isDark={isDark}
-              />
+              {/* Pasek „∑ Symbole” nad lukami, tabelami i krótkimi polami —
+                  tylko przedmioty ścisłe, nie w zadaniu ocenionym ani
+                  w przeglądzie (Karol 2.10.2026). Chowa się sam, gdy zadanie
+                  nie ma takich pól. */}
+              <SymbolScope
+                key={currentTask.id}
+                enabled={
+                  isMathExam(data.exam, currentTask.type) &&
+                  !lockedIds.has(currentTask.id) &&
+                  !(data as any).reviewOnly
+                }
+              >
+                <ExamTaskInput
+                  task={currentTask}
+                  value={answers[currentTask.id]}
+                  onChange={(v: any) => setAnswer(currentTask.id, v)}
+                  theme={theme}
+                  isDark={isDark}
+                />
+              </SymbolScope>
             </View>
             {lockedIds.has(currentTask.id) && lockedGradings[currentTask.id] && (() => {
               const g = lockedGradings[currentTask.id];
@@ -1284,6 +1371,8 @@ export function ExamPlayerScreen() {
 
         {currentIndex < allTasks.length - 1 ? (
           <Button title="Następne →" onPress={goNext} size="sm" />
+        ) : isReview || (lockedIds.size > 0 && !dirty) ? (
+          <Button title="Zamknij" onPress={closeWithoutChanges} size="sm" variant="outline" />
         ) : (
           <Button
             title={untimed ? "Oddaj ✓" : "Zakończ ✓"}
@@ -1661,7 +1750,7 @@ function ExamTaskInput({
               {parseChemText(String(content.prefix))}
             </Text>
           ) : null}
-          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+          <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={typeof value === "string" ? value : ""}
             onChangeText={onChange}
             placeholder={content.hint || "wartość"}
@@ -2093,7 +2182,7 @@ function ExamTaskInput({
                 >
                   {parseChemText(row.label)}
                 </Text>
-                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={ans[row.label] || ""}
                   onChangeText={(text) =>
                     onChange({ ...ans, [row.label]: text })
@@ -2309,7 +2398,7 @@ function ExamTaskInput({
                 >
                   {parseChemText(b.label || b.prompt || `Luka ${i + 1}`)}
                 </Text>
-                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={ans[b.id] || ""}
                   onChangeText={(text) => onChange({ ...ans, [b.id]: text })}
                   placeholder="Wpisz..."
@@ -2505,4 +2594,37 @@ function WordCounter({
       </Text>
     </View>
   );
+}
+
+
+// Przegląd oddanego darmowego arkusza bez pustych zadań: dane odtwarzacza
+// z wyniku (/exams/:id/results ma treść, odpowiedzi i oceny zadań). Wszystkie
+// zadania są „zablokowane”, więc odtwarzacz pokazuje odpowiedź z kartą oceny
+// (poprawna/częściowo/niepoprawna, prawidłowa odpowiedź, uzasadnienie).
+async function reviewDataFrom(attemptId: string): Promise<any> {
+  const r = await getExamResults(attemptId);
+  const tasks: any[] = (r?.exam?.content?.parts ?? []).flatMap((p: any) => p.tasks ?? []);
+  const gradings: Record<string, any> = {};
+  for (const t of (r?.grading?.tasks ?? []) as any[]) {
+    if (!t?.taskId) continue;
+    gradings[t.taskId] = {
+      pointsEarned: t.pointsEarned ?? 0,
+      maxPoints: t.maxPoints ?? 0,
+      isCorrect: !!t.isCorrect,
+      explanation: t.explanation || t.analysis?.suggestion || "",
+      modelAnswer: t.modelAnswer || "",
+    };
+  }
+  return {
+    attemptId,
+    reviewOnly: true,
+    untimed: true,
+    freeSheet: true,
+    exam: { ...r.exam, timeMinutes: r?.exam?.timeMinutes ?? 0 },
+    savedAnswers: r?.answers ?? {},
+    lockedTaskIds: tasks.map((t) => t.id),
+    lockedGradings: gradings,
+    currentTaskId: tasks[0]?.id,
+    startedAt: new Date().toISOString(),
+  };
 }

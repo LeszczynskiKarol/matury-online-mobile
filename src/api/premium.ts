@@ -43,6 +43,10 @@ export interface TrialStatus {
   freePackBlocked?: boolean;
   freePackReason?: FreePackReason;
   freePackMessage?: string;
+  /** Zamaskowany adres konta, które wykorzystało pakiet (np. s*********16@gmail.com). */
+  freePackPeerHint?: string | null;
+  /** Adres do zgłoszenia pomyłki (backend, free-pack.ts). */
+  contactEmail?: string;
   code?: string;
 }
 
@@ -53,7 +57,10 @@ export const FREE_PACK_USED_CODE = "FREE_PACK_USED_NETWORK";
 
 /** Stały tekst dla konta bez prawa do darmowego pakietu. */
 export const FREE_PACK_BLOCKED_MESSAGE =
-  "Darmowa oferta startowa była już wykorzystana z tej sieci lub urządzenia. Pełny dostęp odblokujesz w Premium.";
+  "Darmowy pakiet startowy (darmowy arkusz i kredyty AI do oceny zadań otwartych) przysługuje jednej osobie. " +
+  "Z tej samej sieci lub z tego samego urządzenia skorzystało z niego już inne konto, więc na tym koncie nie jest dostępny. " +
+  "Pozostałe funkcje działają normalnie, a pełny dostęp z oceną AI odblokujesz w Premium. " +
+  "Jeśli to pomyłka, napisz do nas przez formularz kontaktowy albo na adres kontakt@karol-leszczynski.pl.";
 
 /** Czy odpowiedź/błąd oznacza „darmowy pakiet już wykorzystany". Nie rzuca. */
 export function isFreePackBlocked(x: any): boolean {

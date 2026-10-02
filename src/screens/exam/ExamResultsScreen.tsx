@@ -907,6 +907,26 @@ export function ExamResultsScreen() {
         {/* ── SUMMARY ── układ i kolejność jak web ExamResults.tsx ── */}
         {isSummary && (
           <View>
+            {/* Powrót na pulpit, subtelny, nad wynikiem (jak web). */}
+            <TouchableOpacity
+              onPress={() => navigation.getParent()?.navigate("HomeTab", { screen: "Dashboard" })}
+              hitSlop={8}
+              style={{
+                alignSelf: "flex-start",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.border,
+                marginBottom: 12,
+              }}
+            >
+              <Ionicons name="chevron-back" size={14} color={theme.textSecondary} />
+              <Text style={{ fontSize: 13, fontWeight: "700", color: theme.textSecondary }}>Powrót</Text>
+            </TouchableOpacity>
             {/* „Oddaj to, co masz": przy niepełnym arkuszu osobno wynik z zadań,
                 na które była odpowiedź — procent z całości nic wtedy nie mówi. */}
             {(() => {
@@ -1123,6 +1143,138 @@ export function ExamResultsScreen() {
               )}
             </View>
 
+            {/* „Co dalej?” (konto bez Premium) zaraz pod wynikiem i werdyktem,
+                nad notką o 30% i „Dokończ pozostałe zadania” — jak web
+                (Karol 2.10.2026). */}
+            {isPremium === false && (
+              <View style={{ marginBottom: 18 }}>
+                  <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, textAlign: "center", marginBottom: 12 }}>
+                    Co dalej?
+                  </Text>
+                  {diagCard.kind !== "none" && (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() =>
+                        navigation.getParent()?.navigate("HomeTab", { screen: "Diagnosis" })
+                      }
+                      style={{
+                        padding: 16,
+                        borderRadius: 18,
+                        borderWidth: 1,
+                        borderColor: theme.cardBorder,
+                        backgroundColor: theme.card,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          alignSelf: "flex-start",
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 99,
+                          backgroundColor: isDark ? "#064e3b55" : "#d1fae5",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: isDark ? "#6ee7b7" : "#065f46", letterSpacing: 0.6 }}>
+                          ZA DARMO
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 4 }}>
+                        {diagCard.kind === "progress"
+                          ? `Dokończ darmową próbkę quizu — ${diagCard.name}`
+                          : "Darmowa próbka quizu"}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 18 }}>
+                        Sprawdź drugi tryb nauki: kilkanaście pytań jak w Quizie, z oceną i krótkim wyjaśnieniem po każdej odpowiedzi. Raz na konto.
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <View
+                    style={{
+                      padding: 18,
+                      borderRadius: 18,
+                      backgroundColor: isDark ? colors.brand[900] + "33" : colors.brand[50],
+                      borderWidth: 1,
+                      borderColor: isDark ? colors.brand[700] + "80" : colors.brand[300],
+                    }}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
+                      Rozwiązuj arkusze z {subjectGenitive(exam?.subject?.slug)}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        color: theme.textSecondary,
+                        lineHeight: 19,
+                        marginTop: 6,
+                        marginBottom: 14,
+                      }}
+                    >
+                      Zyskaj możliwość rozwiązywania arkuszy z{" "}
+                      {subjectGenitive(exam?.subject?.slug)} bez ograniczeń i
+                      przygotuj się do egzaminu na 100%.
+                    </Text>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() =>
+                        navigation.getParent()?.navigate("ProfileTab", {
+                          screen: "Subscription",
+                        })
+                      }
+                      style={{
+                        backgroundColor: colors.brand[500],
+                        borderRadius: 16,
+                        paddingVertical: 14,
+                        paddingHorizontal: 14,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.75}
+                        style={{ fontSize: 15, fontWeight: "800", color: "#fff" }}
+                      >
+                        Odblokuj wszystkie arkusze →
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+              </View>
+            )}
+            {summaryWithheld ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 16,
+                  marginBottom: 20,
+                  borderLeftWidth: 4,
+                  borderLeftColor: "#f59e0b",
+                  backgroundColor: theme.card,
+                  borderWidth: 1,
+                  borderColor: theme.cardBorder,
+                }}
+              >
+                <Text style={{ fontSize: 13, color: theme.text, lineHeight: 19 }}>
+                  {(data as any).keysVisible
+                    ? "ℹ️ Ogólne omówienie arkusza pojawi się, gdy odpowiesz na co najmniej 30% zadań — rozwiązania wszystkich zadań masz poniżej."
+                    : "ℹ️ Podsumowanie i omówienie arkusza pojawią się, gdy odpowiesz na co najmniej 30% zadań. Zadania bez odpowiedzi nie pokazują klucza."}
+                </Text>
+              </View>
+            ) : feedback?.motivationalMessage ? (
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: theme.textSecondary,
+                  fontStyle: "italic",
+                  textAlign: "center",
+                  marginBottom: 20,
+                  lineHeight: 20,
+                }}
+              >
+                {feedback.motivationalMessage}
+              </Text>
+            ) : null}
             {/* „Dokończ pozostałe zadania” — darmowy arkusz oddany niepełny
                 (backend exam-continue.ts): rozwiązane zadania zostają
                 zablokowane z oceną, wynik przelicza się po oddaniu. */}
@@ -1186,39 +1338,6 @@ export function ExamResultsScreen() {
                 </Text>
               </View>
             )}
-            {summaryWithheld ? (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  marginBottom: 20,
-                  borderLeftWidth: 4,
-                  borderLeftColor: "#f59e0b",
-                  backgroundColor: theme.card,
-                  borderWidth: 1,
-                  borderColor: theme.cardBorder,
-                }}
-              >
-                <Text style={{ fontSize: 13, color: theme.text, lineHeight: 19 }}>
-                  {(data as any).keysVisible
-                    ? "ℹ️ Ogólne omówienie arkusza pojawi się, gdy odpowiesz na co najmniej 30% zadań — rozwiązania wszystkich zadań masz poniżej."
-                    : "ℹ️ Podsumowanie i omówienie arkusza pojawią się, gdy odpowiesz na co najmniej 30% zadań. Zadania bez odpowiedzi nie pokazują klucza."}
-                </Text>
-              </View>
-            ) : feedback?.motivationalMessage ? (
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: theme.textSecondary,
-                  fontStyle: "italic",
-                  textAlign: "center",
-                  marginBottom: 20,
-                  lineHeight: 20,
-                }}
-              >
-                {feedback.motivationalMessage}
-              </Text>
-            ) : null}
 
             {/* „Oceń z AI” — wynik częściowy (jak web: trzy warianty opisu). */}
             {feedback?.isPartialGrading && (
@@ -1419,6 +1538,7 @@ export function ExamResultsScreen() {
 
             {/* Co dalej — konto bez Premium: darmowa próbka quizu (diagnoza,
                 raz na konto) + odblokowanie; Premium: powtórka arkusza. */}
+            {isPremium && (
             <View
               style={{
                 marginTop: 16,
@@ -1427,102 +1547,7 @@ export function ExamResultsScreen() {
                 borderTopColor: theme.borderLight,
               }}
             >
-              {isPremium === false ? (
-                <>
-                  <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, textAlign: "center", marginBottom: 12 }}>
-                    Co dalej?
-                  </Text>
-                  {diagCard.kind !== "none" && (
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() =>
-                        navigation.getParent()?.navigate("HomeTab", { screen: "Diagnosis" })
-                      }
-                      style={{
-                        padding: 16,
-                        borderRadius: 18,
-                        borderWidth: 1,
-                        borderColor: theme.cardBorder,
-                        backgroundColor: theme.card,
-                        marginBottom: 12,
-                      }}
-                    >
-                      <View
-                        style={{
-                          alignSelf: "flex-start",
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                          borderRadius: 99,
-                          backgroundColor: isDark ? "#064e3b55" : "#d1fae5",
-                          marginBottom: 8,
-                        }}
-                      >
-                        <Text style={{ fontSize: 10, fontWeight: "800", color: isDark ? "#6ee7b7" : "#065f46", letterSpacing: 0.6 }}>
-                          ZA DARMO
-                        </Text>
-                      </View>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 4 }}>
-                        {diagCard.kind === "progress"
-                          ? `Dokończ darmową próbkę quizu — ${diagCard.name}`
-                          : "Darmowa próbka quizu"}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 18 }}>
-                        Sprawdź drugi tryb nauki: 13 pytań jak w Quizie, z oceną i krótkim wyjaśnieniem po każdej odpowiedzi. Raz na konto.
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  <View
-                    style={{
-                      padding: 18,
-                      borderRadius: 18,
-                      backgroundColor: isDark ? colors.brand[900] + "33" : colors.brand[50],
-                      borderWidth: 1,
-                      borderColor: isDark ? colors.brand[700] + "80" : colors.brand[300],
-                    }}
-                  >
-                    <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
-                      Rozwiązuj arkusze z {subjectGenitive(exam?.subject?.slug)}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        color: theme.textSecondary,
-                        lineHeight: 19,
-                        marginTop: 6,
-                        marginBottom: 14,
-                      }}
-                    >
-                      Zyskaj możliwość rozwiązywania arkuszy z{" "}
-                      {subjectGenitive(exam?.subject?.slug)} bez ograniczeń i
-                      przygotuj się do egzaminu na 100%.
-                    </Text>
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() =>
-                        navigation.getParent()?.navigate("ProfileTab", {
-                          screen: "Subscription",
-                        })
-                      }
-                      style={{
-                        backgroundColor: colors.brand[500],
-                        borderRadius: 16,
-                        paddingVertical: 14,
-                        paddingHorizontal: 14,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.75}
-                        style={{ fontSize: 15, fontWeight: "800", color: "#fff" }}
-                      >
-                        Odblokuj wszystkie arkusze →
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : isPremium ? (
+              {isPremium ? (
                 <TouchableOpacity
                   onPress={() => setShowRetryModal(true)}
                   style={{
@@ -1543,6 +1568,7 @@ export function ExamResultsScreen() {
                 </TouchableOpacity>
               ) : null}
             </View>
+            )}
           </View>
         )}
 

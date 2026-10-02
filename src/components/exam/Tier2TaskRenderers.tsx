@@ -9,6 +9,12 @@ import { View, Text, TouchableOpacity, TextInput, ScrollView } from "react-nativ
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../theme/colors";
 import { ClearableTextInput } from "../ui/ClearAnswerButton";
+import { withSymbols } from "./SymbolPalette";
+
+// Małe pola (Punnett, schematy, tabele, arkusz, krótkie odpowiedzi): pasek
+// „∑ Symbole” z SymbolScope w ExamPlayerScreen. Edytory kodu zostają bez.
+const SymTextInput = withSymbols(TextInput);
+const SymClearableTextInput = withSymbols(ClearableTextInput);
 
 import { HScroll } from "../common/HScroll";
 interface RenderProps {
@@ -397,7 +403,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
 
       <View>
         <Text style={label}>GENOTYPY RODZICÓW</Text>
-        <ClearableTextInput
+        <SymClearableTextInput
           {...noAuto}
           value={current.genotypes ?? ""}
           onChangeText={(t) => update({ genotypes: t })}
@@ -424,7 +430,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
                 <Text style={{ fontSize: 10, color: theme.textTertiary, textAlign: "center" }}>gamety</Text>
               </View>
               {father.map((g, ci) => (
-                <TextInput
+                <SymTextInput
                   key={`f${ci}`}
                   {...noAuto}
                   value={g}
@@ -438,7 +444,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
             </View>
             {grid.map((row, ri) => (
               <View key={ri} style={{ flexDirection: "row", gap: 6 }}>
-                <TextInput
+                <SymTextInput
                   {...noAuto}
                   value={mother[ri]}
                   onChangeText={(t) => update({ motherGametes: mother.map((x, i) => (i === ri ? t : x)) })}
@@ -448,7 +454,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
                   style={headCell}
                 />
                 {row.map((cell, ci) => (
-                  <TextInput
+                  <SymTextInput
                     key={ci}
                     {...noAuto}
                     value={cell}
@@ -471,7 +477,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
 
       <View>
         <Text style={label}>INNY ZAPIS KRZYŻÓWKI (OPCJONALNIE)</Text>
-        <ClearableTextInput
+        <SymClearableTextInput
           {...noAuto}
           value={current.cross ?? ""}
           onChangeText={(t) => update({ cross: t })}
@@ -484,7 +490,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
 
       <View>
         <Text style={label}>FENOTYPY POTOMSTWA</Text>
-        <ClearableTextInput
+        <SymClearableTextInput
           {...noAuto}
           value={current.phenotypes ?? ""}
           onChangeText={(t) => update({ phenotypes: t })}
@@ -496,7 +502,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
 
       <View>
         <Text style={label}>PRAWDOPODOBIEŃSTWO</Text>
-        <ClearableTextInput
+        <SymClearableTextInput
           {...noAuto}
           value={current.probability ?? ""}
           onChangeText={(t) => update({ probability: t })}
@@ -613,7 +619,7 @@ function SchemeFillRenderer({ task, value, onChange, theme, isDark }: RenderProp
 
   if (blanks.length === 0) {
     return (
-      <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+      <SymClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
         value={typeof value === "string" ? value : ""}
         onChangeText={onChange}
         placeholder="Napisz schemat reakcji..."
@@ -652,7 +658,7 @@ function SchemeFillRenderer({ task, value, onChange, theme, isDark }: RenderProp
               {b.label || b.prompt}
             </Text>
           ) : null}
-          <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+          <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
             value={ans[b.id] || ""}
             onChangeText={(t) => onChange({ ...ans, [b.id]: t })}
             placeholder={b.placeholder || "Wpisz..."}
@@ -1165,7 +1171,7 @@ function ProgrammingRenderer({ task, value, onChange, theme, isDark }: RenderPro
                 >
                   {a.label}
                 </Text>
-                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={(v.answers || {})[a.id] || ""}
                   onChangeText={(t) =>
                     onChange({
@@ -1548,7 +1554,7 @@ function SpreadsheetRenderer({ task, value, onChange, theme, isDark }: RenderPro
                 >
                   {a.label}
                 </Text>
-                <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                   value={(v.answers || {})[a.id] || ""}
                   onChangeText={(t) =>
                     onChange({
@@ -1684,7 +1690,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
                         borderColor: theme.border,
                       }}
                     >
-                      <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                      <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                         value={ans[cellId] || ""}
                         onChangeText={(t) => onChange({ ...ans, [cellId]: t })}
                         placeholder="…"
@@ -2088,7 +2094,7 @@ function DecideJustifyRenderer({ task, value, onChange, theme, isDark }: RenderP
         >
           UZASADNIENIE:
         </Text>
-        <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+        <SymClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           value={v.justification || ""}
           onChangeText={(t) => onChange({ ...v, justification: t })}
           placeholder="Uzasadnij swoją decyzję..."

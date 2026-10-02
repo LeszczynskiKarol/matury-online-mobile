@@ -15,6 +15,10 @@ import { colors } from "../../theme/colors";
 import { parseChemText } from "../../utils/chemText";
 
 import { HScroll } from "../common/HScroll";
+import { withSymbols } from "../exam/SymbolPalette";
+
+// Zgłasza się do SymbolScope (pasek „∑ Symbole”), poza nim zwykły TextInput.
+const SymTextInput = withSymbols(TextInput);
 /** Dwie gamety → genotyp w notacji standardowej (dominujący przed recesywnym). */
 export function combineGenotype(a: string, b: string): string {
   const groups: Record<string, string[]> = {};
@@ -94,7 +98,7 @@ export function CrossPunnett({
         <Text style={{ fontSize: 12, fontWeight: "600", color: theme.textSecondary, marginBottom: 4 }}>
           {icon} {p.label || (key === "mother" ? "Matka" : "Ojciec")}
         </Text>
-        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+        <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           value={submitted && !ok && correct ? correct : values[k] || ""}
           onChangeText={(t) => set(k, t)}
           editable={!submitted}
@@ -159,7 +163,7 @@ export function CrossPunnett({
                     const ok = submitted && norm(values[cellKey]) === norm(correct);
                     return (
                       <View key={ci} style={{ width: 84, padding: 4, borderLeftWidth: 1, borderColor: theme.border }}>
-                        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+                        <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
                           value={submitted && !ok ? correct : values[cellKey] || ""}
                           onChangeText={(t) => set(cellKey, t)}
                           editable={!submitted}
@@ -199,7 +203,7 @@ export function CrossPunnett({
               {parseChemText(q.label || "")}
               {q.unit ? ` [${q.unit}]` : ""}
             </Text>
-            <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+            <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
               value={submitted && !ok && correct ? correct : values[q.id] || ""}
               onChangeText={(t) => set(q.id, t)}
               editable={!submitted}

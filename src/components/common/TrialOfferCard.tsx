@@ -22,10 +22,10 @@ import { spacing, radius } from "../../theme";
 import {
   getTrialStatus,
   isFreePackBlocked,
-  FREE_PACK_BLOCKED_MESSAGE,
   type TrialStatus,
 } from "../../api/premium";
 import { FreeSheetPicker } from "./FreeSheetPicker";
+import { FreePackText } from "./FreePackText";
 import { FS_CTA_OPEN, FS_PICK_CTA } from "../../lib/freeSheet";
 
 export function TrialOfferCard({
@@ -80,7 +80,7 @@ export function TrialOfferCard({
     return (
       <View style={shell}>
         <Text style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 19 }}>
-          {FREE_PACK_BLOCKED_MESSAGE}
+          <FreePackText message={status.freePackMessage} />
         </Text>
         <TouchableOpacity onPress={goToPremium} style={{ marginTop: 8 }}>
           <Text style={{ fontSize: 13, fontWeight: "800", color: colors.brand[500] }}>
@@ -109,8 +109,12 @@ export function TrialOfferCard({
       onClose={() => setPicker(false)}
       trial={status}
       trigger={trigger}
-      onFreePackBlocked={() =>
-        setStatus((s) => (s ? { ...s, eligible: false, active: false, freePackBlocked: true } : s))
+      onFreePackBlocked={(message) =>
+        setStatus((s) =>
+          s
+            ? { ...s, eligible: false, active: false, freePackBlocked: true, freePackMessage: message || s.freePackMessage }
+            : s,
+        )
       }
     />
   );

@@ -114,7 +114,7 @@ export function ReportButton({
             color: theme.textTertiary,
           }}
         >
-          Zgłoś
+          Zgłoś błąd
         </Text>
       </TouchableOpacity>
 

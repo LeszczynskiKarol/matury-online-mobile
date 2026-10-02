@@ -20,10 +20,10 @@ import { api } from "../../api/client";
 import {
   getTrialStatus,
   isFreePackBlocked,
-  FREE_PACK_BLOCKED_MESSAGE,
   type TrialStatus,
 } from "../../api/premium";
 import { FreeSheetPicker } from "./FreeSheetPicker";
+import { FreePackText } from "./FreePackText";
 import { openFreeSheet } from "../../lib/openFreeSheet";
 import {
   FS_CTA_UNAVAILABLE,
@@ -86,22 +86,35 @@ export function FreePanel({
     navigation.getParent()?.navigate("ExamTab", { screen: "ExamSelector" });
 
   // Claim odbity FREE_PACK_USED_NETWORK — wiersz pokaże komunikat z Premium.
-  const markFreePackBlocked = () =>
-    setTrial((t) => (t ? { ...t, eligible: false, active: false, freePackBlocked: true } : t));
+  const markFreePackBlocked = (message?: string) =>
+    setTrial((t) =>
+      t
+        ? {
+            ...t,
+            eligible: false,
+            active: false,
+            freePackBlocked: true,
+            freePackMessage: message || t.freePackMessage,
+          }
+        : t,
+    );
 
   // ── Diagnoza: jedno zdanie + jeden przycisk ──────────────────────────────
   const diag = diagnoses[0];
   const diagInProgress = !diag && diagCur && !diagCur.completed;
   const diagText = diag
-    ? // Bez „najsłabszego działu" — przy 13 pytaniach to zwykle jedno pytanie.
-      `Darmowy quiz został rozwiązany. Oto Twój wynik: ${diag.scorePercent ?? 0}%.`
+    ? // Bez „najsłabszego działu" — przy kilkunastu pytaniach to zwykle jedno pytanie.
+      // Bez wyniku (jest w zakładce „Wynik” w quizie), jak web.
+      ((diag as any).unansweredCount ?? 0) > 0
+        ? `Zostało zadań do zrobienia: ${(diag as any).unansweredCount}`
+        : "Wszystkie zadania zostały rozwiązane."
     : diagInProgress
       ? `Zaczęty: rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
-      : "13 zadań z wybranego przedmiotu, każde od razu ocenione.";
+      : "Rozwiąż za darmo kilkanaście zadań z wybranego przedmiotu, każde od razu ocenione.";
   const diagCta = diag
     ? "Przejrzyj quiz →"
     : diagInProgress
-      ? "Kontynuuj quiz →"
+      ? "Przejrzyj quiz →"
       : "Rozwiąż quiz →";
   const onDiag = () =>
     navigation.navigate("Diagnosis", diag ? { token: diag.token } : undefined);
@@ -112,18 +125,20 @@ export function FreePanel({
   // przedmiotu, bo arkusz jest jeden na konto.
   const examDone =
     trial?.attemptStatus === "COMPLETED" || trial?.attemptStatus === "GRADING";
-  let examText: string;
+  let examText: React.ReactNode;
   let examCta: string | null = null;
   let onExam: (() => void) | null = null;
   if (examDone && trial?.examAttemptId) {
-    examText = trial.canContinue
-      ? `Oddany. Zadań do zrobienia: ${trial.remainingTasks ?? 0}.`
-      : "Oddany. Wynik zostaje na stałe.";
+    // Bez wyniku: ile zostało do zrobienia (Karol 2.10.2026, jak web).
+    examText =
+      trial.canContinue && (trial.remainingTasks ?? 0) > 0
+        ? `Zostało zadań do zrobienia: ${trial.remainingTasks}`
+        : "Wszystkie zadania zostały rozwiązane.";
     examCta = "Zobacz swój arkusz →";
     onExam = () => openFreeSheet(navigation, trial!);
   } else if (trial?.examId) {
-    examText = "Otwarty i czeka na Ciebie — bez limitu czasu, odpowiedzi zapisują się same.";
-    examCta = "Kontynuuj arkusz →";
+    examText = "Otwarty i czeka na Ciebie. Bez limitu czasu, odpowiedzi zapisują się same.";
+    examCta = "Zobacz swój arkusz →";
     // Prosto do arkusza, nie do listy (jak na webie).
     onExam = () =>
       navigation.getParent()?.navigate("ExamTab", {
@@ -131,17 +146,18 @@ export function FreePanel({
         params: { examId: trial!.examId!, subjectId: "" },
       });
   } else if (trial?.active) {
-    examText = "Oferta odebrana — wybierz przedmiot, kiedy chcesz, a arkusz otworzy się od razu.";
+    examText = "Sprawdź, jak wygląda rozwiązywanie arkuszy w aplikacji. Rozwiąż bezpłatny arkusz próbny.";
     examCta = "Rozwiąż arkusz →";
     onExam = () => setPicker(true);
   } else if (isFreePackBlocked(trial)) {
     // Pakiet startowy poszedł już z tej sieci/urządzenia — zamiast
     // „Odbierz darmowy arkusz" prowadzimy do Premium.
-    examText = FREE_PACK_BLOCKED_MESSAGE;
+    // Komunikat backendu: dlaczego, które konto (zamaskowane) i jak zgłosić pomyłkę.
+    examText = <FreePackText message={trial?.freePackMessage} />;
     examCta = FS_CTA_UNAVAILABLE;
     onExam = onPremium;
   } else if (trial?.eligible) {
-    examText = "Zobacz, jak wygląda rozwiązywanie arkuszy w aplikacji.";
+    examText = "Sprawdź, jak wygląda rozwiązywanie arkuszy w aplikacji. Rozwiąż bezpłatny arkusz próbny.";
     examCta = "Rozwiąż arkusz →";
     onExam = () => setPicker(true);
   } else if (trial) {
@@ -151,13 +167,13 @@ export function FreePanel({
     examCta = FS_CTA_UNAVAILABLE;
     onExam = onPremium;
   } else {
-    examText = "Zobacz, jak wygląda rozwiązywanie arkuszy w aplikacji.";
+    examText = "Sprawdź, jak wygląda rozwiązywanie arkuszy w aplikacji. Rozwiąż bezpłatny arkusz próbny.";
   }
 
   const row = (
     icon: string,
     title: string,
-    text: string,
+    text: React.ReactNode,
     cta: string | null,
     onPress: (() => void) | null,
     busy = false,

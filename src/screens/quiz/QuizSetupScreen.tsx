@@ -16,6 +16,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { PremiumGate } from "../../components/common/PremiumGate";
+import { QuizReviewsSetupRow } from "../../components/quiz/QuizReviewsPref";
 import { useAuth } from "../../context/AuthContext";
 import { subjectsApi } from "../../api";
 import { createSession } from "../../api/sessions";
@@ -840,6 +841,9 @@ export function QuizSetupScreen() {
           </View>
         </View>
       )}
+
+      {/* Powtórki w sesji: ten sam przełącznik co w Profilu (user.quizReviews). */}
+      {selectedSubject && <QuizReviewsSetupRow />}
     </ScrollView>
 
     {/* Przyklejony pasek z podsumowaniem wyboru — zawsze widać, co się

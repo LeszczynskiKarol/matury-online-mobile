@@ -34,9 +34,13 @@ import { maybeAskForReview } from "../../lib/reviewPrompt";
 // ── Marka ─────────────────────────────────────────────────────────────────
 const TITLES: Record<TestimonialTrigger, string> = {
   exam: "Jak Ci się pracuje z arkuszami?",
-  streak: "Trzymasz serię — jak Ci idzie nauka?",
+  streak: "Jak Ci się z nami uczy?",
   diagnosis: "Jak oceniasz matury-online.pl?",
 };
+// Prośba o opinię i propozycje zmian (Karol 2.10.2026). Wyzwalacz „streak”
+// zostaje, ale tekst nie wspomina serii.
+const INTRO =
+  "Każda opinia pomaga nam ulepszać aplikację. Napisz, co działa, co przeszkadza albo czego brakuje. Czytamy wszystko.";
 const LABEL_PLACEHOLDER = "np. Ola, 4 LO";
 
 // ── Stałe ─────────────────────────────────────────────────────────────────
@@ -199,7 +203,7 @@ export function TestimonialPrompt({
     return (
       <Card style={cardStyle}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing[3] }}>
-          <Text style={titleStyle}>Dzięki — przeczytamy każde słowo.</Text>
+          <Text style={titleStyle}>Dziękujemy! Przeczytamy każde słowo.</Text>
           {CloseButton}
         </View>
         {quote.trim().length > 0 && (
@@ -220,10 +224,11 @@ export function TestimonialPrompt({
     <Card style={cardStyle}>
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing[3] }}>
         <Text style={titleStyle}>
-          {rating == null ? TITLES[trigger] : "Dzięki! Chcesz dopisać parę słów?"}
+          {rating == null ? TITLES[trigger] : "Dzięki! Napiszesz, co poprawić albo dodać?"}
         </Text>
         {CloseButton}
       </View>
+      {rating == null && <Text style={[smallText, { marginTop: spacing[1] }]}>{INTRO}</Text>}
 
       <View
         accessibilityRole="radiogroup"
@@ -263,10 +268,10 @@ export function TestimonialPrompt({
             maxLength={MAX_LEN}
             placeholder={
               rating == null
-                ? "Kilka słów od Ciebie (opcjonalnie)"
+                ? "Co działa, co przeszkadza, czego brakuje? (opcjonalnie)"
                 : rating >= 4
-                ? "Co konkretnie Ci pomaga? (opcjonalnie)"
-                : "Co mamy poprawić? Czytamy wszystko. (opcjonalnie)"
+                ? "Co pomaga, a co warto zmienić? (opcjonalnie)"
+                : "Co przeszkadza albo czego brakuje? (opcjonalnie)"
             }
             placeholderTextColor={theme.textTertiary}
             style={{

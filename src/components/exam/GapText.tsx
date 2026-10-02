@@ -21,6 +21,10 @@ import {
   blankIsCorrect,
   type GapSegment,
 } from "../../utils/gapText";
+import { withSymbols } from "./SymbolPalette";
+
+// Zgłasza się do SymbolScope (pasek „∑ Symbole”), poza nim zwykły TextInput.
+const SymTextInput = withSymbols(TextInput);
 
 type Answers = Record<string, string>;
 
@@ -125,7 +129,7 @@ export function GapTextInput({
         }}
       >
         {!wide && <NumBadge num={num} theme={theme} />}
-        <TextInput
+        <SymTextInput
           autoComplete="off"
           importantForAutofill="no"
           textContentType="none"

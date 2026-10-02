@@ -16,6 +16,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { MathEditorExample } from "./MathEditorExample";
 import { ClearableTextInput } from "../ui/ClearAnswerButton";
+import { SymbolPalette } from "./SymbolPalette";
 
 interface MathEditorProps {
   value: string;
@@ -31,101 +32,7 @@ interface MathEditorProps {
   plain?: boolean;
 }
 
-// ── Unicode symbols (no LaTeX — directly readable) ───────────────────────
-
-const SYMBOL_GROUPS = [
-  {
-    label: "Potęgi",
-    symbols: [
-      { label: "x²", insert: "²" },
-      { label: "x³", insert: "³" },
-      { label: "xⁿ", insert: "ⁿ" },
-      { label: "x⁻¹", insert: "⁻¹" },
-      { label: "x₁", insert: "₁" },
-      { label: "x₂", insert: "₂" },
-      { label: "x₀", insert: "₀" },
-      { label: "xₙ", insert: "ₙ" },
-    ],
-  },
-  {
-    label: "Operatory",
-    symbols: [
-      { label: "√", insert: "√" },
-      { label: "±", insert: "±" },
-      { label: "·", insert: "·" },
-      { label: "×", insert: "×" },
-      { label: "÷", insert: "÷" },
-      { label: "∞", insert: "∞" },
-      { label: "Δ", insert: "Δ" },
-      { label: "→", insert: "→" },
-    ],
-  },
-  {
-    label: "Relacje",
-    symbols: [
-      { label: "≤", insert: "≤" },
-      { label: "≥", insert: "≥" },
-      { label: "≠", insert: "≠" },
-      { label: "≈", insert: "≈" },
-      { label: "⇒", insert: "⇒" },
-      { label: "⇔", insert: "⇔" },
-      { label: "∈", insert: "∈" },
-      { label: "∉", insert: "∉" },
-    ],
-  },
-  {
-    label: "Zbiory",
-    symbols: [
-      { label: "∪", insert: "∪" },
-      { label: "∩", insert: "∩" },
-      { label: "⊂", insert: "⊂" },
-      { label: "∅", insert: "∅" },
-      { label: "ℝ", insert: "ℝ" },
-      { label: "ℕ", insert: "ℕ" },
-      { label: "ℤ", insert: "ℤ" },
-      { label: "ℚ", insert: "ℚ" },
-    ],
-  },
-  {
-    label: "Greckie",
-    symbols: [
-      { label: "π", insert: "π" },
-      { label: "α", insert: "α" },
-      { label: "β", insert: "β" },
-      { label: "γ", insert: "γ" },
-      { label: "θ", insert: "θ" },
-      { label: "φ", insert: "φ" },
-      { label: "λ", insert: "λ" },
-      { label: "σ", insert: "σ" },
-    ],
-  },
-  {
-    label: "Analiza",
-    symbols: [
-      { label: "∑", insert: "∑" },
-      { label: "∫", insert: "∫" },
-      { label: "∂", insert: "∂" },
-      { label: "lim", insert: "lim " },
-      { label: "sin", insert: "sin " },
-      { label: "cos", insert: "cos " },
-      { label: "tg", insert: "tg " },
-      { label: "log", insert: "log " },
-    ],
-  },
-  {
-    label: "Nawiasy",
-    symbols: [
-      { label: "⟨⟩", insert: "⟨⟩" },
-      { label: "⌊⌋", insert: "⌊⌋" },
-      { label: "⌈⌉", insert: "⌈⌉" },
-      { label: "|x|", insert: "||" },
-      { label: "½", insert: "½" },
-      { label: "⅓", insert: "⅓" },
-      { label: "¼", insert: "¼" },
-      { label: "‰", insert: "‰" },
-    ],
-  },
-];
+// Paleta symboli (unicode) — wspólna z paskiem dla małych pól: SymbolPalette.
 
 export function MathEditor({
   value,
@@ -136,8 +43,6 @@ export function MathEditor({
   plain = false,
 }: MathEditorProps) {
   const { colors: theme, isDark } = useTheme();
-  const [showSymbols, setShowSymbols] = useState(false);
-  const [activeGroup, setActiveGroup] = useState(-1);
   const inputRef = useRef<TextInput>(null);
   const selectionRef = useRef<{ start: number; end: number }>({
     start: value.length,
@@ -170,196 +75,8 @@ export function MathEditor({
       {/* Example */}
       {!plain && showExample && <MathEditorExample taskType={taskType} />}
 
-      {/* Symbol toggle (hidden in plain mode) */}
-      {!plain && (
-      <>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 8,
-        }}
-      >
-        <TouchableOpacity
-          onPress={() => setShowSymbols(!showSymbols)}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            paddingHorizontal: 14,
-            paddingVertical: 8,
-            borderRadius: 14,
-            backgroundColor: showSymbols
-              ? isDark
-                ? colors.brand[500] + "20"
-                : "#dcfce7"
-              : isDark
-                ? theme.card
-                : "#f4f4f5",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "700",
-              color: showSymbols ? colors.brand[500] : theme.textSecondary,
-            }}
-          >
-            ∑
-          </Text>
-          <Text
-            style={{
-              fontSize: 12,
-              fontWeight: "700",
-              color: showSymbols ? colors.brand[500] : theme.textSecondary,
-            }}
-          >
-            Symbole matematyczne
-          </Text>
-          <Ionicons
-            name={showSymbols ? "chevron-up" : "chevron-down"}
-            size={12}
-            color={theme.textSecondary}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Symbol palette */}
-      {showSymbols && (
-        <View
-          style={{
-            borderRadius: 16,
-            marginBottom: 10,
-            backgroundColor: isDark ? theme.card : "#f9fafb",
-            borderWidth: 1,
-            borderColor: theme.border,
-            padding: 10,
-            gap: 10,
-          }}
-        >
-          {/* Taby kategorii — "Wszystkie" jako default */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 5 }}>
-              <TouchableOpacity
-                onPress={() => setActiveGroup(-1)}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  borderRadius: 8,
-                  backgroundColor:
-                    activeGroup === -1
-                      ? colors.brand[500]
-                      : isDark
-                        ? "#27272a"
-                        : "#e4e4e7",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 10,
-                    fontWeight: "700",
-                    color: activeGroup === -1 ? "#fff" : theme.textSecondary,
-                  }}
-                >
-                  Wszystkie
-                </Text>
-              </TouchableOpacity>
-              {SYMBOL_GROUPS.map((g, gi) => (
-                <TouchableOpacity
-                  key={gi}
-                  onPress={() => setActiveGroup(activeGroup === gi ? -1 : gi)}
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
-                    borderRadius: 8,
-                    backgroundColor:
-                      activeGroup === gi
-                        ? colors.brand[500]
-                        : isDark
-                          ? "#27272a"
-                          : "#e4e4e7",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      fontWeight: "700",
-                      color: activeGroup === gi ? "#fff" : theme.textSecondary,
-                    }}
-                  >
-                    {g.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-
-          {/* Symbole — filtrowane lub wszystkie */}
-          {(activeGroup === -1
-            ? SYMBOL_GROUPS
-            : [SYMBOL_GROUPS[activeGroup]]
-          ).map((group, gi) => (
-            <View key={gi}>
-              {activeGroup === -1 && (
-                <Text
-                  style={{
-                    fontSize: 9,
-                    fontWeight: "700",
-                    color: theme.textTertiary,
-                    letterSpacing: 0.8,
-                    textTransform: "uppercase",
-                    marginBottom: 5,
-                    marginLeft: 2,
-                  }}
-                >
-                  {group.label}
-                </Text>
-              )}
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
-                {group.symbols.map((s, si) => (
-                  <TouchableOpacity
-                    key={si}
-                    onPress={() => insertSymbol(s.insert)}
-                    style={{
-                      width: 40,
-                      height: 36,
-                      borderRadius: 8,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: isDark ? "#27272a" : "#fff",
-                      borderWidth: 1,
-                      borderColor: theme.border,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: theme.text,
-                      }}
-                    >
-                      {s.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {activeGroup === -1 && gi < SYMBOL_GROUPS.length - 1 && (
-                <View
-                  style={{
-                    height: 1,
-                    backgroundColor: theme.border,
-                    marginTop: 8,
-                    opacity: 0.4,
-                  }}
-                />
-              )}
-            </View>
-          ))}
-        </View>
-      )}
-      </>
-      )}
+      {/* Symbol palette (hidden in plain mode) */}
+      {!plain && <SymbolPalette onInsert={insertSymbol} />}
 
       {/* Single text input */}
       <ClearableTextInput autoComplete="off" importantForAutofill="no" textContentType="none"

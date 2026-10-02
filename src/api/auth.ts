@@ -56,6 +56,10 @@ export interface User {
   // przysługuje raz na sieć / Gmail / urządzenie. Brak pola = przysługuje.
   freePackEligible?: boolean;
   freePackReason?: "device" | "gmail" | "network" | null;
+  // Gotowy komunikat dla konta bez pakietu (zamaskowane konto, które go
+  // wykorzystało, i kontakt do zgłoszenia pomyłki). Brak = starszy backend.
+  freePackMessage?: string;
+  freePackPeerHint?: string | null;
 }
 
 interface AuthResponse {

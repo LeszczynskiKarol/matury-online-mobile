@@ -20,6 +20,10 @@ import React from "react";
 import { View, Text, TextInput } from "react-native";
 import { colors } from "../../theme/colors";
 import { parseChemText } from "../../utils/chemText";
+import { withSymbols } from "../exam/SymbolPalette";
+
+// Zgłasza się do SymbolScope (pasek „∑ Symbole”), poza nim zwykły TextInput.
+const SymTextInput = withSymbols(TextInput);
 
 const MARKER_SPLIT = /(_{3,}|\.{3,}|…+)/g;
 const MARKER_ONE = /^(_{3,}|\.{3,}|…+)$/;
@@ -121,7 +125,7 @@ export function FillInInline({
         b.acceptedAnswers?.some((a) => a.toLowerCase().trim() === userVal);
       const showCorrect = submitted && !isOk && !!b.acceptedAnswers?.[0];
       nodes.push(
-        <TextInput autoComplete="off" importantForAutofill="no" textContentType="none"
+        <SymTextInput autoComplete="off" importantForAutofill="no" textContentType="none"
           key={`b${pi}`}
           value={showCorrect ? b.acceptedAnswers![0] : values[b.id] || ""}
           onChangeText={(t) => !submitted && onChange({ ...values, [b.id]: t })}

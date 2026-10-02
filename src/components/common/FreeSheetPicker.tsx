@@ -66,7 +66,7 @@ export function FreeSheetPicker({
   trial: TrialStatus | null;
   trigger: string;
   /** Claim odbity FREE_PACK_USED_NETWORK — rodzic przełącza się na komunikat. */
-  onFreePackBlocked?: () => void;
+  onFreePackBlocked?: (message?: string) => void;
 }) {
   const { colors: theme } = useTheme();
   const navigation = useNavigation<any>();
@@ -116,7 +116,8 @@ export function FreeSheetPicker({
         } catch (e: any) {
           if (e?.code === FREE_PACK_CODE || e?.data?.code === FREE_PACK_CODE) {
             onClose();
-            onFreePackBlocked?.();
+            // Komunikat backendu: zamaskowane konto, które wykorzystało pakiet, i kontakt.
+            onFreePackBlocked?.(e?.data?.error || e?.message || undefined);
             return;
           }
           // ALREADY_CLAIMED — oferta już jest, idziemy dalej do arkusza.

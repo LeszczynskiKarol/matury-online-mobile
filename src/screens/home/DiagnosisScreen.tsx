@@ -2,7 +2,7 @@
 // DiagnosisScreen — darmowa diagnoza NATYWNIE w apce
 // src/screens/home/DiagnosisScreen.tsx
 //
-// Od 26.09.2026 diagnoza v2 (jak na webie): 13 zadań różnego typu, każde
+// Od 26.09.2026 diagnoza v2 (jak na webie): 13 zadań (angielski 18) różnego typu, każde
 // oceniane od razu (zadania otwarte — AI), tylko dla zalogowanych, jedna na
 // konto. Ten ekran robi wybór przedmiotu, wznowienie i raport; samo
 // rozwiązywanie gra na ekranie Quizu (trasa DiagnosisPlay, QuizPlayScreen
@@ -20,6 +20,7 @@
 // ============================================================================
 
 import React, { useCallback, useEffect, useState } from "react";
+import { freeQuizCount } from "../../lib/freeQuiz";
 import {
   View,
   Text,
@@ -38,7 +39,7 @@ import { Button } from "../../components/ui/Button";
 import { TestimonialPrompt } from "../../components/feedback/TestimonialPrompt";
 import { TYPE_LABELS } from "../quiz/QuizPlayScreen";
 import { difficultyLabel, difficultyColor } from "../../lib/difficulty";
-import { FREE_PACK_BLOCKED_MESSAGE } from "../../api/premium";
+import { FreePackText } from "../../components/common/FreePackText";
 import { useAuth } from "../../context/AuthContext";
 import { daysToMatura } from "../../components/common/PremiumGate";
 import { colors } from "../../theme/colors";
@@ -55,6 +56,8 @@ interface DiagSubject {
   name: string;
   icon: string;
   color: string;
+  /** Liczba pytań quizu (angielski 18, reszta 13); starszy backend jej nie zwraca. */
+  questionCount?: number;
 }
 
 interface TopicRow {
@@ -243,9 +246,13 @@ export function DiagnosisScreen() {
     (r: FullResult, token: string, index: number) => {
       const answered: Record<string, { response: any; feedback: any }> = {};
       for (const q of r.questions) {
+        // Bez odpowiedzi (nie „Pokaż odpowiedź”): pytanie zostaje do
+        // rozwiązania, jak przy pierwszym podejściu; backend przyjmuje
+        // odpowiedź także po zakończeniu i przelicza wynik (Karol 2.10.2026).
+        const revealed = (q as any).revealed === true || q.feedback?.revealed === true;
+        if (q.answered === false && !revealed) continue;
         answered[q.id] = {
           response: q.yourAnswer,
-          // Bez odpowiedzi: pokazujemy klucz jak po „Pokaż odpowiedź”, bez „źle”.
           feedback: q.answered === false ? { ...q.feedback, revealed: true } : q.feedback,
         };
       }
@@ -446,7 +453,7 @@ export function DiagnosisScreen() {
           Darmowy quiz: zobacz, jak wygląda nauka w apce
         </Text>
         <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, marginBottom: 18 }}>
-          Tak wygląda nauka w apce: 13 zadań różnego typu z wybranego przedmiotu,
+          Tak wygląda nauka w apce: kilkanaście zadań różnego typu z wybranego przedmiotu,
           jak w Quizie — z oceną i wyjaśnieniem po każdym, także przy
           zadaniach otwartych. Możesz przerwać i wrócić. Jeden darmowy quiz na konto.
         </Text>
@@ -484,7 +491,7 @@ export function DiagnosisScreen() {
                       {shortName(s.name, s.slug)}
                     </Text>
                     <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
-                      13 zadań · ok. 15 minut
+                      {s.questionCount ?? freeQuizCount(s.slug)} zadań · ok. 15 minut
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
@@ -530,7 +537,8 @@ export function DiagnosisScreen() {
       : rp
         ? `${rp.pts} pkt z ${rp.max}`
         : `cel: ${RECRUIT_PERCENT}% (rekrutacja)`;
-    const headline = `Wynik z 13 zadań: ${r.scorePercent}%`;
+    const quizCount = r.questions?.length || freeQuizCount(r.subject?.slug);
+    const headline = `Wynik z ${quizCount} zadań: ${r.scorePercent}%`;
 
     // Działy od najsłabszego — jak web (topicBreakdown z backendu).
     const rows = [...(r.topicBreakdown ?? [])]
@@ -569,6 +577,40 @@ export function DiagnosisScreen() {
             </Text>
           </TouchableOpacity>
         )}
+
+        {/* Dokańczanie: pytania bez odpowiedzi da się jeszcze rozwiązać. */}
+        {isV2 &&
+          (() => {
+            const open = (r.questions ?? [])
+              .map((q: any, i: number) =>
+                q.answered === false && !(q.revealed === true || q.feedback?.revealed === true) ? i : -1,
+              )
+              .filter((i: number) => i >= 0);
+            if (!open.length) return null;
+            const n = open.length;
+            const word = n === 1 ? "zadanie" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? "zadania" : "zadań";
+            return (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: colors.brand[500] + "55",
+                  backgroundColor: colors.brand[500] + (isDark ? "1A" : "10"),
+                  marginBottom: 18,
+                }}
+              >
+                <Text style={{ fontSize: 14, color: theme.text, lineHeight: 20, marginBottom: 10 }}>
+                  Masz {n} {word} bez odpowiedzi. Rozwiąż je, a wynik przeliczy się od razu.
+                </Text>
+                <Button
+                  title={`Dokończ nierozwiązane zadania (${n}) →`}
+                  onPress={() => review(r, phase.token, open[0])}
+                  size="sm"
+                />
+              </View>
+            );
+          })()}
 
         {/* Nagłówek z wynikiem — najpierw „gotowe”, potem liczba (web). */}
         <View style={{ alignItems: "center", marginBottom: 20 }}>
@@ -644,7 +686,7 @@ export function DiagnosisScreen() {
                 : lockedN > 1
                   ? `${lockedN} odpowiedzi nie oceniliśmy automatycznie i nie liczymy ich do wyniku. `
                   : ""}
-              {r.freePackMessage || FREE_PACK_BLOCKED_MESSAGE}
+              <FreePackText message={r.freePackMessage} />
             </Text>
           </Card>
         )}
@@ -836,7 +878,7 @@ export function DiagnosisScreen() {
         {rows.length > 0 && (
           <Card style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, marginBottom: 14 }}>
-              Wynik po działach w tych 13 zadaniach
+              Wynik po działach w tych {quizCount} zadaniach
             </Text>
             <View style={{ gap: 12 }}>
               {rows.map((t) => {
@@ -918,7 +960,7 @@ export function DiagnosisScreen() {
                   : ". W Premium ćwiczysz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań według kryteriów CKE."}
               </>
             ) : (
-              "13 zadań to tylko próbka. O wyniku egzaminu decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."
+              `${quizCount} zadań to tylko próbka. O wyniku egzaminu decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas.`
             )}
           </Text>
           {days !== null && days > 0 && (

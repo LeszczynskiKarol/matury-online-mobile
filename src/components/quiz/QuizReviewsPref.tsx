@@ -1,7 +1,8 @@
 // ============================================================================
 // src/components/quiz/QuizReviewsPref.tsx
 // „Powtórki w quizie" — przełącznik (hook + wiersz) i okienko „Dlaczego to
-// pytanie wróciło?" otwierane z plakietki 🔁 Powtórka w QuizPlayScreen.
+// pytanie wróciło?" otwierane z plakietki 🔁 Powtórka w QuizPlayScreen,
+// plus wiersz „Powtórki w sesji" na ekranie startu (QuizSetupScreen).
 // Backend: GET /auth/me → quizReviews, PATCH /auth/study-prefs. Wyłączone =
 // selektor nie dokłada powtórek (do 30% sesji), historia błędów zostaje.
 // ============================================================================
@@ -67,6 +68,48 @@ export function TogglePill({ on }: { on: boolean }) {
         }}
       />
     </View>
+  );
+}
+
+// Kompaktowy wiersz na ekranie startu quizu (QuizSetupScreen): ten sam
+// przełącznik co w Profilu i w okienku plakietki, ten sam hook i API.
+export const QUIZ_REVIEWS_SETUP_HINT =
+  "Pytania, z którymi szło Ci gorzej, wracają w kolejnych sesjach. Zmienisz to też w Profilu.";
+
+export function QuizReviewsSetupRow() {
+  const { colors: theme } = useTheme();
+  const { enabled, saving, toggle } = useQuizReviewsPref();
+  return (
+    <TouchableOpacity
+      onPress={toggle}
+      disabled={saving}
+      accessibilityRole="switch"
+      accessibilityLabel="Powtórki w sesji"
+      accessibilityState={{ checked: enabled, disabled: saving }}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        padding: 12,
+        marginBottom: 16,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: theme.borderLight,
+        backgroundColor: theme.card,
+        opacity: saving ? 0.6 : 1,
+      }}
+    >
+      <Ionicons name="repeat" size={20} color={theme.textSecondary} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, fontWeight: "600", color: theme.text }}>
+          Powtórki w sesji
+        </Text>
+        <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
+          {QUIZ_REVIEWS_SETUP_HINT}
+        </Text>
+      </View>
+      <TogglePill on={enabled} />
+    </TouchableOpacity>
   );
 }
 
@@ -154,7 +197,7 @@ export function QuizReviewsModal({
           )}
 
           <Text style={{ fontSize: 11, color: theme.textTertiary }}>
-            Zmienisz to też w Profilu.
+            Zmienisz to też w Profilu i na ekranie startu sesji.
           </Text>
 
           <Button title="Zamknij" onPress={onClose} variant="secondary" />

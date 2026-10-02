@@ -32,6 +32,7 @@ import { radius } from "../../theme";
 import type { ExamStackParamList } from "../../navigation/types";
 import { handlePremiumError } from "../../lib/premiumAlert";
 import { BackBar } from "../../components/common/BackBar";
+import { openFreeSheet } from "../../lib/openFreeSheet";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -350,9 +351,10 @@ export function ExamSelectorScreen() {
           <TouchableOpacity
             onPress={() => {
               if (done && trial.examAttemptId) {
-                navigation.navigate("ExamResults", {
-                  attemptId: trial.examAttemptId,
-                });
+                // Jak karta „Za darmo”: cały arkusz w odtwarzaczu — rozwiązane
+                // zadania z oceną i wyjaśnieniem, puste do dokończenia
+                // (Karol 2.10.2026), a nie sam ekran wyniku.
+                void openFreeSheet(navigation, trial);
               } else {
                 navigation.navigate("ExamPlay", {
                   examId: trial.examId!,
@@ -369,7 +371,7 @@ export function ExamSelectorScreen() {
             }}
           >
             <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
-              {done ? "Zobacz wynik →" : "Otwórz arkusz →"}
+              Zobacz swój arkusz →
             </Text>
           </TouchableOpacity>
         </View>
@@ -410,7 +412,7 @@ export function ExamSelectorScreen() {
             }}
           >
             <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-              Zobacz Premium →
+              Odblokuj nielimitowane arkusze egzaminacyjne →
             </Text>
           </TouchableOpacity>
         </View>

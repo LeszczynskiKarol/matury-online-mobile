@@ -16,8 +16,17 @@ export async function openFreeSheet(navigation: any, trial: TrialStatus): Promis
       screen: "ExamResults",
       params: { attemptId: trial.examAttemptId! },
     });
-  if (!trial.canContinue || !trial.examId) {
+  if (!trial.examId) {
     toResults();
+    return;
+  }
+  // Wszystko rozwiązane: przegląd całego arkusza w odtwarzaczu (każde
+  // zadanie z oceną i wyjaśnieniem), nie sam ekran wyniku (Karol 2.10.2026).
+  if (!trial.canContinue) {
+    navigation.getParent()?.navigate("ExamTab", {
+      screen: "ExamPlay",
+      params: { examId: trial.examId, subjectId: "", reviewAttemptId: trial.examAttemptId },
+    });
     return;
   }
   try {
