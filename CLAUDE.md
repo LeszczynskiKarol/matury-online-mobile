@@ -23,3 +23,10 @@
 
    Nie uruchamiaj ręcznie przed zatwierdzeniem przez Google — okienko „Jest nowa wersja”
    odsyłałoby do sklepu bez aktualizacji.
+
+## Ścieżka darmowego użytkownika — dokument obowiązkowy
+
+Pełna ścieżka konta FREE (apka + web, maile, pushe, zgody) jest w
+`D:\matury-online.pl\docs\sciezka-usera-free.md`. **Każda zmiana w apce dotykająca tej ścieżki
+(rejestracja/zgody, pulpit FREE, darmowy quiz, darmowy arkusz, paywalle, zakup, push) wymaga
+aktualizacji tamtego pliku** (osobny commit w repo matury-online.pl).
