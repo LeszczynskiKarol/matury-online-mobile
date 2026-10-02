@@ -57,7 +57,7 @@ const MODE_CONFIG: Record<
     bullets: [
       "Tysiące pytań maturalnych ze wszystkich działów — z wyjaśnieniami",
       "System sam dobiera pytania pod Twoje braki i trudność",
-      "Powtórki, streaki i XP — nauka, która wciąga",
+      "Szybka powtórka: wybierasz przedmiot i dział, quiz rusza od razu",
     ],
     personalizedVerb: "Ten tryb dobierze Ci pytania dokładnie z tego działu.",
   },

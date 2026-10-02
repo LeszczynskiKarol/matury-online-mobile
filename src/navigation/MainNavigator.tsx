@@ -138,6 +138,10 @@ function QuizStackNav() {
       <QuizStack.Screen
         name="QuizPlay"
         component={QuizPlayScreen}
+        // Każda sesja to osobny ekran: bez tego nawigacja do QuizPlay z nową
+        // sesją (Szybka powtórka, Kontynuuj) podmieniała tylko parametry
+        // istniejącego ekranu i bywało, że grała poprzednia sesja.
+        getId={({ params }) => (params as any)?.sessionId || (params as any)?.diagnosis?.token || undefined}
         options={{ gestureEnabled: false }}
       />
       <QuizStack.Screen

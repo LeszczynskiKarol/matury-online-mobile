@@ -32,6 +32,7 @@ import {
   TextInput,
   ActivityIndicator,
   Dimensions,
+  BackHandler,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { SvgViewer } from "../../components/exam/SvgViewer";
@@ -948,6 +949,19 @@ export function QuizPlayScreen() {
   const handleQuit = () => {
     (navigation as any).getParent()?.navigate("HomeTab", { screen: "Dashboard" });
   };
+
+  // Systemowy „wstecz” na Androidzie = ✕: prosto na pulpit (Karol 2.10.2026),
+  // tylko gdy ten ekran jest na wierzchu.
+  const quitRef = useRef(handleQuit);
+  quitRef.current = handleQuit;
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!navigation.isFocused()) return false;
+      quitRef.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, [navigation]);
 
   // ── Option state helper ─────────────────────────────────────────────────
   const getOptionState = (optId: string) => {

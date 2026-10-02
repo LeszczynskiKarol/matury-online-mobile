@@ -235,7 +235,7 @@ export function QuickReview({
         {label}
       </Text>
       {count != null && (
-        <Text style={{ fontSize: 11, fontWeight: "600", color: on ? "#ffffffCC" : theme.textTertiary }}>
+        <Text style={{ fontSize: 11, fontWeight: "600", color: on ? colors.brand[500] : theme.textTertiary }}>
           {count}
         </Text>
       )}

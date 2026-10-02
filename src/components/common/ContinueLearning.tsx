@@ -213,7 +213,7 @@ export function ContinueLearningInfo({
   const tint = subject?.color || colors.brand[500];
 
   const title = s
-    ? `Kontynuuj: ${cl.display(s.subject)} · ${s.questionsAnswered}/${s.questionCount}`
+    ? `Kontynuuj quiz: ${cl.display(s.subject)} · ${s.questionsAnswered}/${s.questionCount}`
     : start
       ? `Nowa sesja: ${cl.display(start)}`
       : cl.label;

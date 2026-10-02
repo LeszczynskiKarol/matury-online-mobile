@@ -22,6 +22,7 @@ import {
   ActivityIndicator,
   Modal,
   AppState,
+  BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -430,6 +431,28 @@ export function ExamPlayerScreen() {
       } catch {}
     }
     navigation.getParent()?.navigate("HomeTab", { screen: "Dashboard" });
+  }, [navigation]);
+
+  // Systemowy „wstecz” na Androidzie: prosto na pulpit (Karol 2.10.2026).
+  // Odpowiedzi zapisuje listener beforeRemove/saveNow; w przeglądzie i przy
+  // dokańczaniu bez zmian cofa otwarcie jak ✕.
+  const backRef = useRef<() => void>(() => {});
+  backRef.current = () => {
+    const d = dataRef.current as any;
+    if (d && (d.reviewOnly || (lockedIdsRef.current.size > 0 && !dirty))) {
+      void closeWithoutChanges();
+      return;
+    }
+    if (d) saveNow();
+    navigation.getParent()?.navigate("HomeTab", { screen: "Dashboard" });
+  };
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!navigation.isFocused()) return false;
+      backRef.current();
+      return true;
+    });
+    return () => sub.remove();
   }, [navigation]);
 
   const goToTask = useCallback(

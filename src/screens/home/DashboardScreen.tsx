@@ -652,13 +652,6 @@ export function DashboardScreen() {
         onListening={() => navigation.navigate("ListeningHub")}
       />
 
-      {/* ═══ SZYBKA POWTÓRKA (pod „Wybierz tryb”, nad „Twoje przedmioty”): przedmiot → dział/epoka → temat/lektura ═══ */}
-      <QuickReview
-        subjects={subjects as any}
-        progress={data?.subjectProgress as any}
-        navigation={navigation}
-      />
-
       {/* Twoje przedmioty — zaraz pod trybami, nad statystykami (jak na webie) */}
       {data?.subjectProgress && data.subjectProgress.length > 0 && (
         <View style={{ marginBottom: 20 }}>
@@ -816,8 +809,13 @@ export function DashboardScreen() {
         </View>
       )}
 
-      {/* Sprawdzian z lektury / epoki zastąpiła „Szybka powtórka” wyżej
-          (polski: epoka → lektura; pozostałe przedmioty: dział → temat). */}
+      {/* ═══ SZYBKA POWTÓRKA (pod „Twoje przedmioty”: zależy od wybranych przedmiotów): przedmiot → dział/epoka → temat/lektura ═══ */}
+      <QuickReview
+        subjects={subjects as any}
+        progress={data?.subjectProgress as any}
+        navigation={navigation}
+      />
+
 
       {/* Stats row */}
       <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>

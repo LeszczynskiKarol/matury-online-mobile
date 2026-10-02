@@ -96,7 +96,7 @@ const subscriptionApi = {
 const FEATURES = [
   { icon: "📚", text: "Dostęp do wszystkich przedmiotów" },
   { icon: "♾️", text: "Nieograniczone pytania" },
-  { icon: "🎯", text: "Wybór tematów i lektur" },
+  { icon: "⚡", text: "Szybka powtórka: wybierasz przedmiot i dział albo lekturę, quiz rusza od razu" },
   { icon: "📝", text: "Ocena wypracowań według kryteriów CKE" },
   { icon: "📊", text: "Pełne statystyki i postępy" },
 ];

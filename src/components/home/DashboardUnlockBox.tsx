@@ -68,7 +68,7 @@ export function DashboardUnlockBox({
           bullets: [
             `${floor100(total)} pytań z 12 przedmiotów, dobieranych pod Twoje braki`,
             "Nielimitowane arkusze z timerem i oceną według kryteriów CKE",
-            "Słuchanie bez limitu nagrań: każde zadanie jest inne",
+            "Szybka powtórka: wybierasz przedmiot i dział, quiz rusza od razu",
           ],
           cta: "Odblokuj pełny dostęp",
         };
