@@ -332,17 +332,20 @@ export function DashboardScreen() {
           ))}
         </View>
 
-        {/* Bottom CTA */}
-        <View style={{ marginTop: 24, alignItems: "center" }}>
-          <Button
-            title="Zobacz plany Premium"
-            onPress={() =>
-              navigation.navigate("ProfileTab", { screen: "Subscription" })
-            }
-            variant="secondary"
-            icon={<Ionicons name="diamond" size={16} color="#fff" />}
-          />
-        </View>
+        {/* Link do planów — główne wezwanie jest w DashboardUnlockBox wyżej,
+            więc tu cichy link w stylu reszty apki („Zobacz Premium →”),
+            nie druga ciężka pigułka. */}
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("ProfileTab", { screen: "Subscription" })
+          }
+          accessibilityRole="link"
+          style={{ marginTop: 20, paddingVertical: 10, alignItems: "center" }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "800", color: colors.brand[500] }}>
+            Zobacz plany Premium →
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     );
   }
