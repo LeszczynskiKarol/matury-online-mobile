@@ -959,7 +959,7 @@ export function ExamPlayerScreen() {
             }}
           >
             <Text style={{ fontSize: 12, color: theme.text, lineHeight: 17 }}>
-              Dokańczasz arkusz: rozwiązane zadania są zablokowane, zostało {remainingToDo} do zrobienia.
+              Dokańczasz arkusz: rozwiązane zadania są zablokowane. Do zrobienia: {remainingToDo}.
             </Text>
           </View>
         )}
