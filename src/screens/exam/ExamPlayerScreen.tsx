@@ -570,10 +570,18 @@ export function ExamPlayerScreen() {
         <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 20 }}>
           {stripSheetNumber(data.exam.title)}
         </Text>
+        {/* Główna akcja nad listą: większość chce po prostu zacząć (albo wrócić),
+            a przy 4–6 częściach przycisk pod listą lądował poza ekranem. */}
+        <View style={{ marginBottom: 24 }}>
+          <Button
+            title={started ? `Wróć do zadania ${currentTask.number} →` : "Zaczynam od początku →"}
+            onPress={() => (started ? setShowIntro(false) : parts[0] && startAt(parts[0]))}
+          />
+        </View>
         {/* Na mobile tylko etykieta, tytuł i „Od czego chcesz zacząć?” —
             opis i lista punktów zajmowały cały ekran (Karol 26.09.2026). */}
         <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, letterSpacing: 1, marginBottom: 10 }}>
-          {started ? "PRZEJDŹ DO CZĘŚCI" : "OD CZEGO CHCESZ ZACZĄĆ?"}
+          {started ? "ALBO PRZEJDŹ DO CZĘŚCI" : "ALBO ZACZNIJ OD WYBRANEJ CZĘŚCI"}
         </Text>
         {parts.map((part: any) => (
           <TouchableOpacity
@@ -596,12 +604,6 @@ export function ExamPlayerScreen() {
             <Text style={{ fontSize: 16, color: theme.textSecondary }}>→</Text>
           </TouchableOpacity>
         ))}
-        <View style={{ marginTop: 12 }}>
-          <Button
-            title={started ? `Wróć do zadania ${currentTask.number} →` : "Zaczynam od początku →"}
-            onPress={() => (started ? setShowIntro(false) : parts[0] && startAt(parts[0]))}
-          />
-        </View>
       </ScrollView>
     );
   }

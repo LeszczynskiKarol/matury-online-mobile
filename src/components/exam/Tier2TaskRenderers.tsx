@@ -1719,6 +1719,39 @@ function IdentifyPersonsRenderer({ task, value, onChange, theme, isDark }: Rende
     : [];
   const ans =
     typeof value === "object" && value && !Array.isArray(value) ? value : {};
+  // Jedna postać na portrecie: bez biogramów (content pusty, ilustracja
+  // w materialIds) odpowiedź to zwykły tekst. Bez tego zadanie nie miało
+  // pola odpowiedzi wcale (Historia PR #3 zad. 2) — web: HistoriaTaskRenderers
+  // renderIdentifyPersons obsługuje ten sam przypadek tak samo.
+  if (bios.length === 0) {
+    const text = typeof value === "string" ? value : "";
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={{ fontSize: 12, color: theme.textSecondary }}>
+          Rozpoznaj postać na podstawie materiału i odpowiedz zgodnie z poleceniem, pełnym zdaniem.
+        </Text>
+        <TextInput
+          value={text}
+          onChangeText={onChange}
+          multiline
+          placeholder="Wpisz odpowiedź..."
+          placeholderTextColor={theme.textTertiary}
+          textAlignVertical="top"
+          style={{
+            minHeight: 120,
+            padding: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.border,
+            backgroundColor: theme.card,
+            color: theme.text,
+            fontSize: 15,
+            lineHeight: 21,
+          }}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={{ gap: 12 }}>
