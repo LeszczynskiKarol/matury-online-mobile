@@ -141,20 +141,6 @@ export function DashboardUnlockBox({
           od 49 zł/mies.
         </Text>
       </TouchableOpacity>
-      {!hasTutor && (
-        <Text
-          style={{
-            fontSize: 12,
-            color: theme.textSecondary,
-            textAlign: "center",
-            lineHeight: 18,
-            marginTop: 10,
-          }}
-        >
-          Najpierw chcesz sprawdzić apkę? Darmowy quiz (13 zadań z oceną)
-          i jeden darmowy arkusz są w karcie „Za darmo” wyżej.
-        </Text>
-      )}
     </View>
   );
 }
