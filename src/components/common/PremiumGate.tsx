@@ -17,6 +17,7 @@ import { Button } from "../ui/Button";
 import { api } from "../../api/client";
 import { logIntent } from "../../api/premium";
 import { AudioPlayer } from "../quiz/ListeningQuestion";
+import { FreeSheetGateRow } from "./FreeSheetGateRow";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
@@ -587,6 +588,9 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
             </Text>
           </View>
         )}
+
+        {/* Egzamin: darmowy arkusz jednym wierszem nad ceną (FreeSheetGateRow). */}
+        {mode === "exam" && variant.kind === "default" && <FreeSheetGateRow />}
 
         <Button
           title={ctaTitle}
