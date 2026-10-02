@@ -99,7 +99,7 @@ export function FreePanel({
       `Twój wynik: ${diag.scorePercent ?? 0}%.`
     : diagInProgress
       ? `Zaczęta — rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
-      : "Rozwiąż 13 zadań i sprawdź się. Ocena po każdym.";
+      : "13 zadań z wybranego przedmiotu, każde od razu ocenione.";
   const diagCta = diag
     ? "Zobacz wynik"
     : diagInProgress
