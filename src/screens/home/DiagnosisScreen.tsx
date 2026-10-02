@@ -48,6 +48,7 @@ import { hasPassThreshold, PASS_PERCENT } from "../../utils/passThreshold";
 const RECRUIT_PERCENT = 65;
 import { radius, spacing } from "../../theme";
 import { parseChemText } from "../../utils/chemText";
+import { subjectGenitive as subjectGenitiveOf } from "../../lib/subjectGenitive";
 
 interface DiagSubject {
   slug: string;
@@ -115,25 +116,8 @@ const lockedLabel = (n: number) =>
 const shortName = (name: string, _slug?: string) =>
   name.split(" — ")[0].split(" (")[0].trim();
 
-/** Nazwa przedmiotu w dopełniaczu — ręcznie, jak web UnlockQuizBox
- *  („z WOS”, „z Biznes i zarządzanie” psuły automatyczną odmianę). */
-const GENITIVE: Record<string, string> = {
-  polski: "języka polskiego",
-  matematyka: "matematyki",
-  angielski: "języka angielskiego",
-  niemiecki: "języka niemieckiego",
-  biologia: "biologii",
-  chemia: "chemii",
-  fizyka: "fizyki",
-  geografia: "geografii",
-  historia: "historii",
-  wos: "WOS-u",
-  informatyka: "informatyki",
-  "biznes-zarzadzanie": "biznesu i zarządzania",
-};
 function subjectGenitive(slug: string, fallbackName: string): string {
-  const base = slug.replace(/-osmoklasista$/, "").replace(/-(fce|cae)$/, "");
-  return GENITIVE[base] ?? fallbackName.toLowerCase();
+  return subjectGenitiveOf(slug, fallbackName.toLowerCase());
 }
 
 /** Punkty rekrutacyjne z wyniku diagnozy E8 — te same mnożniki co na webie. */

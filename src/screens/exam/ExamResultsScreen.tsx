@@ -43,6 +43,7 @@ import { ReportButton } from "../../components/quiz/ReportQuestion";
 import { examTaskTypeLabel } from "../../utils/examTaskLabels";
 import { daysToMatura } from "../../components/common/PremiumGate";
 import { examPartName } from "../../utils/languageTaskLabels";
+import { subjectGenitive } from "../../lib/subjectGenitive";
 
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
@@ -91,14 +92,6 @@ function getOutcomeFraming(
     const months = monthsLabel(monthsToMatura());
     return {
       distance: `Do wyniku, który liczy się w rekrutacji (${RECRUIT_PERCENT}%), brakuje Ci ${toRecruit} pkt${percentage < 50 ? ` — masz na to jeszcze ${months}` : ""}.`,
-      upsellTitle:
-        percentage < PASS_PERCENT
-          ? `Ten wynik da się podnieść — masz na to ${months}`
-          : `Do progu rekrutacyjnego brakuje ${toRecruit} pkt`,
-      upsellBody:
-        percentage < PASS_PERCENT
-          ? "Najtrudniejsze już za Tobą: wiesz dokładnie, które działy kosztują Cię punkty i od czego zacząć — plan naprawczy jest wyżej. W Premium ćwiczysz dokładnie te działy i wracasz do kolejnych arkuszy, żeby zobaczyć, jak różnica znika."
-          : "W Premium ćwiczysz słabsze obszary i sprawdzasz postęp na kolejnych arkuszach.",
     };
   }
 
@@ -108,39 +101,25 @@ function getOutcomeFraming(
     const months = monthsLabel(monthsToMatura());
     return {
       distance: `Do progu zdawalności brakuje Ci ${toPass} pkt — masz na to jeszcze ${months}.`,
-      upsellTitle: `Ten wynik da się podnieść — masz na to ${months}`,
-      upsellBody:
-        "Najtrudniejsze już za Tobą: wiesz dokładnie, które działy kosztują Cię punkty i od czego zacząć — plan naprawczy jest wyżej. W Premium ćwiczysz dokładnie te działy i wracasz do kolejnych arkuszy, żeby zobaczyć, jak różnica znika.",
     };
   }
   if (percentage < 50) {
     return {
       distance: `Zdane, ale zapas nad progiem to tylko ${passMargin} pkt. Do wyniku liczącego się w rekrutacji brakuje ${toRecruit} pkt.`,
-      upsellTitle: "Zdane — ale bez zapasu",
-      upsellBody: `Przy takim marginesie o wyniku decyduje jeden gorszy dzień. W Premium dobijesz te ${toRecruit} pkt, ćwicząc dokładnie to, co dziś kosztowało Cię najwięcej.`,
     };
   }
   if (percentage < RECRUIT_PERCENT) {
     return {
       distance: `Zdane pewnie. Do wyniku, który liczy się w rekrutacji (${RECRUIT_PERCENT}%), brakuje ${toRecruit} pkt.`,
-      upsellTitle: `Do progu rekrutacyjnego brakuje ${toRecruit} pkt`,
-      upsellBody:
-        "Na tym poziomie nie chodzi już o zdanie, tylko o kierunek studiów. W Premium ćwiczysz słabsze obszary i sprawdzasz postęp na kolejnych arkuszach.",
     };
   }
   if (percentage < TOP_PERCENT) {
     return {
       distance: `Mocny wynik. Do bardzo dobrego (${TOP_PERCENT}%) brakuje ${toTop} pkt.`,
-      upsellTitle: `Do bardzo dobrego wyniku brakuje ${toTop} pkt`,
-      upsellBody:
-        "Masz bazę, której większość dopiero szuka. Te ostatnie punkty schodzą najwolniej — z regularnych powtórek i kolejnych arkuszy, nie z jednego podejścia.",
     };
   }
   return {
     distance: "Wynik na poziomie najlepszych — rzecz w tym, żeby go utrzymać.",
-    upsellTitle: "Ten poziom trzeba utrzymać do maja",
-    upsellBody:
-      "Forma bez treningu spada, a do matury zostało sporo czasu. W Premium masz kolejne arkusze i pytania dobierane pod Twój poziom, żeby ten wynik był Twoim minimum, nie rekordem.",
   };
 }
 
@@ -1419,9 +1398,7 @@ export function ExamResultsScreen() {
                     }}
                   >
                     <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
-                      {summaryWithheld
-                        ? "Rozwiąż cały arkusz, żeby zobaczyć, gdzie tracisz punkty"
-                        : framing.upsellTitle}
+                      Rozwiązuj arkusze z {subjectGenitive(exam?.subject?.slug)}
                     </Text>
                     <Text
                       style={{
@@ -1432,9 +1409,9 @@ export function ExamResultsScreen() {
                         marginBottom: 14,
                       }}
                     >
-                      {summaryWithheld
-                        ? "Omówienie, plan naprawczy i rozwiązania wszystkich zadań pojawiają się przy pełnym podejściu. W Premium masz wszystkie arkusze i możesz podchodzić do nich wielokrotnie."
-                        : framing.upsellBody}
+                      Zyskaj możliwość rozwiązywania arkuszy z{" "}
+                      {subjectGenitive(exam?.subject?.slug)} bez ograniczeń i
+                      przygotuj się do egzaminu na 100%.
                     </Text>
                     <TouchableOpacity
                       activeOpacity={0.85}
@@ -1838,10 +1815,10 @@ export function ExamResultsScreen() {
         })()}
       </ScrollView>
 
-      {/* ═══ BOTTOM NAV ═══ Na podsumowaniu arkusza konta bez Premium ukryta —
-          rozpraszała przed kupnem (web, Karol 28.09.2026); zadania są pod
-          ikoną listy u góry. Premium bez zmian. */}
-      {!(isSummary && isPremium === false) && (
+      {/* ═══ BOTTOM NAV ═══ Tylko Premium. Darmowy arkusz bez dolnej
+          nawigacji (także na zadaniach), żeby nic nie odciągało od zakupu
+          (Karol 2.10.2026); zadania są pod ikoną listy u góry. */}
+      {isPremium && (
       <View
         style={{
           position: "absolute",
