@@ -240,17 +240,53 @@ export function DiagnosisScreen() {
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const params = (route.params ?? {}) as { subjectSlug?: string; token?: string };
+  const params = (route.params ?? {}) as {
+    subjectSlug?: string;
+    token?: string;
+    view?: "report";
+  };
 
   const [phase, setPhase] = useState<Phase>({ kind: "loading", label: "Ładuję…" });
   const [openQ, setOpenQ] = useState<string | null>(null);
   const { isPremium } = useAuth();
 
+  // Przegląd ukończonego quizu: ekran Quizu w trybie „po ocenie”, z tą samą
+  // nawigacją co przy rozwiązywaniu — Twoja odpowiedź, ocena, klucz
+  // i wyjaśnienie przy każdym pytaniu. Wynik (raport) jest osobną zakładką,
+  // do której prowadzi przycisk „Wynik” w nagłówku (Karol 2.10.2026).
+  // replace, nie navigate: przełączanie przegląd ↔ wynik nie rośnie stosu.
+  const review = useCallback(
+    (r: FullResult, token: string, index: number) => {
+      const answered: Record<string, { response: any; feedback: any }> = {};
+      for (const q of r.questions) {
+        answered[q.id] = {
+          response: q.yourAnswer,
+          // Bez odpowiedzi: pokazujemy klucz jak po „Pokaż odpowiedź”, bez „źle”.
+          feedback: q.answered === false ? { ...q.feedback, revealed: true } : q.feedback,
+        };
+      }
+      navigation.replace("DiagnosisPlay", {
+        sessionId: "",
+        subjectId: "",
+        subjectName: r.subject.name,
+        questions: r.questions,
+        diagnosis: { token, mode: "review", answered, startIndex: index },
+      });
+    },
+    [navigation],
+  );
+
   // ── Raport ──────────────────────────────────────────────────────────────────
-  const loadResult = useCallback(async (token: string) => {
-    setPhase({ kind: "loading", label: "Ładuję wynik…" });
+  // openReview: ukończony quiz v2 otwiera się w przeglądzie pytań, a nie
+  // od razu w raporcie (stary v1 nie ma danych do przeglądu — tylko raport).
+  const loadResult = useCallback(async (token: string, openReview = false) => {
+    setPhase({ kind: "loading", label: openReview ? "Wczytuję quiz…" : "Ładuję wynik…" });
     try {
       const result = await api<FullResult>(`/diagnosis/result/${encodeURIComponent(token)}`);
+      if (openReview && result.version === 2 && result.questions?.length) {
+        review(result, token, 0);
+        return;
+      }
       setOpenQ(null);
       setPhase({ kind: "result", result, token });
     } catch (e) {
@@ -262,7 +298,7 @@ export function DiagnosisScreen() {
             : "Nie udało się pobrać wyniku. Spróbuj ponownie za chwilę.",
       });
     }
-  }, []);
+  }, [review]);
 
   // ── Rozwiązywanie na ekranie Quizu (nowa albo wznowiona diagnoza) ─────────
   const openPlay = useCallback(
@@ -305,7 +341,7 @@ export function DiagnosisScreen() {
 
   useEffect(() => {
     if (params.token) {
-      void loadResult(params.token);
+      void loadResult(params.token, params.view !== "report");
       return;
     }
     // Diagnoza jest jedna na konto: rozpoczęta → wracamy do niej, ukończona →
@@ -316,7 +352,7 @@ export function DiagnosisScreen() {
           "/diagnosis/v2/current",
         );
         if (cur?.current) {
-          if (cur.current.completed) await loadResult(cur.current.token);
+          if (cur.current.completed) await loadResult(cur.current.token, true);
           else await openPlay(cur.current.token);
           return;
         }
@@ -329,7 +365,7 @@ export function DiagnosisScreen() {
       } catch {}
       await loadSubjects();
     })();
-  }, [params.token, loadResult, loadSubjects, openPlay]);
+  }, [params.token, params.view, loadResult, loadSubjects, openPlay]);
 
   const start = async (subject: DiagSubject) => {
     setPhase({ kind: "loading", label: "Losuję zadania…" });
@@ -349,7 +385,7 @@ export function DiagnosisScreen() {
       if (e instanceof ApiError && e.status === 409 && e.data?.token) {
         const t = e.data.token as string;
         if (e.data.code === "DIAGNOSIS_IN_PROGRESS") await openPlay(t);
-        else await loadResult(t);
+        else await loadResult(t, true);
         return;
       }
       setPhase({
@@ -362,26 +398,6 @@ export function DiagnosisScreen() {
               : "Nie udało się rozpocząć quizu.",
       });
     }
-  };
-
-  // Przegląd pytania z raportu: ekran Quizu w trybie „po ocenie” — Twoja
-  // odpowiedź, klucz i komentarz AI dokładnie tak, jak przy rozwiązywaniu.
-  const review = (r: FullResult, token: string, index: number) => {
-    const answered: Record<string, { response: any; feedback: any }> = {};
-    for (const q of r.questions) {
-      answered[q.id] = {
-        response: q.yourAnswer,
-        // Bez odpowiedzi: pokazujemy klucz jak po „Pokaż odpowiedź”, bez „źle”.
-        feedback: q.answered === false ? { ...q.feedback, revealed: true } : q.feedback,
-      };
-    }
-    navigation.navigate("DiagnosisPlay", {
-      sessionId: "",
-      subjectId: "",
-      subjectName: r.subject.name,
-      questions: r.questions,
-      diagnosis: { token, mode: "review", answered, startIndex: index },
-    });
   };
 
   const back = () => {
@@ -545,6 +561,30 @@ export function DiagnosisScreen() {
     return (
       <ScrollView style={container} contentContainerStyle={content}>
         <Header title={`Darmowy quiz · ${shortName(r.subject.name, r.subject.slug)}`} />
+
+        {/* Zakładka „Wynik” jest częścią quizu: powrót do pytań z ocenami. */}
+        {isV2 && r.questions?.length > 0 && (
+          <TouchableOpacity
+            onPress={() => review(r, phase.token, 0)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              paddingVertical: 12,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.brand[500] + "66",
+              backgroundColor: colors.brand[500] + (isDark ? "1F" : "12"),
+              marginBottom: 18,
+            }}
+          >
+            <Ionicons name="arrow-back" size={16} color={colors.brand[500]} />
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.brand[500] }}>
+              Wróć do pytań quizu
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Nagłówek z wynikiem — najpierw „gotowe”, potem liczba (web). */}
         <View style={{ alignItems: "center", marginBottom: 20 }}>

@@ -14,6 +14,7 @@ import { View, Text, TextInput, ScrollView } from "react-native";
 import { colors } from "../../theme/colors";
 import { parseChemText } from "../../utils/chemText";
 
+import { HScroll } from "../common/HScroll";
 /** Dwie gamety → genotyp w notacji standardowej (dominujący przed recesywnym). */
 export function combineGenotype(a: string, b: string): string {
   const groups: Record<string, string[]> = {};
@@ -137,7 +138,7 @@ export function CrossPunnett({
           <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textTertiary, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
             Tabela Punnetta
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator>
+          <HScroll showsHorizontalScrollIndicator>
             <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, overflow: "hidden" }}>
               <View style={{ flexDirection: "row", backgroundColor: theme.inputBg }}>
                 <View style={{ width: 56, padding: 8 }} />
@@ -183,7 +184,7 @@ export function CrossPunnett({
                 </View>
               ))}
             </View>
-          </ScrollView>
+          </HScroll>
         </View>
       ) : null}
 

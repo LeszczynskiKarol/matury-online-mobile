@@ -754,7 +754,7 @@ export function QuizPlayScreen() {
   const handleNext = useCallback(async () => {
     if (isDiag) {
       if (isLastQuestion) {
-        if (diagnosis!.mode === "review") navigation.goBack();
+        if (diagnosis!.mode === "review") openDiagReport();
         else await finishDiagnosis();
       } else {
         setCurrentIndex((i) => i + 1);
@@ -851,6 +851,13 @@ export function QuizPlayScreen() {
   // potem /v2/finish i raport na ekranie diagnozy (zastępuje ten ekran).
   const diagResultsRef = useRef(resultsMap);
   diagResultsRef.current = resultsMap;
+  // Przegląd ukończonego quizu → zakładka z wynikiem (raport). replace, żeby
+  // przełączanie przegląd ↔ wynik nie rosło na stosie.
+  const openDiagReport = () => {
+    if (!diagnosis) return;
+    (navigation as any).replace("Diagnosis", { token: diagnosis.token, view: "report" });
+  };
+
   const finishDiagnosis = async (force = false) => {
     if (!diagnosis) return;
     // Ref, nie stan: handleNext/handleSkip to useCallback i trzymałyby
@@ -884,7 +891,7 @@ export function QuizPlayScreen() {
         method: "POST",
         body: { token: diagnosis.token },
       });
-      (navigation as any).replace("Diagnosis", { token: diagnosis.token });
+      (navigation as any).replace("Diagnosis", { token: diagnosis.token, view: "report" });
     } catch (err: any) {
       setLoadingMore(false);
       Alert.alert("Błąd", err?.message || "Nie udało się zakończyć quizu");
@@ -1188,6 +1195,28 @@ export function QuizPlayScreen() {
               </Text>
             )}
           </View>
+          {/* Przegląd ukończonego darmowego quizu: zakładka „Wynik” (raport). */}
+          {isDiag && diagnosis!.mode === "review" && (
+            <TouchableOpacity
+              onPress={openDiagReport}
+              hitSlop={8}
+              accessibilityLabel="Zobacz wynik quizu"
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 999,
+                backgroundColor: colors.brand[500],
+                marginLeft: 8,
+                marginRight: 10,
+              }}
+            >
+              <Ionicons name="stats-chart" size={13} color="#fff" />
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>Wynik</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={handleQuit} hitSlop={10} accessibilityLabel="Zamknij sesję">
             <Ionicons name="close" size={24} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -2979,25 +3008,44 @@ export function QuizPlayScreen() {
                           alignItems: "center",
                         }}
                       >
-                        {parts.map((part: string, i: number) => {
+                        {clozeLayout(
+                          parts,
+                          // Luka = to samo dopasowanie co w renderGap niżej
+                          // (np. `{{a-b}}` zostaje tekstem, jak dotąd).
+                          (part) =>
+                            !!(
+                              part.match(/\{\{(\w+)\}\}/) ||
+                              part.match(/\((\d+)\)/)
+                            ),
+                          (word, key) => (
+                            <Text
+                              key={key}
+                              style={{
+                                fontSize: 15,
+                                color: theme.text,
+                                lineHeight: 28,
+                              }}
+                            >
+                              {parseChemText(word)}
+                            </Text>
+                          ),
+                          (whole, key) => (
+                            <Text
+                              key={key}
+                              style={{
+                                fontSize: 15,
+                                color: theme.text,
+                                lineHeight: 28,
+                              }}
+                            >
+                              {parseChemText(whole)}
+                            </Text>
+                          ),
+                          (part, i) => {
                           const match =
                             part.match(/\{\{(\w+)\}\}/) ||
                             part.match(/\((\d+)\)/);
-                          if (!match) {
-                            return (
-                              <Text
-                                key={i}
-                                style={{
-                                  fontSize: 15,
-                                  color: theme.text,
-                                  lineHeight: 28,
-                                }}
-                              >
-                                {parseChemText(part)}
-                              </Text>
-                            );
-                          }
-                          const rawId = match[1];
+                          const rawId = match![1];
                           const blankId = /^\d+$/.test(rawId)
                             ? `b${rawId}`
                             : rawId;
@@ -3060,7 +3108,9 @@ export function QuizPlayScreen() {
                               />
                             </View>
                           );
-                        })}
+                          },
+                          28,
+                        )}
                       </View>
                     </View>
                   </View>
@@ -5141,7 +5191,7 @@ export function QuizPlayScreen() {
                     >
                       {isLastQuestion
                         ? diagnosis!.mode === "review"
-                          ? "Wróć do raportu"
+                          ? "Zobacz wynik"
                           : "Zakończ i pokaż wynik"
                         : "Następne pytanie →"}
                     </Text>
@@ -5270,6 +5320,99 @@ export function QuizPlayScreen() {
 // bez numeru — wtedy zdanie wychodziło bez pola do wpisania (zgłoszenie
 // cmtc9j1f300sbqhgkrny2aej2, 2026-09). Gołe podkreślniki numerujemy po kolei
 // tylko wtedy, gdy szablon nie ma innych znaczników. Lustro webowego QuizPlayer.
+// Układ CLOZE w wierszu z zawijaniem (flexWrap). Do 2.10.2026 każdy fragment
+// tekstu między lukami był JEDNYM elementem wiersza: dłuższy fragment nie
+// mieścił się obok luki, więc przeskakiwał do nowej linii, a cudzysłów „
+// zostawał sam na końcu poprzedniej (zgłoszenie Karola, WOS „Uzupełnij
+// zasady prawne”). Teraz tekst idzie słowo po słowie, a znak przyklejony do
+// luki bez spacji („ ” ( ) , .) trzyma się luki w jednej grupie. Fragment
+// ze wzorem `$…$` zostaje w całości — parseChemText musi dostać cały wzór.
+function clozeLayout(
+  parts: string[],
+  isGap: (part: string) => boolean,
+  renderWord: (text: string, key: string) => React.ReactNode,
+  renderWhole: (part: string, key: string) => React.ReactNode,
+  renderGap: (part: string, i: number) => React.ReactNode,
+  lineHeight: number,
+): React.ReactNode[] {
+  // unit = elementy, które nie mogą się rozdzielić przy zawijaniu
+  const units: { key: string; items: React.ReactNode[]; br?: number }[] = [];
+  let pending: React.ReactNode[] = []; // słowo przyklejone do NASTĘPNEJ luki
+  let gluedToPrev = false; // ostatni unit to luka, do której doklejamy
+  parts.forEach((part, i) => {
+    if (isGap(part)) {
+      const items = [...pending, renderGap(part, i)];
+      pending = [];
+      if (gluedToPrev && units.length) units[units.length - 1].items.push(...items);
+      else units.push({ key: `g${i}`, items });
+      gluedToPrev = true;
+      return;
+    }
+    if (!part) return;
+    const prevGap = i > 0 && isGap(parts[i - 1]);
+    const nextGap = i + 1 < parts.length && isGap(parts[i + 1]);
+    if (part.includes("$")) {
+      units.push({ key: `t${i}`, items: [renderWhole(part, `t${i}`)] });
+      gluedToPrev = false;
+      return;
+    }
+    const glueLeft = prevGap && !/^\s/.test(part);
+    const glueRight = nextGap && !/\s$/.test(part);
+    // słowa i nowe linie, z informacją o spacji za słowem
+    const tokens = part.match(/\n+|[^\s]+|[^\S\n]+/g) || [];
+    const words: { w: string; space: boolean; br?: number }[] = [];
+    tokens.forEach((tk, ti) => {
+      if (/^\n+$/.test(tk)) words.push({ w: "", space: false, br: tk.length });
+      else if (/^\s+$/.test(tk)) {
+        if (words.length) words[words.length - 1].space = true;
+      } else words.push({ w: tk, space: false });
+      void ti;
+    });
+    const real = words.filter((x) => !x.br);
+    const first = real[0];
+    const last = real[real.length - 1];
+    gluedToPrev = false;
+    words.forEach((x, wi) => {
+      const key = `w${i}_${wi}`;
+      if (x.br) {
+        units.push({ key, items: [], br: x.br });
+        return;
+      }
+      const node = renderWord(x.w + (x.space ? " " : ""), key);
+      if (x === first && glueLeft && units.length) {
+        units[units.length - 1].items.push(node);
+        if (x === last && glueRight) gluedToPrev = true;
+        return;
+      }
+      if (x === last && glueRight) {
+        pending = [node];
+        return;
+      }
+      units.push({ key, items: [node] });
+    });
+  });
+  if (pending.length) units.push({ key: "pend", items: pending });
+  return units.map((u) =>
+    u.br ? (
+      <View
+        key={u.key}
+        style={{ width: "100%", height: (u.br - 1) * lineHeight }}
+      />
+    ) : u.items.length === 1 ? (
+      <React.Fragment key={u.key}>{u.items[0]}</React.Fragment>
+    ) : (
+      <View
+        key={u.key}
+        style={{ flexDirection: "row", alignItems: "center" }}
+      >
+        {u.items.map((it, k) => (
+          <React.Fragment key={k}>{it}</React.Fragment>
+        ))}
+      </View>
+    ),
+  );
+}
+
 function normalizeClozeTemplate(template: string): string {
   const t = template.replace(/_{2,}\((\d+)\)|\((\d+)\)_{2,}/g, "($1$2)");
   if (/\{\{[^}]+\}\}|\(\d+\)/.test(t)) return t;

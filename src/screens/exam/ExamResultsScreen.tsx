@@ -355,7 +355,7 @@ export function ExamResultsScreen() {
   if (error === "GRADING") {
     const steps = [
       "Zadania zamknięte",
-      "Zadania otwarte — ocena AI",
+      "Zadania otwarte",
       "Podsumowanie i rekomendacje",
       "Finalizacja",
     ];
@@ -380,7 +380,7 @@ export function ExamResultsScreen() {
             marginBottom: 16,
           }}
         >
-          AI ocenia arkusz...
+          Trwa ocena arkusza...
         </Text>
         <View
           style={{

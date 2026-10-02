@@ -10,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../theme/colors";
 import { ClearableTextInput } from "../ui/ClearAnswerButton";
 
+import { HScroll } from "../common/HScroll";
 interface RenderProps {
   task: any;
   value: any;
@@ -416,7 +417,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
           W obramowanych polach wpisz gamety rodziców (wiersze — jeden rodzic,
           kolumny — drugi), w pozostałych genotypy potomstwa.
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={cols > 3}>
+        <HScroll showsHorizontalScrollIndicator={cols > 3}>
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: "row", gap: 6 }}>
               <View style={{ width: CELL_W, justifyContent: "center" }}>
@@ -465,7 +466,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
               </View>
             ))}
           </View>
-        </ScrollView>
+        </HScroll>
       </View>
 
       <View>
@@ -570,7 +571,7 @@ export function PunnettResponseView({ response, theme }: { response: any; theme:
         </Text>
       ))}
       {hasGrid ? (
-        <ScrollView horizontal style={{ marginVertical: 6 }}>
+        <HScroll style={{ marginVertical: 6 }}>
           <View>
             <View style={{ flexDirection: "row" }}>
               <Text style={{ ...cell(false), borderColor: "transparent", color: theme.textTertiary, fontSize: 10 }}>
@@ -589,7 +590,7 @@ export function PunnettResponseView({ response, theme }: { response: any; theme:
               </View>
             ))}
           </View>
-        </ScrollView>
+        </HScroll>
       ) : null}
       {rowsOut.filter((x) => x.label !== "Genotypy rodziców").map((x) => (
         <Text key={x.label} style={txt}>
@@ -1606,7 +1607,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
 
   return (
     <View>
-      <ScrollView horizontal>
+      <HScroll>
         <View
           style={{
             borderWidth: 1,
@@ -1704,7 +1705,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
             );
           })}
         </View>
-      </ScrollView>
+      </HScroll>
     </View>
   );
 }

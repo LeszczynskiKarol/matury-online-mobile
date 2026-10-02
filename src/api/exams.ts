@@ -54,6 +54,17 @@ export interface ExamStartData {
   /** „Dokończ pozostałe zadania”: zadania ocenione przy pierwszym oddaniu —
    *  tylko do odczytu (backend exam-continue.ts). Brak = zwykłe podejście. */
   lockedTaskIds?: string[];
+  /** Oceny zablokowanych zadań z pierwszego oddania (dokańczanie). */
+  lockedGradings?: Record<
+    string,
+    {
+      pointsEarned: number;
+      maxPoints: number;
+      isCorrect: boolean;
+      explanation: string;
+      modelAnswer: string;
+    }
+  >;
   currentTaskId: string | null;
   startedAt: string;
   timeSpentMs: number;

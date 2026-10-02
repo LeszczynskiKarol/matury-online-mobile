@@ -70,6 +70,7 @@ import { ReportButton } from "../../components/quiz/ReportQuestion";
 import { stripSheetNumber } from "../../lib/freeSheet";
 import { examPartName } from "../../utils/languageTaskLabels";
 
+import { HScroll } from "../../components/common/HScroll";
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -185,6 +186,10 @@ export function ExamPlayerScreen() {
   // ocenione przy pierwszym oddaniu są tylko do odczytu. Backend
   // (exam-continue.ts) i tak nadpisuje je przy zapisie i oddaniu.
   const [lockedIds, setLockedIds] = useState<Set<string>>(() => new Set());
+  // Oceny zadań rozwiązanych przy pierwszym oddaniu — pokazywane przy zadaniu.
+  const [lockedGradings, setLockedGradings] = useState<
+    NonNullable<import("../../api/exams").ExamStartData["lockedGradings"]>
+  >({});
   const lockedIdsRef = useRef<Set<string>>(lockedIds);
   lockedIdsRef.current = lockedIds;
 
@@ -199,6 +204,7 @@ export function ExamPlayerScreen() {
         setLockedIds(
           new Set(Array.isArray(examData.lockedTaskIds) ? examData.lockedTaskIds : []),
         );
+        setLockedGradings(examData.lockedGradings || {});
         if (
           (examData as any).untimed &&
           Object.keys(examData.savedAnswers || {}).length === 0
@@ -792,14 +798,9 @@ export function ExamPlayerScreen() {
                           >
                             {task.number}
                           </Text>
-                          {isLocked && !isCur ? (
-                            <Ionicons
-                              name="lock-closed"
-                              size={10}
-                              color={colors.brand[600]}
-                              style={{ position: "absolute", top: 3, right: 3 }}
-                            />
-                          ) : null}
+                          {/* Bez kłódki: nawigacja jak przy pierwszym
+                              podejściu (Karol 2.10.2026). Rozwiązane zadanie
+                              jest po prostu zaznaczone jak każde z odpowiedzią. */}
                         </TouchableOpacity>
                       );
                     })}
@@ -961,7 +962,7 @@ export function ExamPlayerScreen() {
             }}
           >
             <Text style={{ fontSize: 12, color: theme.text, lineHeight: 17 }}>
-              Dokańczasz arkusz: rozwiązane zadania są zablokowane. Do zrobienia: {remainingToDo}.
+              Dokańczasz arkusz. Rozwiązane zadania mają już ocenę. Do zrobienia: {remainingToDo}.
             </Text>
           </View>
         )}
@@ -1124,9 +1125,15 @@ export function ExamPlayerScreen() {
                 borderColor: theme.border,
               }}
             >
-              <Ionicons name="lock-closed" size={12} color={theme.textSecondary} />
-              <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary }}>
-                Oceniono — odpowiedź zablokowana
+              <Ionicons
+                name={lockedGradings[currentTask.id]?.isCorrect ? "checkmark-circle" : "ribbon-outline"}
+                size={13}
+                color={colors.brand[600]}
+              />
+              <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text }}>
+                {lockedGradings[currentTask.id]
+                  ? `Twoja ocena: ${lockedGradings[currentTask.id].pointsEarned}/${lockedGradings[currentTask.id].maxPoints} pkt`
+                  : "Zadanie ocenione"}
               </Text>
             </View>
           )}
@@ -1151,11 +1158,11 @@ export function ExamPlayerScreen() {
 
             {/* ═══ TASK INPUT RENDERERS ═══ */}
             {/* Zadanie zablokowane (dokańczanie): jeden mechanizm dla
-                wszystkich typów zadań — bez dotyku i przygaszone; setAnswer
-                i tak odrzuca zmiany zablokowanych zadań. */}
+                wszystkich typów zadań — bez dotyku (setAnswer i tak odrzuca
+                zmiany), ale w pełnej jasności: uczeń ma widzieć swoją
+                odpowiedź, a pod nią ocenę (Karol 2.10.2026). */}
             <View
               pointerEvents={lockedIds.has(currentTask.id) ? "none" : "auto"}
-              style={lockedIds.has(currentTask.id) ? { opacity: 0.6 } : undefined}
             >
               <ExamTaskInput
                 task={currentTask}
@@ -1165,6 +1172,74 @@ export function ExamPlayerScreen() {
                 isDark={isDark}
               />
             </View>
+            {lockedIds.has(currentTask.id) && lockedGradings[currentTask.id] && (() => {
+              const g = lockedGradings[currentTask.id];
+              const full = g.maxPoints > 0 && g.pointsEarned >= g.maxPoints;
+              const none = g.pointsEarned <= 0;
+              const tone = full ? colors.brand[500] : none ? colors.red[500] : "#f59e0b";
+              const verdict = full
+                ? "Odpowiedź poprawna"
+                : none
+                  ? "Odpowiedź niepoprawna"
+                  : "Odpowiedź częściowo poprawna";
+              // Przy zadaniach pisemnych modelAnswer to opis matrycy CKE,
+              // a nie odpowiedź — wtedy go nie pokazujemy.
+              const model =
+                !full && g.modelAnswer && !/^Ocena według/i.test(g.modelAnswer.trim())
+                  ? g.modelAnswer
+                  : "";
+              return (
+                <View
+                  style={{
+                    marginTop: 16,
+                    padding: 14,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: tone + "66",
+                    backgroundColor: tone + (isDark ? "1A" : "12"),
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Ionicons
+                      name={full ? "checkmark-circle" : none ? "close-circle" : "remove-circle"}
+                      size={18}
+                      color={tone}
+                    />
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: "800", color: theme.text }}>
+                      {verdict}
+                    </Text>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: tone }}>
+                      {g.pointsEarned}/{g.maxPoints} pkt
+                    </Text>
+                  </View>
+                  {!!model && (
+                    <View>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, marginBottom: 2 }}>
+                        Prawidłowa odpowiedź
+                      </Text>
+                      <CodeAwareText
+                        text={model}
+                        style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}
+                        isDark={isDark}
+                      />
+                    </View>
+                  )}
+                  {!!g.explanation && (
+                    <View>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, marginBottom: 2 }}>
+                        Uzasadnienie
+                      </Text>
+                      <CodeAwareText
+                        text={g.explanation}
+                        style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}
+                        isDark={isDark}
+                      />
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
           </SectionErrorBoundary>
         </Card>
       </ScrollView>
@@ -1276,7 +1351,7 @@ function ExamTaskInput({
     : [];
   const tableElement = content.table ? (
     <View style={{ marginBottom: 16 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator>
+      <HScroll showsHorizontalScrollIndicator>
         <View
           style={{
             borderWidth: 1,
@@ -1338,7 +1413,7 @@ function ExamTaskInput({
             </View>
           ))}
         </View>
-      </ScrollView>
+      </HScroll>
     </View>
   ) : null;
 

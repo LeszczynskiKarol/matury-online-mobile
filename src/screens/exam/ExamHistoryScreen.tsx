@@ -195,7 +195,7 @@ export function ExamHistoryScreen() {
                 {a.exam.title}
               </Text>
               <Text style={{ fontSize: 11, color: "#a855f7", marginTop: 4 }}>
-                Trwa ocena AI...
+                Trwa ocena arkusza...
               </Text>
             </View>
           ))}

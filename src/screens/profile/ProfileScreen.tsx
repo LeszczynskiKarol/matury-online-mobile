@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { getProfile, type ProfileResponse } from "../../api/gamification";
-import { deleteAccount, setMarketingConsent } from "../../api/auth";
+import { deleteAccount, setMarketingConsent, setEmailPrefs } from "../../api/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -81,6 +81,33 @@ export function ProfileScreen() {
       setMktConsent(!want); // serwer nie przyjął — wróć do stanu faktycznego
     } finally {
       setMktSaving(false);
+    }
+  };
+  // Maile serwisowe (2.10.2026): do tej pory dało się je wyłączyć tylko
+  // linkiem w mailu albo w profilu na webie. Optymistycznie, jak zgoda wyżej.
+  const [prefs, setPrefs] = useState({
+    emailReminders: user?.emailReminders !== false,
+    emailSummary: user?.emailSummary !== false,
+  });
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  useEffect(() => {
+    setPrefs({
+      emailReminders: user?.emailReminders !== false,
+      emailSummary: user?.emailSummary !== false,
+    });
+  }, [user?.emailReminders, user?.emailSummary]);
+  const togglePref = async (key: "emailReminders" | "emailSummary") => {
+    if (prefsSaving) return;
+    const want = !prefs[key];
+    setPrefs((p) => ({ ...p, [key]: want }));
+    setPrefsSaving(true);
+    try {
+      await setEmailPrefs({ [key]: want });
+      refresh().catch(() => {});
+    } catch {
+      setPrefs((p) => ({ ...p, [key]: !want }));
+    } finally {
+      setPrefsSaving(false);
     }
   };
   const navigation = useNavigation<Nav>();
@@ -824,6 +851,75 @@ export function ProfileScreen() {
             />
           </View>
         </TouchableOpacity>
+
+        {/* Maile serwisowe: te same przełączniki co w profilu na webie. */}
+        {(
+          [
+            {
+              key: "emailReminders" as const,
+              icon: "notifications-outline" as const,
+              title: "Przypomnienia o nauce",
+              sub: "Seria zagrożona, darmowy arkusz czeka. Najwyżej jedno dziennie",
+            },
+            {
+              key: "emailSummary" as const,
+              icon: "stats-chart-outline" as const,
+              title: "Tygodniowe podsumowanie",
+              sub: "Niedzielny raport z Twojej nauki",
+            },
+          ]
+        ).map((row) => {
+          const on = prefs[row.key];
+          return (
+            <TouchableOpacity
+              key={row.key}
+              onPress={() => togglePref(row.key)}
+              disabled={prefsSaving}
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingHorizontal: spacing[5],
+                paddingVertical: spacing[4],
+                borderBottomWidth: 1,
+                borderBottomColor: theme.borderLight,
+                opacity: prefsSaving ? 0.6 : 1,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                <Ionicons name={row.icon} size={20} color={theme.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "500", color: theme.text }}>
+                    {row.title}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 2 }}>
+                    {row.sub}
+                  </Text>
+                </View>
+              </View>
+              <View
+                style={{
+                  width: 48,
+                  height: 28,
+                  borderRadius: 14,
+                  backgroundColor: on ? colors.brand[500] : colors.zinc[300],
+                  justifyContent: "center",
+                  paddingHorizontal: 3,
+                }}
+              >
+                <View
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    backgroundColor: "#fff",
+                    alignSelf: on ? "flex-end" : "flex-start",
+                  }}
+                />
+              </View>
+            </TouchableOpacity>
+          );
+        })}
 
         <View
           style={{
