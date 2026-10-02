@@ -69,7 +69,7 @@ const MODE_CONFIG: Record<
     // Jak web PremiumGate „listening”, bez „tempo jak na CKE” (tego nie
     // mierzymy) i bez „1:1” przy typach zadań.
     bullets: [
-      "Najpierw nagrania, których jeszcze nie słyszałeś — gdy zostaje ich mało, AI dogrywa nowe w tle",
+      "Najpierw nagrania, których jeszcze nie słyszałeś — gdy zostaje ich mało, dogrywamy nowe w tle",
       "Różne głosy (🇬🇧/🇺🇸/🇦🇺), Hochdeutsch dla niemieckiego",
       "Typy zadań jak w arkuszu maturalnym",
     ],
@@ -80,7 +80,7 @@ const MODE_CONFIG: Record<
     headline: "Przećwicz maturę, zanim zdasz ją naprawdę",
     bullets: [
       "Pełne arkusze z timerem — identyczny rygor jak na sali CKE",
-      "Punktacja wg klucza + feedback AI do zadań otwartych",
+      "Punktacja wg klucza i omówienie zadań otwartych",
       "Historia podejść: widzisz, jak rośnie Twój wynik",
     ],
     personalizedVerb:
@@ -371,7 +371,7 @@ function ListeningPreview() {
       </View>
       <Text style={{ marginTop: 10, fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
         Prawdziwe nagranie z aplikacji — w sesji {pytaniaDoNagrania(sample.subQuestionCount)}.
-        Najpierw dostajesz nagrania, których jeszcze nie słyszałeś, a nowe AI dogrywa w tle.
+        Najpierw dostajesz nagrania, których jeszcze nie słyszałeś, a nowe dogrywamy w tle.
       </Text>
     </View>
   );
@@ -578,7 +578,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
             <Text
               style={{ fontSize: 13, color: theme.text, lineHeight: 19 }}
             >
-              📊 W diagnozie z przedmiotu{" "}
+              📊 W darmowym quizie z przedmiotu{" "}
               <Text style={{ fontWeight: "700" }}>
                 {diagnosis.subjectName.toLowerCase()}
               </Text>{" "}

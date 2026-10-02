@@ -68,7 +68,7 @@ export function ModeTiles({
       key: "listening",
       icon: "🎧",
       label: "Słuchanie",
-      description: "Nagrania AI po angielsku i niemiecku",
+      description: "Nagrania po angielsku i niemiecku",
       stat: "bez limitu odsłuchań",
       tint: isDark ? "rgba(20,184,166,0.18)" : "#ccfbf1",
       color: isDark ? "#5eead4" : "#0f766e",

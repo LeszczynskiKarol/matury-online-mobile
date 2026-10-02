@@ -99,7 +99,7 @@ export function FreePanel({
       `Twój wynik: ${diag.scorePercent ?? 0}%.`
     : diagInProgress
       ? `Zaczęta — rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
-      : "Tak wygląda nauka w aplikacji. Rozwiąż 13 zadań, ocena po każdym.";
+      : "Rozwiąż 13 zadań i sprawdź się. Ocena po każdym.";
   const diagCta = diag
     ? "Zobacz wynik"
     : diagInProgress
@@ -223,11 +223,11 @@ export function FreePanel({
         Za darmo
       </Text>
 
-      {row("📊", "Darmowy quiz", diagText, diagCta, onDiag)}
+      {row("📊", "Quiz", diagText, diagCta, onDiag)}
       <View
         style={{ height: 1, backgroundColor: theme.border, marginVertical: 14 }}
       />
-      {row("📝", "Darmowy arkusz", examText, examCta, onExam)}
+      {row("📝", "Arkusz", examText, examCta, onExam)}
       <FreeSheetPicker
         visible={picker}
         onClose={() => setPicker(false)}

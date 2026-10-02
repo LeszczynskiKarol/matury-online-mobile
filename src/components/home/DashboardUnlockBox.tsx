@@ -59,7 +59,7 @@ export function DashboardUnlockBox({
           bullets: [
             "Twoje konto i postępy nadal tu są: XP, seria i historia sesji",
             "System dobierze pytania od nowa pod Twoje aktualne braki",
-            "Pełne arkusze z timerem i ocena wypracowań przez AI",
+            "Pełne arkusze z timerem i oceną według kryteriów CKE",
           ],
           cta: "Wznów dostęp",
         }
@@ -68,7 +68,7 @@ export function DashboardUnlockBox({
           bullets: [
             `${floor100(total)} pytań z 12 przedmiotów, dobieranych pod Twoje braki`,
             "Nielimitowane arkusze z timerem i oceną według kryteriów CKE",
-            "Słuchanie z nielimitowanymi nagraniami: każde zadanie jest inne",
+            "Słuchanie bez limitu nagrań: każde zadanie jest inne",
           ],
           cta: "Odblokuj pełny dostęp",
         };

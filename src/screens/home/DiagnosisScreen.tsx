@@ -267,7 +267,7 @@ export function DiagnosisScreen() {
   // ── Rozwiązywanie na ekranie Quizu (nowa albo wznowiona diagnoza) ─────────
   const openPlay = useCallback(
     async (token: string) => {
-      setPhase({ kind: "loading", label: "Wczytuję diagnozę…" });
+      setPhase({ kind: "loading", label: "Wczytuję quiz…" });
       try {
         const st = await api<any>(`/diagnosis/v2/state/${encodeURIComponent(token)}`);
         if (st.completed) {
@@ -282,7 +282,7 @@ export function DiagnosisScreen() {
           diagnosis: { token, mode: "play", answered: st.answered ?? {} },
         });
       } catch {
-        setPhase({ kind: "error", message: "Nie udało się wczytać diagnozy. Spróbuj ponownie." });
+        setPhase({ kind: "error", message: "Nie udało się wczytać quizu. Spróbuj ponownie." });
       }
     },
     [loadResult, navigation],
@@ -359,7 +359,7 @@ export function DiagnosisScreen() {
             ? "Limit podejść na dziś wykorzystany — spróbuj jutro."
             : e instanceof ApiError
               ? e.message
-              : "Nie udało się rozpocząć diagnozy.",
+              : "Nie udało się rozpocząć quizu.",
       });
     }
   };
@@ -428,7 +428,7 @@ export function DiagnosisScreen() {
   if (phase.kind === "error") {
     return (
       <ScrollView style={container} contentContainerStyle={content}>
-        <Header title="Diagnoza" />
+        <Header title="Darmowy quiz" />
         <Card>
           <Text style={{ fontSize: 15, color: colors.red[500], marginBottom: 14 }}>{phase.message}</Text>
           <Button title="Wróć do wyboru przedmiotu" onPress={() => void loadSubjects()} size="sm" />
@@ -448,14 +448,14 @@ export function DiagnosisScreen() {
         <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, marginBottom: 18 }}>
           Tak wygląda nauka w apce: 13 zadań różnego typu z wybranego przedmiotu,
           jak w Quizie — z oceną i wyjaśnieniem po każdym, a zadania otwarte
-          ocenia AI. Możesz przerwać i wrócić. Jedna darmowa diagnoza na konto.
+          ocenia AI. Możesz przerwać i wrócić. Jeden darmowy quiz na konto.
         </Text>
         {phase.subjects === null ? (
           <ActivityIndicator color={colors.brand[500]} />
         ) : phase.subjects.length === 0 ? (
           <Card>
             <Text style={{ color: theme.textSecondary }}>
-              {phase.error ?? "Diagnoza pojawi się wkrótce."}
+              {phase.error ?? "Quiz pojawi się wkrótce."}
             </Text>
           </Card>
         ) : (
@@ -550,7 +550,7 @@ export function DiagnosisScreen() {
 
     return (
       <ScrollView style={container} contentContainerStyle={content}>
-        <Header title={`Diagnoza · ${shortName(r.subject.name, r.subject.slug)}`} />
+        <Header title={`Darmowy quiz · ${shortName(r.subject.name, r.subject.slug)}`} />
 
         {/* Nagłówek z wynikiem — najpierw „gotowe”, potem liczba (web). */}
         <View style={{ alignItems: "center", marginBottom: 20 }}>
@@ -571,7 +571,7 @@ export function DiagnosisScreen() {
                 color: isDark ? "#6ee7b7" : "#047857",
               }}
             >
-              ✓ TWOJA DIAGNOZA JEST GOTOWA
+              ✓ TWÓJ WYNIK JEST GOTOWY
             </Text>
           </View>
           <Text
@@ -583,7 +583,7 @@ export function DiagnosisScreen() {
               marginBottom: 14,
             }}
           >
-            Diagnoza · {shortName(r.subject.name, r.subject.slug)} — poniżej wynik,
+            Darmowy quiz · {shortName(r.subject.name, r.subject.slug)} — poniżej wynik,
             działy do powtórki i co dalej.
           </Text>
           <ScoreRing percent={r.scorePercent} sub={ringSub} color={ringColor} theme={theme} />
@@ -898,11 +898,11 @@ export function DiagnosisScreen() {
                     .join(", ")}
                 </Text>
                 {isE8
-                  ? ". W Premium odblokowujesz pytania z tych działów, pełne arkusze na czas i ocenę zadań otwartych przez AI."
-                  : ". W Premium odblokowujesz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań przez AI."}
+                  ? ". W Premium odblokowujesz pytania z tych działów, pełne arkusze na czas i ocenę zadań otwartych według kryteriów CKE."
+                  : ". W Premium odblokowujesz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań według kryteriów CKE."}
               </>
             ) : (
-              "Diagnoza sprawdza podstawy. O wyniku decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."
+              "Quiz sprawdza podstawy. O wyniku decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."
             )}
           </Text>
           {days !== null && days > 0 && (
@@ -913,7 +913,7 @@ export function DiagnosisScreen() {
           )}
           {!isPremium && (
             <Button
-              title={weak.length > 0 ? "Nadrób te działy w Premium →" : "Odblokuj arkusze i ocenę AI →"}
+              title={weak.length > 0 ? "Nadrób te działy w Premium →" : "Odblokuj pełne arkusze →"}
               onPress={toSubscription}
               size="sm"
             />

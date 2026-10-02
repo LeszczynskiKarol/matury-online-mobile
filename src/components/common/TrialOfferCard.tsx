@@ -133,8 +133,8 @@ export function TrialOfferCard({
         </Text>
         <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 12 }}>
           {status.examId
-            ? "Wróć do niego, oddaj i zobacz ocenę AI do każdego zadania otwartego."
-            : `Otwórz go, kiedy chcesz: wybierz przedmiot i poziom. Pełny arkusz bez limitu czasu, punktacja wg klucza i feedback AI. Do tego ${status.credits} kredytów AI.`}
+            ? "Wróć do niego, oddaj i zobacz ocenę każdego zadania otwartego."
+            : `Otwórz go, kiedy chcesz: wybierz przedmiot i poziom. Pełny arkusz bez limitu czasu, punktacja wg klucza i omówienie zadań otwartych. Do tego ${status.credits} kredytów AI.`}
         </Text>
 
         <TouchableOpacity
@@ -174,7 +174,7 @@ export function TrialOfferCard({
 
       {[
         "1 pełny arkusz maturalny — bez limitu czasu, możesz na raty",
-        "Punktacja wg klucza + feedback AI do zadań otwartych",
+        "Punktacja wg klucza i omówienie zadań otwartych",
         `${status.credits} kredytów AI na ocenianie Twoich odpowiedzi`,
       ].map((b) => (
         <View key={b} style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>

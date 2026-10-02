@@ -256,7 +256,7 @@ export function FreeSheetPicker({
               <Text
                 style={{ fontSize: 13, color: theme.textSecondary, textAlign: "center", marginBottom: 18, lineHeight: 19 }}
               >
-                Pełny arkusz — zadanie po zadaniu, z punktacją według klucza i oceną AI zadań otwartych.
+                Pełny arkusz — zadanie po zadaniu, z punktacją według klucza i oceną zadań otwartych według kryteriów CKE.
                 Bez zegara: możesz przerwać i wrócić.
               </Text>
 

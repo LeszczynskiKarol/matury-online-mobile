@@ -115,7 +115,7 @@ const KIND: Record<ActivityKind, { icon: string; label: string; tint: string }> 
   listening: { icon: "🎧", label: "Słuchanie", tint: "#14b8a6" },
   exam: { icon: "📋", label: "Egzamin", tint: "#8b5cf6" },
   essay: { icon: "✍️", label: "Wypracowanie", tint: "#f59e0b" },
-  diagnosis: { icon: "🎯", label: "Diagnoza", tint: "#10b981" },
+  diagnosis: { icon: "🎯", label: "Darmowy quiz", tint: "#10b981" },
 };
 
 function titleFor(it: ActivityItem): string {
@@ -126,7 +126,7 @@ function titleFor(it: ActivityItem): string {
     case "listening":
       return "Rozumienie ze słuchu";
     case "diagnosis":
-      return "Diagnoza poziomu";
+      return "Darmowy quiz";
     default:
       return it.title || it.subject?.name || KIND[it.kind].label;
   }

@@ -97,7 +97,7 @@ const FEATURES = [
   { icon: "📚", text: "Dostęp do wszystkich przedmiotów" },
   { icon: "♾️", text: "Nieograniczone pytania" },
   { icon: "🎯", text: "Wybór tematów i lektur" },
-  { icon: "🤖", text: "AI ocena wypracowań" },
+  { icon: "📝", text: "Ocena wypracowań według kryteriów CKE" },
   { icon: "📊", text: "Pełne statystyki i postępy" },
 ];
 
@@ -384,7 +384,7 @@ export function SubscriptionScreen() {
             {[
               "Quizy i arkusze ze wszystkich przedmiotów",
               "Słuchanie z angielskiego i niemieckiego",
-              "Ocena wypracowań przez AI",
+              "Ocena wypracowań według kryteriów CKE",
               paidStatus === "ANNUAL" || paidStatus === "ONE_TIME"
                 ? "Płatność jednorazowa — bez odnowień"
                 : "Anulujesz w Sklepie Play, kiedy chcesz",

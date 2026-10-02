@@ -455,8 +455,8 @@ export function ExamSelectorScreen() {
         }}
       >
         {isPremium === false && !!trial && (trial.active || !!trial.examId)
-          ? "Pełny arkusz maturalny z punktacją wg klucza i feedbackiem AI. Twój darmowy arkusz nie ma limitu czasu."
-          : "Pełny symulator matury. Timer, arkusz, feedback AI."}
+          ? "Pełny arkusz maturalny z punktacją wg klucza i omówieniem zadań otwartych. Twój darmowy arkusz nie ma limitu czasu."
+          : "Pełny symulator matury. Timer, arkusz, ocena według kryteriów CKE."}
       </Text>
 
       {/* Oferta odebrana, arkusz jeszcze nie wybrany. Ostrzeżenie jest istotne:

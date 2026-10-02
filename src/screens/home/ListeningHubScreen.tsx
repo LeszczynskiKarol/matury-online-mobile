@@ -222,7 +222,7 @@ export function ListeningHubScreen() {
               }}
             >
               Najpierw dostajesz nagrania z bazy, których jeszcze nie
-              słyszałeś; nowe AI dogrywa w tle, gdy baza się kończy.
+              słyszałeś; nowe dogrywamy w tle, gdy baza się kończy.
               Odsłuchujesz je bez limitu, aż zrozumiesz.
             </Text>
           </View>

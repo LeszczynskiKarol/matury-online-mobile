@@ -887,7 +887,7 @@ export function QuizPlayScreen() {
       (navigation as any).replace("Diagnosis", { token: diagnosis.token });
     } catch (err: any) {
       setLoadingMore(false);
-      Alert.alert("Błąd", err?.message || "Nie udało się zakończyć diagnozy");
+      Alert.alert("Błąd", err?.message || "Nie udało się zakończyć quizu");
     }
   };
 
@@ -938,7 +938,7 @@ export function QuizPlayScreen() {
         return;
       }
       Alert.alert(
-        "Przerwać diagnozę?",
+        "Przerwać quiz?",
         "Odpowiedzi są zapisane — wrócisz do tego samego pytania z pulpitu.",
         [
           { text: "Zostaję", style: "cancel" },
@@ -1835,7 +1835,7 @@ export function QuizPlayScreen() {
             )}
 
             {/* ── Diagnoza: zadanie AI bez oceny ─────────────────────────
-                Darmowy pakiet (z oceną AI w diagnozie) poszedł już z tej
+                Darmowy pakiet (z oceną AI w darmowym quizie) poszedł już z tej
                 sieci/urządzenia — backend zapisuje odpowiedź bez punktów
                 (aiLocked). Zamiast „Niestety, źle" mówimy, dlaczego, i dajemy
                 drogę do Premium. */}
@@ -1860,7 +1860,7 @@ export function QuizPlayScreen() {
                 <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 21 }}>
                   {result.aiLocked || isFreePackBlocked(result)
                     ? FREE_PACK_BLOCKED_MESSAGE
-                    : "Ocenę AI tego zadania zobaczysz w wyniku diagnozy."}
+                    : "Ocenę AI tego zadania zobaczysz w wyniku quizu."}
                 </Text>
                 {(result.aiLocked || isFreePackBlocked(result)) && (
                   <View style={{ marginTop: 12 }}>
