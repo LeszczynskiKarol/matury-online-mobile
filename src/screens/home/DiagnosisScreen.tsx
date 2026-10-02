@@ -248,7 +248,7 @@ export function DiagnosisScreen() {
 
   // ── Raport ──────────────────────────────────────────────────────────────────
   const loadResult = useCallback(async (token: string) => {
-    setPhase({ kind: "loading", label: "Ładuję raport…" });
+    setPhase({ kind: "loading", label: "Ładuję wynik…" });
     try {
       const result = await api<FullResult>(`/diagnosis/result/${encodeURIComponent(token)}`);
       setOpenQ(null);
@@ -259,7 +259,7 @@ export function DiagnosisScreen() {
         message:
           e instanceof ApiError && e.status === 403
             ? "To podejście jest przypisane do innego konta."
-            : "Nie udało się pobrać raportu. Spróbuj ponownie za chwilę.",
+            : "Nie udało się pobrać wyniku. Spróbuj ponownie za chwilę.",
       });
     }
   }, []);
@@ -443,12 +443,12 @@ export function DiagnosisScreen() {
       <ScrollView style={container} contentContainerStyle={content}>
         <Header title="Darmowy quiz" />
         <Text style={{ fontSize: 26, fontWeight: "800", color: theme.text, marginBottom: 6 }}>
-          Sprawdź za darmo swoją wiedzę i działanie apki
+          Darmowy quiz: zobacz, jak wygląda nauka w apce
         </Text>
         <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, marginBottom: 18 }}>
           Tak wygląda nauka w apce: 13 zadań różnego typu z wybranego przedmiotu,
-          jak w Quizie — z oceną i wyjaśnieniem po każdym, a zadania otwarte
-          ocenia AI. Możesz przerwać i wrócić. Jeden darmowy quiz na konto.
+          jak w Quizie — z oceną i wyjaśnieniem po każdym, także przy
+          zadaniach otwartych. Możesz przerwać i wrócić. Jeden darmowy quiz na konto.
         </Text>
         {phase.subjects === null ? (
           <ActivityIndicator color={colors.brand[500]} />
@@ -530,13 +530,7 @@ export function DiagnosisScreen() {
       : rp
         ? `${rp.pts} pkt z ${rp.max}`
         : `cel: ${RECRUIT_PERCENT}% (rekrutacja)`;
-    const headline = withThreshold
-      ? aboveTarget
-        ? "Próg zaliczony — czas podnieść wynik."
-        : "Poniżej progu — wiesz już, od czego zacząć."
-      : aboveTarget
-        ? "Dobry wynik — czas dopracować szczegóły."
-        : "Wiesz już, od czego zacząć.";
+    const headline = `Wynik z 13 zadań: ${r.scorePercent}%`;
 
     // Działy od najsłabszego — jak web (topicBreakdown z backendu).
     const rows = [...(r.topicBreakdown ?? [])]
@@ -583,8 +577,8 @@ export function DiagnosisScreen() {
               marginBottom: 14,
             }}
           >
-            Darmowy quiz · {shortName(r.subject.name, r.subject.slug)} — poniżej wynik,
-            działy do powtórki i co dalej.
+            Darmowy quiz · {shortName(r.subject.name, r.subject.slug)} . Poniżej wynik,
+            Twoje odpowiedzi z wyjaśnieniami i co dalej.
           </Text>
           <ScoreRing percent={r.scorePercent} sub={ringSub} color={ringColor} theme={theme} />
           <Text
@@ -598,7 +592,7 @@ export function DiagnosisScreen() {
           >
             {headline}
           </Text>
-          {!withThreshold && (
+          {(
             <Text
               style={{
                 fontSize: 13,
@@ -608,9 +602,7 @@ export function DiagnosisScreen() {
                 marginTop: 8,
               }}
             >
-              {isE8
-                ? "Egzamin ósmoklasisty nie ma progu zdawalności — liczy się sam wynik, który przelicza się na punkty w rekrutacji."
-                : "Matura z tego przedmiotu nie ma progu zdawalności — liczy się sam wynik, który uczelnie biorą pod uwagę w rekrutacji."}
+              To próbka nauki, nie prognoza wyniku egzaminu. Pełny obraz da arkusz egzaminacyjny.
             </Text>
           )}
         </View>
@@ -820,7 +812,7 @@ export function DiagnosisScreen() {
         {rows.length > 0 && (
           <Card style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, marginBottom: 14 }}>
-              Twoje działy — od najsłabszego
+              Wynik po działach w tych 13 zadaniach
             </Text>
             <View style={{ gap: 12 }}>
               {rows.map((t) => {
@@ -886,7 +878,7 @@ export function DiagnosisScreen() {
           }}
         >
           <Text style={{ fontSize: 17, fontWeight: "800", color: "#fff", marginBottom: 6 }}>
-            {weak.length > 0 ? "Najwięcej tracisz tutaj" : "Solidna baza — teraz przełóż ją na wynik"}
+            {weak.length > 0 ? "W tych zadaniach najwięcej punktów uciekło tutaj" : "Dobry start. Teraz przełóż go na wynik"}
           </Text>
           <Text style={{ fontSize: 14, color: colors.navy[100], lineHeight: 21, marginBottom: 12 }}>
             {weak.length > 0 ? (
@@ -898,22 +890,22 @@ export function DiagnosisScreen() {
                     .join(", ")}
                 </Text>
                 {isE8
-                  ? ". W Premium odblokowujesz pytania z tych działów, pełne arkusze na czas i ocenę zadań otwartych według kryteriów CKE."
-                  : ". W Premium odblokowujesz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań według kryteriów CKE."}
+                  ? ". W Premium ćwiczysz pytania z tych działów, pełne arkusze na czas i ocenę zadań otwartych według kryteriów CKE."
+                  : ". W Premium ćwiczysz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań według kryteriów CKE."}
               </>
             ) : (
-              "Quiz sprawdza podstawy. O wyniku decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."
+              "13 zadań to tylko próbka. O wyniku egzaminu decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."
             )}
           </Text>
           {days !== null && days > 0 && (
             <Text style={{ fontSize: 13, color: colors.navy[200], lineHeight: 19, marginBottom: 14 }}>
-              ⏳ Do matury zostało <Text style={{ fontWeight: "800", color: "#fff" }}>{days} dni</Text>. Te
-              braki nie znikną same — im wcześniej zaczniesz, tym mniej pod górkę.
+              ⏳ Do matury zostało <Text style={{ fontWeight: "800", color: "#fff" }}>{days} dni</Text>. Im
+              wcześniej zaczniesz regularną naukę, tym mniej pod górkę.
             </Text>
           )}
           {!isPremium && (
             <Button
-              title={weak.length > 0 ? "Nadrób te działy w Premium →" : "Odblokuj pełne arkusze →"}
+              title={weak.length > 0 ? "Ćwicz te działy w Premium →" : "Odblokuj pełne arkusze →"}
               onPress={toSubscription}
               size="sm"
             />
