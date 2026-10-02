@@ -2226,13 +2226,41 @@ function Writing({ task, answers, onAnswer, theme, isDark }: RenderProps) {
                         color: theme.text,
                       }}
                     >
-                      {t.title ||
-                        (typeof t.promptPL === "string"
-                          ? t.promptPL.length > 90
-                            ? t.promptPL.slice(0, 90).trimEnd() + "…"
-                            : t.promptPL
-                          : "")}
+                      {t.title || (typeof t.promptPL === "string" ? t.promptPL : "")}
                     </Text>
+                    {/* Pełne polecenie i elementy tematu jak na webie. Do
+                        2.10.2026 polecenie było ucinane do 90 znaków z „…”,
+                        a po wyborze tematu nigdzie się nie pokazywało (brief
+                        zna scenario/bulletPoints, nie promptPL/elements);
+                        zgłoszenie z arkusza #8 Angielski PR, zad. 10. */}
+                    {t.title && typeof t.promptPL === "string" && (
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: theme.text,
+                          lineHeight: 19,
+                          marginTop: 4,
+                        }}
+                      >
+                        {t.promptPL}
+                      </Text>
+                    )}
+                    {Array.isArray(t.elements) && t.elements.length > 0 && (
+                      <View style={{ marginTop: 6, gap: 2 }}>
+                        {t.elements.map((el: string, i: number) => (
+                          <Text
+                            key={i}
+                            style={{
+                              fontSize: 12,
+                              color: theme.textSecondary,
+                              lineHeight: 17,
+                            }}
+                          >
+                            • {el}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
                     {t.form && (
                       <Text
                         style={{
