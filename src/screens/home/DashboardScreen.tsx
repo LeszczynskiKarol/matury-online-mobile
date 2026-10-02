@@ -320,6 +320,7 @@ export function DashboardScreen() {
                   </Text>
                   <Text style={{ fontSize: 12, color: theme.textSecondary }}>
                     {s._count?.questions || "100+"} pytań
+                    {s._count?.exams ? ` · ${s._count.exams} ${arkuszy(s._count.exams)}` : ""}
                   </Text>
                 </View>
                 <Ionicons
@@ -1033,4 +1034,12 @@ export function DashboardScreen() {
       )}
     </ScrollView>
   );
+}
+
+// 1 arkusz, 2–4 arkusze, 5+ arkuszy (12–14 → arkuszy).
+function arkuszy(n: number): string {
+  if (n === 1) return "arkusz";
+  const d = n % 10;
+  const t = n % 100;
+  return d >= 2 && d <= 4 && (t < 12 || t > 14) ? "arkusze" : "arkuszy";
 }

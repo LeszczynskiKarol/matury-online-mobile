@@ -25,11 +25,8 @@ import {
 } from "../../api/premium";
 import { FreeSheetPicker } from "./FreeSheetPicker";
 import {
-  FS_CTA_OPEN,
-  FS_CTA_RESULT,
   FS_CTA_UNAVAILABLE,
   FS_MSG_NOT_ELIGIBLE,
-  FS_PICK_CTA,
 } from "../../lib/freeSheet";
 
 interface DiagnosisRow {
@@ -101,10 +98,10 @@ export function FreePanel({
       ? `Zaczęta — rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
       : "13 zadań z wybranego przedmiotu, każde od razu ocenione.";
   const diagCta = diag
-    ? "Zobacz wynik"
+    ? "Zobacz wynik →"
     : diagInProgress
-      ? "Kontynuuj quiz"
-      : "Rozwiąż darmowy quiz";
+      ? "Kontynuuj quiz →"
+      : "Rozwiąż quiz →";
   const onDiag = () =>
     navigation.navigate("Diagnosis", diag ? { token: diag.token } : undefined);
 
@@ -119,7 +116,7 @@ export function FreePanel({
   let onExam: (() => void) | null = null;
   if (examDone && trial?.examAttemptId) {
     examText = "Oddany. Wynik zostaje na stałe.";
-    examCta = FS_CTA_RESULT;
+    examCta = "Zobacz wynik →";
     onExam = () =>
       navigation.getParent()?.navigate("ExamTab", {
         screen: "ExamResults",
@@ -127,7 +124,7 @@ export function FreePanel({
       });
   } else if (trial?.examId) {
     examText = "Otwarty i czeka na Ciebie — bez limitu czasu, odpowiedzi zapisują się same.";
-    examCta = FS_CTA_OPEN;
+    examCta = "Kontynuuj arkusz →";
     // Prosto do arkusza, nie do listy (jak na webie).
     onExam = () =>
       navigation.getParent()?.navigate("ExamTab", {
@@ -136,7 +133,7 @@ export function FreePanel({
       });
   } else if (trial?.active) {
     examText = "Oferta odebrana — wybierz przedmiot, kiedy chcesz, a arkusz otworzy się od razu.";
-    examCta = FS_PICK_CTA;
+    examCta = "Rozwiąż arkusz →";
     onExam = () => setPicker(true);
   } else if (isFreePackBlocked(trial)) {
     // Pakiet startowy poszedł już z tej sieci/urządzenia — zamiast
@@ -146,7 +143,7 @@ export function FreePanel({
     onExam = onPremium;
   } else if (trial?.eligible) {
     examText = "Zobacz, jak wygląda rozwiązywanie arkuszy w aplikacji.";
-    examCta = FS_PICK_CTA;
+    examCta = "Rozwiąż arkusz →";
     onExam = () => setPicker(true);
   } else if (trial) {
     // Odebrana oferta zostaje aktywna bez terminu, więc tu trafia już tylko

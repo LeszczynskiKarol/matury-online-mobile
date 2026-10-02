@@ -16,7 +16,6 @@ import { useTheme } from "../../context/ThemeContext";
 import { Button } from "../ui/Button";
 import { api } from "../../api/client";
 import { logIntent } from "../../api/premium";
-import { TrialOfferCard } from "./TrialOfferCard";
 import { AudioPlayer } from "../quiz/ListeningQuestion";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../theme/colors";
@@ -626,12 +625,6 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         {/* Pod przyciskiem nic więcej: bez podpowiedzi o Pakiecie i bez
             „Anuluj w każdej chwili…" — decyzja Karola 25.09.2026. */}
 
-        {/* Oferta próbna POD ceną — kto jest gotów kupić, kupuje wyżej.
-            Konto po wygaśnięciu / z nieudaną płatnością już zna produkt —
-            tam oferta próbna nie ma sensu. */}
-        {variant.kind === "default" && (
-          <TrialOfferCard trigger={`gate:${mode}`} />
-        )}
       </View>
     </ScrollView>
   );
