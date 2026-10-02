@@ -20,6 +20,7 @@ import { SvgViewer } from "./SvgViewer";
 import { ZoomableBox } from "./ZoomableBox";
 import { parseChemText } from "../../utils/chemText";
 import { CodeAwareText } from "../common/CodeAwareText";
+import { HScroll } from "../common/HScroll";
 import { splitPipeTableSegments } from "../../utils/pipeTables";
 import { osmMapHtml, parseGeoportalPos } from "../../utils/osmMap";
 import { SqlSchemaView } from "./Tier2TaskRenderers";
@@ -446,7 +447,7 @@ function TableMaterial({ mat, theme, isDark }: MaterialProps) {
 
   return (
     <View>
-      <ScrollView horizontal>
+      <HScroll>
         <View
           style={{
             borderWidth: 1,
@@ -514,7 +515,7 @@ function TableMaterial({ mat, theme, isDark }: MaterialProps) {
             </View>
           ))}
         </View>
-      </ScrollView>
+      </HScroll>
       {td.caption && (
         <Text
           style={{

@@ -419,7 +419,7 @@ export function ExamSelectorScreen() {
   }
 
   // Premium gate — wcześniej bez ŻADNEGO CTA (ślepa uliczka); teraz wspólny
-  // konwersyjny ekran z przejściem do subskrypcji. Konto z ważną ofertą
+  // konwersyjny ekran z przejściem do subskrypcji. Konto z odebraną ofertą
   // przechodzi dalej, do katalogu.
   if (isPremium === false && !trial?.active) {
     return <PremiumGate mode="exam" />;
@@ -455,11 +455,11 @@ export function ExamSelectorScreen() {
         }}
       >
         {isPremium === false && !!trial && (trial.active || !!trial.examId)
-          ? "Pełny arkusz maturalny z punktacją wg klucza i feedbackiem AI. Twój darmowy arkusz nie ma limitu czasu."
-          : "Pełny symulator matury. Timer, arkusz, feedback AI."}
+          ? "Pełny arkusz maturalny z punktacją wg klucza i omówieniem zadań otwartych. Twój darmowy arkusz nie ma limitu czasu."
+          : "Pełny symulator matury. Timer, arkusz, ocena według kryteriów CKE."}
       </Text>
 
-      {/* Oferta ważna, arkusz jeszcze nie wybrany. Ostrzeżenie jest istotne:
+      {/* Oferta odebrana, arkusz jeszcze nie wybrany. Ostrzeżenie jest istotne:
           wybór jest JEDNORAZOWY, a bez tej informacji uczeń klika w pierwszy
           z brzegu i orientuje się dopiero, gdy nie może otworzyć drugiego. */}
       {isPremium === false && trial?.active && !trial.examId && (
@@ -479,7 +479,7 @@ export function ExamSelectorScreen() {
             🎁 Masz odblokowany 1 darmowy arkusz
           </Text>
           <Text style={{ fontSize: 12, color: theme.textSecondary, lineHeight: 18 }}>
-            Wybierz przedmiot i poziom — dostaniesz pełny arkusz do rozwiązania we
+            Wybierz przedmiot i poziom, kiedy chcesz — dostaniesz pełny arkusz do rozwiązania we
             własnym tempie. <Text style={{ fontWeight: "800" }}>To wybór na raz</Text>, więc weź
             przedmiot, na którym najbardziej Ci zależy. Masz też{" "}
             {trial.credits} kredytów AI na ocenę zadań otwartych.

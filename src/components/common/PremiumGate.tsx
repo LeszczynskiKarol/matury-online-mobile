@@ -16,8 +16,8 @@ import { useTheme } from "../../context/ThemeContext";
 import { Button } from "../ui/Button";
 import { api } from "../../api/client";
 import { logIntent } from "../../api/premium";
-import { TrialOfferCard } from "./TrialOfferCard";
 import { AudioPlayer } from "../quiz/ListeningQuestion";
+import { FreeSheetGateRow } from "./FreeSheetGateRow";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../theme/colors";
 import { spacing, radius } from "../../theme";
@@ -69,7 +69,7 @@ const MODE_CONFIG: Record<
     // Jak web PremiumGate „listening”, bez „tempo jak na CKE” (tego nie
     // mierzymy) i bez „1:1” przy typach zadań.
     bullets: [
-      "Najpierw nagrania, których jeszcze nie słyszałeś — gdy zostaje ich mało, AI dogrywa nowe w tle",
+      "Najpierw nagrania, których jeszcze nie słyszałeś — gdy zostaje ich mało, dogrywamy nowe w tle",
       "Różne głosy (🇬🇧/🇺🇸/🇦🇺), Hochdeutsch dla niemieckiego",
       "Typy zadań jak w arkuszu maturalnym",
     ],
@@ -80,7 +80,7 @@ const MODE_CONFIG: Record<
     headline: "Przećwicz maturę, zanim zdasz ją naprawdę",
     bullets: [
       "Pełne arkusze z timerem — identyczny rygor jak na sali CKE",
-      "Punktacja wg klucza + feedback AI do zadań otwartych",
+      "Punktacja wg klucza i omówienie zadań otwartych",
       "Historia podejść: widzisz, jak rośnie Twój wynik",
     ],
     personalizedVerb:
@@ -371,7 +371,7 @@ function ListeningPreview() {
       </View>
       <Text style={{ marginTop: 10, fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
         Prawdziwe nagranie z aplikacji — w sesji {pytaniaDoNagrania(sample.subQuestionCount)}.
-        Najpierw dostajesz nagrania, których jeszcze nie słyszałeś, a nowe AI dogrywa w tle.
+        Najpierw dostajesz nagrania, których jeszcze nie słyszałeś, a nowe dogrywamy w tle.
       </Text>
     </View>
   );
@@ -486,7 +486,13 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
   const bullets = special?.bullets ?? cfg.bullets;
   // Cena w osobnej linii pod przyciskiem, jak web („Od 49 zł miesięcznie”) —
   // w jednym tytule „— 49 zł/mies.” łamało się na 360 dp.
-  const ctaTitle = special?.cta ?? "Przejdź na Premium";
+  // Wezwanie mówi, co uczeń dostaje w tej zakładce, a nie jak nazywa się plan.
+  const DEFAULT_CTA: Record<GateMode, string> = {
+    exam: "Odblokuj nielimitowane arkusze",
+    listening: "Odblokuj słuchanie bez limitu",
+    quiz: "Odblokuj cały bank pytań",
+  };
+  const ctaTitle = special?.cta ?? DEFAULT_CTA[mode];
 
   return (
     <ScrollView
@@ -578,7 +584,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
             <Text
               style={{ fontSize: 13, color: theme.text, lineHeight: 19 }}
             >
-              📊 W diagnozie z przedmiotu{" "}
+              📊 W darmowym quizie z przedmiotu{" "}
               <Text style={{ fontWeight: "700" }}>
                 {diagnosis.subjectName.toLowerCase()}
               </Text>{" "}
@@ -588,6 +594,9 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
             </Text>
           </View>
         )}
+
+        {/* Egzamin: darmowy arkusz jednym wierszem nad ceną (FreeSheetGateRow). */}
+        {mode === "exam" && variant.kind === "default" && <FreeSheetGateRow />}
 
         <Button
           title={ctaTitle}
@@ -626,12 +635,6 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         {/* Pod przyciskiem nic więcej: bez podpowiedzi o Pakiecie i bez
             „Anuluj w każdej chwili…" — decyzja Karola 25.09.2026. */}
 
-        {/* Oferta próbna POD ceną — kto jest gotów kupić, kupuje wyżej.
-            Konto po wygaśnięciu / z nieudaną płatnością już zna produkt —
-            tam oferta próbna nie ma sensu. */}
-        {variant.kind === "default" && (
-          <TrialOfferCard trigger={`gate:${mode}`} />
-        )}
       </View>
     </ScrollView>
   );

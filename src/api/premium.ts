@@ -3,7 +3,7 @@
 // src/api/premium.ts
 //
 // Port webowych endpointów. Apka gada z TYM SAMYM backendem co web, więc cała
-// logika uprawnień (kto się kwalifikuje, jeden arkusz, okno 48h) już tam jest —
+// logika uprawnień (kto się kwalifikuje, jeden arkusz na konto) już tam jest —
 // tutaj nie wolno jej powielać ani obchodzić. Klient tylko czyta stan i
 // pokazuje właściwy ekran.
 // ============================================================================
@@ -12,9 +12,12 @@ import { api } from "./client";
 
 export interface TrialStatus {
   eligible: boolean;
+  /** Każda odebrana oferta — bez terminu na otwarcie arkusza. */
   active: boolean;
   claimedAt: string | null;
+  /** @deprecated Zawsze null — oferta nie ma już terminu. */
   expiresAt: string | null;
+  /** @deprecated Stała wartość tylko dla starych buildów (bez OTA) — nowy kod jej nie czyta. */
   remainingMs: number;
   examId: string | null;
   examAttemptId: string | null;
@@ -27,7 +30,11 @@ export interface TrialStatus {
     maxPoints: number;
   } | null;
   attemptStatus: string | null;
+  /** Oddany niepełny arkusz da się dokończyć (backend od 02.10.2026). */
+  canContinue?: boolean;
+  remainingTasks?: number;
   creditsGranted: number;
+  /** @deprecated Tylko dla starych buildów (bez OTA) — nowy kod tego nie czyta. */
   windowHours: number;
   credits: number;
   /** Darmowy pakiet startowy wykorzystany już z tej sieci / Gmaila /

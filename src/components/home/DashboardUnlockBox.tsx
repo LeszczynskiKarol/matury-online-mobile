@@ -59,18 +59,18 @@ export function DashboardUnlockBox({
           bullets: [
             "Twoje konto i postępy nadal tu są: XP, seria i historia sesji",
             "System dobierze pytania od nowa pod Twoje aktualne braki",
-            "Pełne arkusze z timerem i ocena wypracowań przez AI",
+            "Pełne arkusze z timerem i oceną według kryteriów CKE",
           ],
           cta: "Wznów dostęp",
         }
       : {
-          headline: "Twoje konto jest gotowe — odblokuj naukę",
+          headline: "Twoje konto jest gotowe: odblokuj naukę do matury",
           bullets: [
             `${floor100(total)} pytań z 12 przedmiotów, dobieranych pod Twoje braki`,
-            "Pełne arkusze z timerem + ocena wypracowań przez AI w 30 sekund",
-            "Słuchanie z nagraniami AI, serie i statystyki",
+            "Nielimitowane arkusze z timerem i oceną według kryteriów CKE",
+            "Słuchanie bez limitu nagrań: każde zadanie jest inne",
           ],
-          cta: "Odblokuj dostęp",
+          cta: "Odblokuj pełny dostęp",
         };
 
   return (
@@ -141,20 +141,6 @@ export function DashboardUnlockBox({
           od 49 zł/mies.
         </Text>
       </TouchableOpacity>
-      {!hasTutor && (
-        <Text
-          style={{
-            fontSize: 12,
-            color: theme.textSecondary,
-            textAlign: "center",
-            lineHeight: 18,
-            marginTop: 10,
-          }}
-        >
-          Najpierw chcesz sprawdzić apkę? Darmowa diagnoza (13 zadań z oceną)
-          i jeden darmowy arkusz są w karcie „Za darmo” wyżej.
-        </Text>
-      )}
     </View>
   );
 }

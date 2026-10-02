@@ -145,8 +145,6 @@ export const FS_CTA_OPEN = "Masz już swój darmowy arkusz — otwórz →";
 export const FS_CTA_RESULT = "Masz już swój darmowy arkusz — zobacz wynik →";
 export const FS_CTA_PREMIUM_USER = "Masz Premium — przejdź do arkuszy →";
 export const FS_CTA_UNAVAILABLE = "Zobacz Premium →";
-export const FS_MSG_EXPIRED =
-  "Minęło 48 godzin na otwarcie darmowego arkusza, a oferta jest jedna na konto.";
 export const FS_MSG_NOT_ELIGIBLE =
   "Darmowy arkusz przysługuje kontom, które nie miały jeszcze dostępu Premium.";
 

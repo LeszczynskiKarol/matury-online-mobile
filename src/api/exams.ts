@@ -51,6 +51,20 @@ export interface ExamStartData {
   substitutedFromExamId?: string | null;
   requestedExamId?: string;
   savedAnswers: Record<string, any>;
+  /** „Dokończ pozostałe zadania”: zadania ocenione przy pierwszym oddaniu —
+   *  tylko do odczytu (backend exam-continue.ts). Brak = zwykłe podejście. */
+  lockedTaskIds?: string[];
+  /** Oceny zablokowanych zadań z pierwszego oddania (dokańczanie). */
+  lockedGradings?: Record<
+    string,
+    {
+      pointsEarned: number;
+      maxPoints: number;
+      isCorrect: boolean;
+      explanation: string;
+      modelAnswer: string;
+    }
+  >;
   currentTaskId: string | null;
   startedAt: string;
   timeSpentMs: number;
@@ -154,7 +168,7 @@ export async function submitExam(
 /** Porzuć arkusz — wraca na listę do rozwiązania, bez wyniku i kredytów. */
 export async function discardExam(
   attemptId: string,
-): Promise<{ attemptId: string; status: string }> {
+): Promise<{ attemptId: string; status: string; continuationCancelled?: boolean }> {
   return api(`/exams/${attemptId}/discard`, { method: "POST", body: {} });
 }
 
@@ -176,6 +190,22 @@ export async function resetExam(
   attemptId: string,
 ): Promise<{ reset: boolean; attemptId: string; examId: string }> {
   return api(`/exams/${attemptId}/reset`, { method: "POST" });
+}
+
+/**
+ * „Dokończ pozostałe zadania” — darmowy arkusz oddany niepełny. Rozwiązane
+ * zadania zostają zablokowane z oceną, puste można dorobić; wynik przelicza
+ * się po oddaniu w tym samym podejściu. Błędy: 400 CANNOT_CONTINUE,
+ * 409 STATE_CHANGED.
+ */
+export async function continueExam(attemptId: string): Promise<{
+  attemptId: string;
+  examId: string;
+  status: "IN_PROGRESS";
+  lockedTaskIds: string[];
+  remainingTaskIds?: string[];
+}> {
+  return api(`/exams/${attemptId}/continue`, { method: "POST", body: {} });
 }
 
 export async function getExamResults(attemptId: string): Promise<any> {

@@ -24,13 +24,10 @@ import {
   type TrialStatus,
 } from "../../api/premium";
 import { FreeSheetPicker } from "./FreeSheetPicker";
+import { openFreeSheet } from "../../lib/openFreeSheet";
 import {
-  FS_CTA_OPEN,
-  FS_CTA_RESULT,
   FS_CTA_UNAVAILABLE,
-  FS_MSG_EXPIRED,
   FS_MSG_NOT_ELIGIBLE,
-  FS_PICK_CTA,
 } from "../../lib/freeSheet";
 
 interface DiagnosisRow {
@@ -39,11 +36,6 @@ interface DiagnosisRow {
   scorePercent: number | null;
   worstTopicName: string | null;
   token: string;
-}
-
-function hoursLeft(ms: number): string {
-  const h = Math.max(0, Math.floor(ms / 3_600_000));
-  return h === 1 ? "1 godzinę" : h >= 2 && h <= 4 ? `${h} godziny` : `${h} godzin`;
 }
 
 export function FreePanel({
@@ -104,13 +96,13 @@ export function FreePanel({
     ? // Bez „najsłabszego działu" — przy 13 pytaniach to zwykle jedno pytanie.
       `Twój wynik: ${diag.scorePercent ?? 0}%.`
     : diagInProgress
-      ? `Zaczęta — rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
-      : "Tak wygląda nauka w apce: 13 zadań, ocena po każdym.";
+      ? `Zaczęty: rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
+      : "13 zadań z wybranego przedmiotu, każde od razu ocenione.";
   const diagCta = diag
-    ? "Zobacz wynik"
+    ? "Zobacz wynik →"
     : diagInProgress
-      ? "Kontynuuj diagnozę"
-      : "Zrób darmową diagnozę";
+      ? "Kontynuuj quiz →"
+      : "Rozwiąż quiz →";
   const onDiag = () =>
     navigation.navigate("Diagnosis", diag ? { token: diag.token } : undefined);
 
@@ -124,16 +116,14 @@ export function FreePanel({
   let examCta: string | null = null;
   let onExam: (() => void) | null = null;
   if (examDone && trial?.examAttemptId) {
-    examText = "Oddany. Wynik zostaje na stałe.";
-    examCta = FS_CTA_RESULT;
-    onExam = () =>
-      navigation.getParent()?.navigate("ExamTab", {
-        screen: "ExamResults",
-        params: { attemptId: trial!.examAttemptId! },
-      });
+    examText = trial.canContinue
+      ? `Oddany. Zadań do zrobienia: ${trial.remainingTasks ?? 0}.`
+      : "Oddany. Wynik zostaje na stałe.";
+    examCta = "Zobacz swój arkusz →";
+    onExam = () => openFreeSheet(navigation, trial!);
   } else if (trial?.examId) {
     examText = "Otwarty i czeka na Ciebie — bez limitu czasu, odpowiedzi zapisują się same.";
-    examCta = FS_CTA_OPEN;
+    examCta = "Kontynuuj arkusz →";
     // Prosto do arkusza, nie do listy (jak na webie).
     onExam = () =>
       navigation.getParent()?.navigate("ExamTab", {
@@ -141,8 +131,8 @@ export function FreePanel({
         params: { examId: trial!.examId!, subjectId: "" },
       });
   } else if (trial?.active) {
-    examText = `Oferta odebrana — wybierz przedmiot, a arkusz otworzy się od razu. Masz na to ${hoursLeft(trial.remainingMs)}.`;
-    examCta = FS_PICK_CTA;
+    examText = "Oferta odebrana — wybierz przedmiot, kiedy chcesz, a arkusz otworzy się od razu.";
+    examCta = "Rozwiąż arkusz →";
     onExam = () => setPicker(true);
   } else if (isFreePackBlocked(trial)) {
     // Pakiet startowy poszedł już z tej sieci/urządzenia — zamiast
@@ -151,15 +141,17 @@ export function FreePanel({
     examCta = FS_CTA_UNAVAILABLE;
     onExam = onPremium;
   } else if (trial?.eligible) {
-    examText = "Pełny arkusz z oceną AI, bez limitu czasu. Najpierw wybierasz przedmiot — arkusz otworzy się od razu.";
-    examCta = FS_PICK_CTA;
+    examText = "Zobacz, jak wygląda rozwiązywanie arkuszy w aplikacji.";
+    examCta = "Rozwiąż arkusz →";
     onExam = () => setPicker(true);
   } else if (trial) {
-    examText = trial.claimedAt ? FS_MSG_EXPIRED : FS_MSG_NOT_ELIGIBLE;
+    // Odebrana oferta zostaje aktywna bez terminu, więc tu trafia już tylko
+    // konto, któremu darmowy arkusz nie przysługuje.
+    examText = FS_MSG_NOT_ELIGIBLE;
     examCta = FS_CTA_UNAVAILABLE;
     onExam = onPremium;
   } else {
-    examText = "Pełny arkusz z oceną AI, bez limitu czasu.";
+    examText = "Zobacz, jak wygląda rozwiązywanie arkuszy w aplikacji.";
   }
 
   const row = (
@@ -227,11 +219,11 @@ export function FreePanel({
         Za darmo
       </Text>
 
-      {row("📊", "Darmowa diagnoza", diagText, diagCta, onDiag)}
+      {row("📊", "Quiz", diagText, diagCta, onDiag)}
       <View
         style={{ height: 1, backgroundColor: theme.border, marginVertical: 14 }}
       />
-      {row("📝", "Darmowy arkusz", examText, examCta, onExam)}
+      {row("📝", "Arkusz", examText, examCta, onExam)}
       <FreeSheetPicker
         visible={picker}
         onClose={() => setPicker(false)}

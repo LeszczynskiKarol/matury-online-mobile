@@ -70,6 +70,7 @@ import { ReportButton } from "../../components/quiz/ReportQuestion";
 import { stripSheetNumber } from "../../lib/freeSheet";
 import { examPartName } from "../../utils/languageTaskLabels";
 
+import { HScroll } from "../../components/common/HScroll";
 type Nav = NativeStackNavigationProp<ExamStackParamList>;
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -181,6 +182,16 @@ export function ExamPlayerScreen() {
   const dataRef = useRef<ExamStartData | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
+  // „Dokończ pozostałe zadania” (darmowy arkusz oddany niepełny): zadania
+  // ocenione przy pierwszym oddaniu są tylko do odczytu. Backend
+  // (exam-continue.ts) i tak nadpisuje je przy zapisie i oddaniu.
+  const [lockedIds, setLockedIds] = useState<Set<string>>(() => new Set());
+  // Oceny zadań rozwiązanych przy pierwszym oddaniu — pokazywane przy zadaniu.
+  const [lockedGradings, setLockedGradings] = useState<
+    NonNullable<import("../../api/exams").ExamStartData["lockedGradings"]>
+  >({});
+  const lockedIdsRef = useRef<Set<string>>(lockedIds);
+  lockedIdsRef.current = lockedIds;
 
   // ── Load exam ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -190,6 +201,10 @@ export function ExamPlayerScreen() {
         const examData = normalizeOptionMaps(await startExam(examId));
         setData(examData);
         setAnswers(examData.savedAnswers || {});
+        setLockedIds(
+          new Set(Array.isArray(examData.lockedTaskIds) ? examData.lockedTaskIds : []),
+        );
+        setLockedGradings(examData.lockedGradings || {});
         if (
           (examData as any).untimed &&
           Object.keys(examData.savedAnswers || {}).length === 0
@@ -344,12 +359,18 @@ export function ExamPlayerScreen() {
   // Jak answerIsNonEmpty w backendzie: temat bez tekstu czy mapa pustych
   // luk to wciąż brak odpowiedzi.
   const answeredCount = allTasks.filter((t: any) => isFilled(answers[t.id])).length;
+  // Dokańczanie: ile zadań (poza zablokowanymi) wciąż czeka na odpowiedź.
+  const remainingToDo =
+    lockedIds.size > 0
+      ? allTasks.filter((t: any) => !lockedIds.has(t.id) && !isFilled(answers[t.id])).length
+      : 0;
   const openAnswered = allTasks.filter(
     (t: any) => t.gradingType !== "deterministic" && isFilled(answers[t.id]),
   ).length;
 
   // ── Helpers ────────────────────────────────────────────────────────
   const setAnswer = useCallback((taskId: string, value: any) => {
+    if (lockedIdsRef.current.has(taskId)) return;
     setAnswers((prev) => ({ ...prev, [taskId]: value }));
   }, []);
 
@@ -381,9 +402,15 @@ export function ExamPlayerScreen() {
     if (!data) return;
     setConfirmModal(false);
     setPhase("submitting");
+    let res: { status?: string; continuationCancelled?: boolean } | null = null;
     try {
-      await discardExam(data.attemptId);
+      res = await discardExam(data.attemptId);
     } catch {}
+    // Porzucenie dokańczania: backend przywraca wynik sprzed „Dokończ”.
+    if (res?.continuationCancelled) {
+      navigation.replace("ExamResults", { attemptId: data.attemptId });
+      return;
+    }
     navigation.replace("ExamSelector", { noAutoOpen: true });
   }, [data, navigation]);
 
@@ -549,10 +576,18 @@ export function ExamPlayerScreen() {
         <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 20 }}>
           {stripSheetNumber(data.exam.title)}
         </Text>
+        {/* Główna akcja nad listą: większość chce po prostu zacząć (albo wrócić),
+            a przy 4–6 częściach przycisk pod listą lądował poza ekranem. */}
+        <View style={{ marginBottom: 24 }}>
+          <Button
+            title={started ? `Wróć do zadania ${currentTask.number} →` : "Zaczynam od początku →"}
+            onPress={() => (started ? setShowIntro(false) : parts[0] && startAt(parts[0]))}
+          />
+        </View>
         {/* Na mobile tylko etykieta, tytuł i „Od czego chcesz zacząć?” —
             opis i lista punktów zajmowały cały ekran (Karol 26.09.2026). */}
         <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, letterSpacing: 1, marginBottom: 10 }}>
-          {started ? "PRZEJDŹ DO CZĘŚCI" : "OD CZEGO CHCESZ ZACZĄĆ?"}
+          {started ? "ALBO PRZEJDŹ DO CZĘŚCI" : "ALBO ZACZNIJ OD WYBRANEJ CZĘŚCI"}
         </Text>
         {parts.map((part: any) => (
           <TouchableOpacity
@@ -575,12 +610,6 @@ export function ExamPlayerScreen() {
             <Text style={{ fontSize: 16, color: theme.textSecondary }}>→</Text>
           </TouchableOpacity>
         ))}
-        <View style={{ marginTop: 12 }}>
-          <Button
-            title={started ? `Wróć do zadania ${currentTask.number} →` : "Zaczynam od początku →"}
-            onPress={() => (started ? setShowIntro(false) : parts[0] && startAt(parts[0]))}
-          />
-        </View>
       </ScrollView>
     );
   }
@@ -731,8 +760,9 @@ export function ExamPlayerScreen() {
                     style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
                   >
                     {part.tasks.map((task: any) => {
+                      const isLocked = lockedIds.has(task.id);
                       const hasAns =
-                        answers[task.id] != null && answers[task.id] !== "";
+                        isLocked || (answers[task.id] != null && answers[task.id] !== "");
                       const isCur = task.id === currentTaskId;
                       return (
                         <TouchableOpacity
@@ -768,6 +798,9 @@ export function ExamPlayerScreen() {
                           >
                             {task.number}
                           </Text>
+                          {/* Bez kłódki: nawigacja jak przy pierwszym
+                              podejściu (Karol 2.10.2026). Rozwiązane zadanie
+                              jest po prostu zaznaczone jak każde z odpowiedzią. */}
                         </TouchableOpacity>
                       );
                     })}
@@ -915,6 +948,25 @@ export function ExamPlayerScreen() {
         ref={scrollRef}
         contentContainerStyle={{ padding: 20, paddingBottom: examBarH + 16 }}
       >
+        {/* Dokańczanie darmowego arkusza — jedna linia informacji. */}
+        {lockedIds.size > 0 && (
+          <View
+            style={{
+              marginBottom: 14,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: isDark ? colors.brand[800] : colors.brand[200],
+              backgroundColor: isDark ? colors.brand[900] + "33" : colors.brand[50],
+            }}
+          >
+            <Text style={{ fontSize: 12, color: theme.text, lineHeight: 17 }}>
+              Dokańczasz arkusz. Rozwiązane zadania mają już ocenę. Do zrobienia: {remainingToDo}.
+            </Text>
+          </View>
+        )}
+
         {/* Part header */}
         {currentPart && (
           <View
@@ -1057,6 +1109,35 @@ export function ExamPlayerScreen() {
             )}
           </View>
 
+          {lockedIds.has(currentTask.id) && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                alignSelf: "flex-start",
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 99,
+                marginBottom: 12,
+                backgroundColor: theme.inputBg,
+                borderWidth: 1,
+                borderColor: theme.border,
+              }}
+            >
+              <Ionicons
+                name={lockedGradings[currentTask.id]?.isCorrect ? "checkmark-circle" : "ribbon-outline"}
+                size={13}
+                color={colors.brand[600]}
+              />
+              <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text }}>
+                {lockedGradings[currentTask.id]
+                  ? `Twoja ocena: ${lockedGradings[currentTask.id].pointsEarned}/${lockedGradings[currentTask.id].maxPoints} pkt`
+                  : "Zadanie ocenione"}
+              </Text>
+            </View>
+          )}
+
           {/* Instruction */}
           <SectionErrorBoundary
             label="treść zadania"
@@ -1076,13 +1157,89 @@ export function ExamPlayerScreen() {
             />
 
             {/* ═══ TASK INPUT RENDERERS ═══ */}
-            <ExamTaskInput
-              task={currentTask}
-              value={answers[currentTask.id]}
-              onChange={(v: any) => setAnswer(currentTask.id, v)}
-              theme={theme}
-              isDark={isDark}
-            />
+            {/* Zadanie zablokowane (dokańczanie): jeden mechanizm dla
+                wszystkich typów zadań — bez dotyku (setAnswer i tak odrzuca
+                zmiany), ale w pełnej jasności: uczeń ma widzieć swoją
+                odpowiedź, a pod nią ocenę (Karol 2.10.2026). */}
+            <View
+              pointerEvents={lockedIds.has(currentTask.id) ? "none" : "auto"}
+            >
+              <ExamTaskInput
+                task={currentTask}
+                value={answers[currentTask.id]}
+                onChange={(v: any) => setAnswer(currentTask.id, v)}
+                theme={theme}
+                isDark={isDark}
+              />
+            </View>
+            {lockedIds.has(currentTask.id) && lockedGradings[currentTask.id] && (() => {
+              const g = lockedGradings[currentTask.id];
+              const full = g.maxPoints > 0 && g.pointsEarned >= g.maxPoints;
+              const none = g.pointsEarned <= 0;
+              const tone = full ? colors.brand[500] : none ? colors.red[500] : "#f59e0b";
+              const verdict = full
+                ? "Odpowiedź poprawna"
+                : none
+                  ? "Odpowiedź niepoprawna"
+                  : "Odpowiedź częściowo poprawna";
+              // Przy zadaniach pisemnych modelAnswer to opis matrycy CKE,
+              // a nie odpowiedź — wtedy go nie pokazujemy.
+              const model =
+                !full && g.modelAnswer && !/^Ocena według/i.test(g.modelAnswer.trim())
+                  ? g.modelAnswer
+                  : "";
+              return (
+                <View
+                  style={{
+                    marginTop: 16,
+                    padding: 14,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: tone + "66",
+                    backgroundColor: tone + (isDark ? "1A" : "12"),
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Ionicons
+                      name={full ? "checkmark-circle" : none ? "close-circle" : "remove-circle"}
+                      size={18}
+                      color={tone}
+                    />
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: "800", color: theme.text }}>
+                      {verdict}
+                    </Text>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: tone }}>
+                      {g.pointsEarned}/{g.maxPoints} pkt
+                    </Text>
+                  </View>
+                  {!!model && (
+                    <View>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, marginBottom: 2 }}>
+                        Prawidłowa odpowiedź
+                      </Text>
+                      <CodeAwareText
+                        text={model}
+                        style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}
+                        isDark={isDark}
+                      />
+                    </View>
+                  )}
+                  {!!g.explanation && (
+                    <View>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, marginBottom: 2 }}>
+                        Uzasadnienie
+                      </Text>
+                      <CodeAwareText
+                        text={g.explanation}
+                        style={{ fontSize: 14, color: theme.text, lineHeight: 20 }}
+                        isDark={isDark}
+                      />
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
           </SectionErrorBoundary>
         </Card>
       </ScrollView>
@@ -1194,7 +1351,7 @@ function ExamTaskInput({
     : [];
   const tableElement = content.table ? (
     <View style={{ marginBottom: 16 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator>
+      <HScroll showsHorizontalScrollIndicator>
         <View
           style={{
             borderWidth: 1,
@@ -1256,7 +1413,7 @@ function ExamTaskInput({
             </View>
           ))}
         </View>
-      </ScrollView>
+      </HScroll>
     </View>
   ) : null;
 

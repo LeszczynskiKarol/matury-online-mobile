@@ -10,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../theme/colors";
 import { ClearableTextInput } from "../ui/ClearAnswerButton";
 
+import { HScroll } from "../common/HScroll";
 interface RenderProps {
   task: any;
   value: any;
@@ -416,7 +417,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
           W obramowanych polach wpisz gamety rodziców (wiersze — jeden rodzic,
           kolumny — drugi), w pozostałych genotypy potomstwa.
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={cols > 3}>
+        <HScroll showsHorizontalScrollIndicator={cols > 3}>
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: "row", gap: 6 }}>
               <View style={{ width: CELL_W, justifyContent: "center" }}>
@@ -465,7 +466,7 @@ function PunnettRenderer({ task, value, onChange, theme, isDark }: RenderProps) 
               </View>
             ))}
           </View>
-        </ScrollView>
+        </HScroll>
       </View>
 
       <View>
@@ -570,7 +571,7 @@ export function PunnettResponseView({ response, theme }: { response: any; theme:
         </Text>
       ))}
       {hasGrid ? (
-        <ScrollView horizontal style={{ marginVertical: 6 }}>
+        <HScroll style={{ marginVertical: 6 }}>
           <View>
             <View style={{ flexDirection: "row" }}>
               <Text style={{ ...cell(false), borderColor: "transparent", color: theme.textTertiary, fontSize: 10 }}>
@@ -589,7 +590,7 @@ export function PunnettResponseView({ response, theme }: { response: any; theme:
               </View>
             ))}
           </View>
-        </ScrollView>
+        </HScroll>
       ) : null}
       {rowsOut.filter((x) => x.label !== "Genotypy rodziców").map((x) => (
         <Text key={x.label} style={txt}>
@@ -1606,7 +1607,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
 
   return (
     <View>
-      <ScrollView horizontal>
+      <HScroll>
         <View
           style={{
             borderWidth: 1,
@@ -1704,7 +1705,7 @@ function TableFillRenderer({ task, value, onChange, theme, isDark }: RenderProps
             );
           })}
         </View>
-      </ScrollView>
+      </HScroll>
     </View>
   );
 }
@@ -1719,6 +1720,39 @@ function IdentifyPersonsRenderer({ task, value, onChange, theme, isDark }: Rende
     : [];
   const ans =
     typeof value === "object" && value && !Array.isArray(value) ? value : {};
+  // Jedna postać na portrecie: bez biogramów (content pusty, ilustracja
+  // w materialIds) odpowiedź to zwykły tekst. Bez tego zadanie nie miało
+  // pola odpowiedzi wcale (Historia PR #3 zad. 2) — web: HistoriaTaskRenderers
+  // renderIdentifyPersons obsługuje ten sam przypadek tak samo.
+  if (bios.length === 0) {
+    const text = typeof value === "string" ? value : "";
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={{ fontSize: 12, color: theme.textSecondary }}>
+          Rozpoznaj postać na podstawie materiału i odpowiedz zgodnie z poleceniem, pełnym zdaniem.
+        </Text>
+        <TextInput
+          value={text}
+          onChangeText={onChange}
+          multiline
+          placeholder="Wpisz odpowiedź..."
+          placeholderTextColor={theme.textTertiary}
+          textAlignVertical="top"
+          style={{
+            minHeight: 120,
+            padding: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.border,
+            backgroundColor: theme.card,
+            color: theme.text,
+            fontSize: 15,
+            lineHeight: 21,
+          }}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={{ gap: 12 }}>

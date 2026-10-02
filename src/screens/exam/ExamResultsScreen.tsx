@@ -32,7 +32,7 @@ import { CodeAwareText } from "../../components/common/CodeAwareText";
 import { MaterialRenderer, StructTableView } from "../../components/exam/MaterialRenderer";
 import { PunnettResponseView, looksLikePunnettResponse } from "../../components/exam/Tier2TaskRenderers";
 import { TextWithTables } from "../../components/common/TextWithTables";
-import { getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
+import { continueExam, getExamResults, gradeExamWithAI, resetExam } from "../../api/exams";
 import { api } from "../../api/client";
 import { getPracticeLinks, type PracticeLinks } from "../../api/premium";
 import { maybeAskForReview } from "../../lib/reviewPrompt";
@@ -247,6 +247,8 @@ export function ExamResultsScreen() {
   // Fetch with polling. `reloadKey` — po „Oceń z AI” polling startuje od nowa
   // (wcześniej interwał był już wyczyszczony i ekran oceniania wisiał).
   const [reloadKey, setReloadKey] = useState(0);
+  // „Dokończ pozostałe zadania” (darmowy arkusz oddany niepełny) w toku.
+  const [continuing, setContinuing] = useState(false);
   useEffect(() => {
     let poll: ReturnType<typeof setInterval> | null = null;
     let off = false;
@@ -332,7 +334,7 @@ export function ExamResultsScreen() {
   if (error === "GRADING") {
     const steps = [
       "Zadania zamknięte",
-      "Zadania otwarte — ocena AI",
+      "Zadania otwarte",
       "Podsumowanie i rekomendacje",
       "Finalizacja",
     ];
@@ -357,7 +359,7 @@ export function ExamResultsScreen() {
             marginBottom: 16,
           }}
         >
-          AI ocenia arkusz...
+          Trwa ocena arkusza...
         </Text>
         <View
           style={{
@@ -1121,6 +1123,69 @@ export function ExamResultsScreen() {
               )}
             </View>
 
+            {/* „Dokończ pozostałe zadania” — darmowy arkusz oddany niepełny
+                (backend exam-continue.ts): rozwiązane zadania zostają
+                zablokowane z oceną, wynik przelicza się po oddaniu. */}
+            {data.canContinue === true && (
+              <View style={{ marginBottom: 16 }}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  disabled={continuing}
+                  onPress={async () => {
+                    if (continuing) return;
+                    setContinuing(true);
+                    try {
+                      const res = await continueExam(attemptId);
+                      navigation.replace("ExamPlay", {
+                        examId: res.examId || data?.exam?.id,
+                        subjectId: "",
+                      });
+                    } catch (err: any) {
+                      setContinuing(false);
+                      const msg = err?.message || "Nie udało się otworzyć arkusza.";
+                      Alert.alert("Dokończ pozostałe zadania", msg);
+                      if (err?.code === "CANNOT_CONTINUE" || err?.code === "STATE_CHANGED") {
+                        setReloadKey((k) => k + 1);
+                      }
+                    }
+                  }}
+                  style={{
+                    backgroundColor: colors.brand[500],
+                    borderRadius: 16,
+                    paddingVertical: 14,
+                    paddingHorizontal: 14,
+                    alignItems: "center",
+                    opacity: continuing ? 0.6 : 1,
+                  }}
+                >
+                  {continuing ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                      style={{ fontSize: 15, fontWeight: "800", color: "#fff" }}
+                    >
+                      {typeof data.remainingTasks === "number"
+                        ? `Dokończ pozostałe zadania (${data.remainingTasks})`
+                        : "Dokończ pozostałe zadania"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.textSecondary,
+                    textAlign: "center",
+                    marginTop: 6,
+                    lineHeight: 17,
+                  }}
+                >
+                  Rozwiązane zadania zostają z oceną, a wynik przeliczy się po oddaniu.
+                </Text>
+              </View>
+            )}
             {summaryWithheld ? (
               <View
                 style={{
@@ -1224,6 +1289,24 @@ export function ExamResultsScreen() {
               </View>
             )}
 
+            {/* Po „Dokończ pozostałe” omówienie AI zostaje z pierwszego oddania
+                (powstaje najwyżej raz), a punkty liczą się z całości. */}
+            {!summaryWithheld &&
+              typeof feedback?.summaryAnswered === "number" &&
+              typeof feedback?.summaryTotal === "number" &&
+              feedback.summaryAnswered < feedback.summaryTotal && (
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.textTertiary,
+                    lineHeight: 17,
+                    marginBottom: 12,
+                  }}
+                >
+                  Omówienie AI powstało przy pierwszym oddaniu ({feedback.summaryAnswered} z{" "}
+                  {feedback.summaryTotal} zadań). Punkty i wynik obejmują wszystkie rozwiązane zadania.
+                </Text>
+              )}
             {/* Podsumowanie AI — wstrzymane poniżej progu 30% odpowiedzi */}
             {!summaryWithheld && (
               <>

@@ -320,6 +320,7 @@ export function DashboardScreen() {
                   </Text>
                   <Text style={{ fontSize: 12, color: theme.textSecondary }}>
                     {s._count?.questions || "100+"} pytań
+                    {s._count?.exams ? ` · ${s._count.exams} ${arkuszy(s._count.exams)}` : ""}
                   </Text>
                 </View>
                 <Ionicons
@@ -332,17 +333,20 @@ export function DashboardScreen() {
           ))}
         </View>
 
-        {/* Bottom CTA */}
-        <View style={{ marginTop: 24, alignItems: "center" }}>
-          <Button
-            title="Zobacz plany Premium"
-            onPress={() =>
-              navigation.navigate("ProfileTab", { screen: "Subscription" })
-            }
-            variant="secondary"
-            icon={<Ionicons name="diamond" size={16} color="#fff" />}
-          />
-        </View>
+        {/* Link do planów — główne wezwanie jest w DashboardUnlockBox wyżej,
+            więc tu cichy link w stylu reszty apki („Zobacz Premium →”),
+            nie druga ciężka pigułka. */}
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("ProfileTab", { screen: "Subscription" })
+          }
+          accessibilityRole="link"
+          style={{ marginTop: 20, paddingVertical: 10, alignItems: "center" }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "800", color: colors.brand[500] }}>
+            Zobacz plany Premium →
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     );
   }
@@ -1030,4 +1034,12 @@ export function DashboardScreen() {
       )}
     </ScrollView>
   );
+}
+
+// 1 arkusz, 2–4 arkusze, 5+ arkuszy (12–14 → arkuszy).
+function arkuszy(n: number): string {
+  if (n === 1) return "arkusz";
+  const d = n % 10;
+  const t = n % 100;
+  return d >= 2 && d <= 4 && (t < 12 || t > 14) ? "arkusze" : "arkuszy";
 }

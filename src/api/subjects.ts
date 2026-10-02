@@ -13,7 +13,8 @@ export interface Subject {
   color: string | null;
   isActive: boolean;
   sortOrder: number;
-  _count?: { questions: number };
+  // `exams` — gotowe arkusze przedmiotu (backend od 02.10.2026; starszy go nie zwraca).
+  _count?: { questions: number; exams?: number };
 }
 
 export interface Topic {

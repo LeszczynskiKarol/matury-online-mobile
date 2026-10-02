@@ -224,17 +224,53 @@ export function DiagnosisScreen() {
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const params = (route.params ?? {}) as { subjectSlug?: string; token?: string };
+  const params = (route.params ?? {}) as {
+    subjectSlug?: string;
+    token?: string;
+    view?: "report";
+  };
 
   const [phase, setPhase] = useState<Phase>({ kind: "loading", label: "Ładuję…" });
   const [openQ, setOpenQ] = useState<string | null>(null);
   const { isPremium } = useAuth();
 
+  // Przegląd ukończonego quizu: ekran Quizu w trybie „po ocenie”, z tą samą
+  // nawigacją co przy rozwiązywaniu — Twoja odpowiedź, ocena, klucz
+  // i wyjaśnienie przy każdym pytaniu. Wynik (raport) jest osobną zakładką,
+  // do której prowadzi przycisk „Wynik” w nagłówku (Karol 2.10.2026).
+  // replace, nie navigate: przełączanie przegląd ↔ wynik nie rośnie stosu.
+  const review = useCallback(
+    (r: FullResult, token: string, index: number) => {
+      const answered: Record<string, { response: any; feedback: any }> = {};
+      for (const q of r.questions) {
+        answered[q.id] = {
+          response: q.yourAnswer,
+          // Bez odpowiedzi: pokazujemy klucz jak po „Pokaż odpowiedź”, bez „źle”.
+          feedback: q.answered === false ? { ...q.feedback, revealed: true } : q.feedback,
+        };
+      }
+      navigation.replace("DiagnosisPlay", {
+        sessionId: "",
+        subjectId: "",
+        subjectName: r.subject.name,
+        questions: r.questions,
+        diagnosis: { token, mode: "review", answered, startIndex: index },
+      });
+    },
+    [navigation],
+  );
+
   // ── Raport ──────────────────────────────────────────────────────────────────
-  const loadResult = useCallback(async (token: string) => {
-    setPhase({ kind: "loading", label: "Ładuję raport…" });
+  // openReview: ukończony quiz v2 otwiera się w przeglądzie pytań, a nie
+  // od razu w raporcie (stary v1 nie ma danych do przeglądu — tylko raport).
+  const loadResult = useCallback(async (token: string, openReview = false) => {
+    setPhase({ kind: "loading", label: openReview ? "Wczytuję quiz…" : "Ładuję wynik…" });
     try {
       const result = await api<FullResult>(`/diagnosis/result/${encodeURIComponent(token)}`);
+      if (openReview && result.version === 2 && result.questions?.length) {
+        review(result, token, 0);
+        return;
+      }
       setOpenQ(null);
       setPhase({ kind: "result", result, token });
     } catch (e) {
@@ -243,15 +279,15 @@ export function DiagnosisScreen() {
         message:
           e instanceof ApiError && e.status === 403
             ? "To podejście jest przypisane do innego konta."
-            : "Nie udało się pobrać raportu. Spróbuj ponownie za chwilę.",
+            : "Nie udało się pobrać wyniku. Spróbuj ponownie za chwilę.",
       });
     }
-  }, []);
+  }, [review]);
 
   // ── Rozwiązywanie na ekranie Quizu (nowa albo wznowiona diagnoza) ─────────
   const openPlay = useCallback(
     async (token: string) => {
-      setPhase({ kind: "loading", label: "Wczytuję diagnozę…" });
+      setPhase({ kind: "loading", label: "Wczytuję quiz…" });
       try {
         const st = await api<any>(`/diagnosis/v2/state/${encodeURIComponent(token)}`);
         if (st.completed) {
@@ -266,7 +302,7 @@ export function DiagnosisScreen() {
           diagnosis: { token, mode: "play", answered: st.answered ?? {} },
         });
       } catch {
-        setPhase({ kind: "error", message: "Nie udało się wczytać diagnozy. Spróbuj ponownie." });
+        setPhase({ kind: "error", message: "Nie udało się wczytać quizu. Spróbuj ponownie." });
       }
     },
     [loadResult, navigation],
@@ -289,7 +325,7 @@ export function DiagnosisScreen() {
 
   useEffect(() => {
     if (params.token) {
-      void loadResult(params.token);
+      void loadResult(params.token, params.view !== "report");
       return;
     }
     // Diagnoza jest jedna na konto: rozpoczęta → wracamy do niej, ukończona →
@@ -300,7 +336,7 @@ export function DiagnosisScreen() {
           "/diagnosis/v2/current",
         );
         if (cur?.current) {
-          if (cur.current.completed) await loadResult(cur.current.token);
+          if (cur.current.completed) await loadResult(cur.current.token, true);
           else await openPlay(cur.current.token);
           return;
         }
@@ -313,7 +349,7 @@ export function DiagnosisScreen() {
       } catch {}
       await loadSubjects();
     })();
-  }, [params.token, loadResult, loadSubjects, openPlay]);
+  }, [params.token, params.view, loadResult, loadSubjects, openPlay]);
 
   const start = async (subject: DiagSubject) => {
     setPhase({ kind: "loading", label: "Losuję zadania…" });
@@ -333,7 +369,7 @@ export function DiagnosisScreen() {
       if (e instanceof ApiError && e.status === 409 && e.data?.token) {
         const t = e.data.token as string;
         if (e.data.code === "DIAGNOSIS_IN_PROGRESS") await openPlay(t);
-        else await loadResult(t);
+        else await loadResult(t, true);
         return;
       }
       setPhase({
@@ -343,29 +379,9 @@ export function DiagnosisScreen() {
             ? "Limit podejść na dziś wykorzystany — spróbuj jutro."
             : e instanceof ApiError
               ? e.message
-              : "Nie udało się rozpocząć diagnozy.",
+              : "Nie udało się rozpocząć quizu.",
       });
     }
-  };
-
-  // Przegląd pytania z raportu: ekran Quizu w trybie „po ocenie” — Twoja
-  // odpowiedź, klucz i komentarz AI dokładnie tak, jak przy rozwiązywaniu.
-  const review = (r: FullResult, token: string, index: number) => {
-    const answered: Record<string, { response: any; feedback: any }> = {};
-    for (const q of r.questions) {
-      answered[q.id] = {
-        response: q.yourAnswer,
-        // Bez odpowiedzi: pokazujemy klucz jak po „Pokaż odpowiedź”, bez „źle”.
-        feedback: q.answered === false ? { ...q.feedback, revealed: true } : q.feedback,
-      };
-    }
-    navigation.navigate("DiagnosisPlay", {
-      sessionId: "",
-      subjectId: "",
-      subjectName: r.subject.name,
-      questions: r.questions,
-      diagnosis: { token, mode: "review", answered, startIndex: index },
-    });
   };
 
   const back = () => {
@@ -412,7 +428,7 @@ export function DiagnosisScreen() {
   if (phase.kind === "error") {
     return (
       <ScrollView style={container} contentContainerStyle={content}>
-        <Header title="Diagnoza" />
+        <Header title="Darmowy quiz" />
         <Card>
           <Text style={{ fontSize: 15, color: colors.red[500], marginBottom: 14 }}>{phase.message}</Text>
           <Button title="Wróć do wyboru przedmiotu" onPress={() => void loadSubjects()} size="sm" />
@@ -425,21 +441,21 @@ export function DiagnosisScreen() {
   if (phase.kind === "pick") {
     return (
       <ScrollView style={container} contentContainerStyle={content}>
-        <Header title="Darmowa diagnoza" />
+        <Header title="Darmowy quiz" />
         <Text style={{ fontSize: 26, fontWeight: "800", color: theme.text, marginBottom: 6 }}>
-          Sprawdź za darmo swoją wiedzę i działanie apki
+          Darmowy quiz: zobacz, jak wygląda nauka w apce
         </Text>
         <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, marginBottom: 18 }}>
           Tak wygląda nauka w apce: 13 zadań różnego typu z wybranego przedmiotu,
-          jak w Quizie — z oceną i wyjaśnieniem po każdym, a zadania otwarte
-          ocenia AI. Możesz przerwać i wrócić. Jedna darmowa diagnoza na konto.
+          jak w Quizie — z oceną i wyjaśnieniem po każdym, także przy
+          zadaniach otwartych. Możesz przerwać i wrócić. Jeden darmowy quiz na konto.
         </Text>
         {phase.subjects === null ? (
           <ActivityIndicator color={colors.brand[500]} />
         ) : phase.subjects.length === 0 ? (
           <Card>
             <Text style={{ color: theme.textSecondary }}>
-              {phase.error ?? "Diagnoza pojawi się wkrótce."}
+              {phase.error ?? "Quiz pojawi się wkrótce."}
             </Text>
           </Card>
         ) : (
@@ -514,13 +530,7 @@ export function DiagnosisScreen() {
       : rp
         ? `${rp.pts} pkt z ${rp.max}`
         : `cel: ${RECRUIT_PERCENT}% (rekrutacja)`;
-    const headline = withThreshold
-      ? aboveTarget
-        ? "Próg zaliczony — czas podnieść wynik."
-        : "Poniżej progu — wiesz już, od czego zacząć."
-      : aboveTarget
-        ? "Dobry wynik — czas dopracować szczegóły."
-        : "Wiesz już, od czego zacząć.";
+    const headline = `Wynik z 13 zadań: ${r.scorePercent}%`;
 
     // Działy od najsłabszego — jak web (topicBreakdown z backendu).
     const rows = [...(r.topicBreakdown ?? [])]
@@ -534,7 +544,31 @@ export function DiagnosisScreen() {
 
     return (
       <ScrollView style={container} contentContainerStyle={content}>
-        <Header title={`Diagnoza · ${shortName(r.subject.name, r.subject.slug)}`} />
+        <Header title={`Darmowy quiz · ${shortName(r.subject.name, r.subject.slug)}`} />
+
+        {/* Zakładka „Wynik” jest częścią quizu: powrót do pytań z ocenami. */}
+        {isV2 && r.questions?.length > 0 && (
+          <TouchableOpacity
+            onPress={() => review(r, phase.token, 0)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              paddingVertical: 12,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.brand[500] + "66",
+              backgroundColor: colors.brand[500] + (isDark ? "1F" : "12"),
+              marginBottom: 18,
+            }}
+          >
+            <Ionicons name="arrow-back" size={16} color={colors.brand[500]} />
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.brand[500] }}>
+              Wróć do pytań quizu
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Nagłówek z wynikiem — najpierw „gotowe”, potem liczba (web). */}
         <View style={{ alignItems: "center", marginBottom: 20 }}>
@@ -555,7 +589,7 @@ export function DiagnosisScreen() {
                 color: isDark ? "#6ee7b7" : "#047857",
               }}
             >
-              ✓ TWOJA DIAGNOZA JEST GOTOWA
+              ✓ TWÓJ WYNIK JEST GOTOWY
             </Text>
           </View>
           <Text
@@ -567,8 +601,8 @@ export function DiagnosisScreen() {
               marginBottom: 14,
             }}
           >
-            Diagnoza · {shortName(r.subject.name, r.subject.slug)} — poniżej wynik,
-            działy do powtórki i co dalej.
+            Darmowy quiz · {shortName(r.subject.name, r.subject.slug)} . Poniżej wynik,
+            Twoje odpowiedzi z wyjaśnieniami i co dalej.
           </Text>
           <ScoreRing percent={r.scorePercent} sub={ringSub} color={ringColor} theme={theme} />
           <Text
@@ -582,7 +616,7 @@ export function DiagnosisScreen() {
           >
             {headline}
           </Text>
-          {!withThreshold && (
+          {(
             <Text
               style={{
                 fontSize: 13,
@@ -592,9 +626,7 @@ export function DiagnosisScreen() {
                 marginTop: 8,
               }}
             >
-              {isE8
-                ? "Egzamin ósmoklasisty nie ma progu zdawalności — liczy się sam wynik, który przelicza się na punkty w rekrutacji."
-                : "Matura z tego przedmiotu nie ma progu zdawalności — liczy się sam wynik, który uczelnie biorą pod uwagę w rekrutacji."}
+              To próbka nauki, nie prognoza wyniku egzaminu. Pełny obraz da arkusz egzaminacyjny.
             </Text>
           )}
         </View>
@@ -804,7 +836,7 @@ export function DiagnosisScreen() {
         {rows.length > 0 && (
           <Card style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, marginBottom: 14 }}>
-              Twoje działy — od najsłabszego
+              Wynik po działach w tych 13 zadaniach
             </Text>
             <View style={{ gap: 12 }}>
               {rows.map((t) => {
@@ -870,7 +902,7 @@ export function DiagnosisScreen() {
           }}
         >
           <Text style={{ fontSize: 17, fontWeight: "800", color: "#fff", marginBottom: 6 }}>
-            {weak.length > 0 ? "Najwięcej tracisz tutaj" : "Solidna baza — teraz przełóż ją na wynik"}
+            {weak.length > 0 ? "W tych zadaniach najwięcej punktów uciekło tutaj" : "Dobry start. Teraz przełóż go na wynik"}
           </Text>
           <Text style={{ fontSize: 14, color: colors.navy[100], lineHeight: 21, marginBottom: 12 }}>
             {weak.length > 0 ? (
@@ -882,22 +914,22 @@ export function DiagnosisScreen() {
                     .join(", ")}
                 </Text>
                 {isE8
-                  ? ". W Premium odblokowujesz pytania z tych działów, pełne arkusze na czas i ocenę zadań otwartych przez AI."
-                  : ". W Premium odblokowujesz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań przez AI."}
+                  ? ". W Premium ćwiczysz pytania z tych działów, pełne arkusze na czas i ocenę zadań otwartych według kryteriów CKE."
+                  : ". W Premium ćwiczysz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań według kryteriów CKE."}
               </>
             ) : (
-              "Diagnoza sprawdza podstawy. O wyniku decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."
+              "13 zadań to tylko próbka. O wyniku egzaminu decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas."
             )}
           </Text>
           {days !== null && days > 0 && (
             <Text style={{ fontSize: 13, color: colors.navy[200], lineHeight: 19, marginBottom: 14 }}>
-              ⏳ Do matury zostało <Text style={{ fontWeight: "800", color: "#fff" }}>{days} dni</Text>. Te
-              braki nie znikną same — im wcześniej zaczniesz, tym mniej pod górkę.
+              ⏳ Do matury zostało <Text style={{ fontWeight: "800", color: "#fff" }}>{days} dni</Text>. Im
+              wcześniej zaczniesz regularną naukę, tym mniej pod górkę.
             </Text>
           )}
           {!isPremium && (
             <Button
-              title={weak.length > 0 ? "Nadrób te działy w Premium →" : "Odblokuj arkusze i ocenę AI →"}
+              title={weak.length > 0 ? "Ćwicz te działy w Premium →" : "Odblokuj pełne arkusze →"}
               onPress={toSubscription}
               size="sm"
             />

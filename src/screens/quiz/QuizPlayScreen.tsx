@@ -754,7 +754,7 @@ export function QuizPlayScreen() {
   const handleNext = useCallback(async () => {
     if (isDiag) {
       if (isLastQuestion) {
-        if (diagnosis!.mode === "review") navigation.goBack();
+        if (diagnosis!.mode === "review") openDiagReport();
         else await finishDiagnosis();
       } else {
         setCurrentIndex((i) => i + 1);
@@ -851,6 +851,13 @@ export function QuizPlayScreen() {
   // potem /v2/finish i raport na ekranie diagnozy (zastępuje ten ekran).
   const diagResultsRef = useRef(resultsMap);
   diagResultsRef.current = resultsMap;
+  // Przegląd ukończonego quizu → zakładka z wynikiem (raport). replace, żeby
+  // przełączanie przegląd ↔ wynik nie rosło na stosie.
+  const openDiagReport = () => {
+    if (!diagnosis) return;
+    (navigation as any).replace("Diagnosis", { token: diagnosis.token, view: "report" });
+  };
+
   const finishDiagnosis = async (force = false) => {
     if (!diagnosis) return;
     // Ref, nie stan: handleNext/handleSkip to useCallback i trzymałyby
@@ -884,10 +891,10 @@ export function QuizPlayScreen() {
         method: "POST",
         body: { token: diagnosis.token },
       });
-      (navigation as any).replace("Diagnosis", { token: diagnosis.token });
+      (navigation as any).replace("Diagnosis", { token: diagnosis.token, view: "report" });
     } catch (err: any) {
       setLoadingMore(false);
-      Alert.alert("Błąd", err?.message || "Nie udało się zakończyć diagnozy");
+      Alert.alert("Błąd", err?.message || "Nie udało się zakończyć quizu");
     }
   };
 
@@ -938,7 +945,7 @@ export function QuizPlayScreen() {
         return;
       }
       Alert.alert(
-        "Przerwać diagnozę?",
+        "Przerwać quiz?",
         "Odpowiedzi są zapisane — wrócisz do tego samego pytania z pulpitu.",
         [
           { text: "Zostaję", style: "cancel" },
@@ -1135,7 +1142,7 @@ export function QuizPlayScreen() {
                   numberOfLines={1}
                   style={{ fontSize: 11, color: colors.brand[500], fontWeight: "700" }}
                 >
-                  {diagnosis!.mode === "review" ? "Przegląd diagnozy" : "Darmowa diagnoza"}
+                  {diagnosis!.mode === "review" ? "Przegląd quizu" : "Darmowy quiz"}
                 </Text>
                 {!!diagSubjectLabel && (
                   <Text
@@ -1188,6 +1195,28 @@ export function QuizPlayScreen() {
               </Text>
             )}
           </View>
+          {/* Przegląd ukończonego darmowego quizu: zakładka „Wynik” (raport). */}
+          {isDiag && diagnosis!.mode === "review" && (
+            <TouchableOpacity
+              onPress={openDiagReport}
+              hitSlop={8}
+              accessibilityLabel="Zobacz wynik quizu"
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 999,
+                backgroundColor: colors.brand[500],
+                marginLeft: 8,
+                marginRight: 10,
+              }}
+            >
+              <Ionicons name="stats-chart" size={13} color="#fff" />
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>Wynik</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={handleQuit} hitSlop={10} accessibilityLabel="Zamknij sesję">
             <Ionicons name="close" size={24} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -1835,7 +1864,7 @@ export function QuizPlayScreen() {
             )}
 
             {/* ── Diagnoza: zadanie AI bez oceny ─────────────────────────
-                Darmowy pakiet (z oceną AI w diagnozie) poszedł już z tej
+                Darmowy pakiet (z oceną AI w darmowym quizie) poszedł już z tej
                 sieci/urządzenia — backend zapisuje odpowiedź bez punktów
                 (aiLocked). Zamiast „Niestety, źle" mówimy, dlaczego, i dajemy
                 drogę do Premium. */}
@@ -1860,7 +1889,7 @@ export function QuizPlayScreen() {
                 <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 21 }}>
                   {result.aiLocked || isFreePackBlocked(result)
                     ? FREE_PACK_BLOCKED_MESSAGE
-                    : "Ocenę AI tego zadania zobaczysz w wyniku diagnozy."}
+                    : "Ocenę AI tego zadania zobaczysz w wyniku quizu."}
                 </Text>
                 {(result.aiLocked || isFreePackBlocked(result)) && (
                   <View style={{ marginTop: 12 }}>
@@ -5162,7 +5191,7 @@ export function QuizPlayScreen() {
                     >
                       {isLastQuestion
                         ? diagnosis!.mode === "review"
-                          ? "Wróć do raportu"
+                          ? "Zobacz wynik"
                           : "Zakończ i pokaż wynik"
                         : "Następne pytanie →"}
                     </Text>

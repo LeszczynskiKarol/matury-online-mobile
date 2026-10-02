@@ -21,6 +21,10 @@ export interface User {
   // Zgoda na maile marketingowe (art. 10 UŚUDE) — dobrowolna, odwoływalna
   // w profilu. false także dla kont sprzed jej wprowadzenia (2.09.2026).
   marketingConsent?: boolean;
+  // Maile serwisowe (bez zgody, z wypisem): przypomnienia (seria, darmowy
+  // arkusz) i niedzielne podsumowanie. Domyślnie włączone.
+  emailReminders?: boolean;
+  emailSummary?: boolean;
   // Strefa korepetytora: hasTutor = uczeń przyjął zaproszenie korepetytora
   // (apka pokazuje „Zadania od korepetytora"); isTutor = ma własny panel
   // (tylko na webie). subscriptionProvider "tutor" nie występuje — miejsce

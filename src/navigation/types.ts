@@ -31,7 +31,9 @@ export type HomeStackParamList = {
   TutorAssignment: { targetId: string };
   // Darmowa diagnoza natywnie (ten sam backend co /diagnoza na webie).
   // token = od razu raport zapisanego podejścia.
-  Diagnosis: { subjectSlug?: string; token?: string } | undefined;
+  // view: "report" = zakładka z wynikiem; bez niej ukończony quiz otwiera się
+  // w przeglądzie pytań (QuizPlay, mode "review").
+  Diagnosis: { subjectSlug?: string; token?: string; view?: "report" } | undefined;
   // Darmowa diagnoza v2 na ekranie Quizu (QuizPlayScreen, tryb diagnosis).
   DiagnosisPlay: any;
 };
