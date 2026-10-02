@@ -2,7 +2,7 @@
 // TrialOfferCard — oferta wartościowa zamiast rabatu (port z webu)
 // src/components/common/TrialOfferCard.tsx
 //
-// „1 pełny arkusz + kredyty AI, za darmo, na 48h" pokazywane w momencie
+// „1 pełny arkusz + kredyty AI, za darmo, raz na konto" pokazywane w momencie
 // INTENCJI (odbicie od paywalla), nie po n-tym logowaniu.
 //
 // Bez obniżki ceny: rabat zakotwiczyłby cennik w dół na stałe i nauczył
@@ -28,15 +28,6 @@ import {
 import { FreeSheetPicker } from "./FreeSheetPicker";
 import { FS_CTA_OPEN, FS_PICK_CTA } from "../../lib/freeSheet";
 
-function formatRemaining(ms: number): string {
-  if (ms <= 0) return "chwilę";
-  const totalMinutes = Math.floor(ms / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours >= 1) return `${hours} godz. ${minutes} min`;
-  return `${minutes} min`;
-}
-
 export function TrialOfferCard({
   trigger,
   placement = "below",
@@ -53,27 +44,12 @@ export function TrialOfferCard({
   const error: string | null = null;
   // Wybór przedmiotu (i poziomu) przed odebraniem — jak /darmowy-arkusz na webie.
   const [picker, setPicker] = useState(false);
-  // Odliczanie tykane lokalnie co minutę — countdown ma budować pilność,
-  // a nie odpytywać serwer co sekundę.
-  const [remainingMs, setRemainingMs] = useState(0);
 
   useEffect(() => {
     getTrialStatus()
-      .then((d) => {
-        setStatus(d);
-        setRemainingMs(d.remainingMs);
-      })
+      .then((d) => setStatus(d))
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!status?.active) return;
-    const t = setInterval(
-      () => setRemainingMs((ms) => Math.max(0, ms - 60_000)),
-      60_000,
-    );
-    return () => clearInterval(t);
-  }, [status?.active]);
 
   if (!status) return null;
 
@@ -118,7 +94,7 @@ export function TrialOfferCard({
   if (!status.eligible && !status.active) return null;
 
   // ── Arkusz już oddany ─────────────────────────────────────────────────
-  // Okno oferty (48 h) trwa dalej, ale oferta jest wykorzystana: karta mówiła
+  // Oferta zostaje aktywna bez terminu, ale jest wykorzystana: karta mówiła
   // „Twój darmowy arkusz czeka — Wróć do arkusza" przy oddanym arkuszu
   // (zgłoszenie 25.09.2026). Wynik jest w karcie „Za darmo" na Starcie.
   if (
@@ -145,29 +121,11 @@ export function TrialOfferCard({
       params: { examId: status.examId!, subjectId: "" },
     });
 
-  // ── Oferta odebrana i wciąż ważna ──────────────────────────────────────
+  // ── Oferta odebrana — arkusz otwierasz, kiedy chcesz ──────────────────────────
   if (status.active) {
     return (
       <View style={shell}>
         {pickerEl}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-          <View
-            style={{
-              backgroundColor: colors.brand[500],
-              paddingHorizontal: 8,
-              paddingVertical: 2,
-              borderRadius: 999,
-            }}
-          >
-            <Text style={{ fontSize: 10, fontWeight: "800", color: "#fff" }}>
-              AKTYWNE
-            </Text>
-          </View>
-          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.brand[500] }}>
-            zostało {formatRemaining(remainingMs)}
-          </Text>
-        </View>
-
         <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text, marginBottom: 4 }}>
           {status.examId
             ? "Twój darmowy arkusz czeka"
@@ -176,7 +134,7 @@ export function TrialOfferCard({
         <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 12 }}>
           {status.examId
             ? "Wróć do niego, oddaj i zobacz ocenę AI do każdego zadania otwartego."
-            : `Wybierz przedmiot i poziom — pełny arkusz bez limitu czasu, punktacja wg klucza i feedback AI. Do tego ${status.credits} kredytów AI.`}
+            : `Otwórz go, kiedy chcesz: wybierz przedmiot i poziom. Pełny arkusz bez limitu czasu, punktacja wg klucza i feedback AI. Do tego ${status.credits} kredytów AI.`}
         </Text>
 
         <TouchableOpacity
@@ -254,7 +212,7 @@ export function TrialOfferCard({
           marginTop: 8,
         }}
       >
-        Ważne {status.windowHours} godz. od odebrania · bez karty · jednorazowo
+        Bez karty · jednorazowo · otwierasz, kiedy chcesz
       </Text>
 
       {error && (

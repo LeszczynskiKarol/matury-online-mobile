@@ -28,7 +28,6 @@ import {
   FS_CTA_OPEN,
   FS_CTA_RESULT,
   FS_CTA_UNAVAILABLE,
-  FS_MSG_EXPIRED,
   FS_MSG_NOT_ELIGIBLE,
   FS_PICK_CTA,
 } from "../../lib/freeSheet";
@@ -39,11 +38,6 @@ interface DiagnosisRow {
   scorePercent: number | null;
   worstTopicName: string | null;
   token: string;
-}
-
-function hoursLeft(ms: number): string {
-  const h = Math.max(0, Math.floor(ms / 3_600_000));
-  return h === 1 ? "1 godzinę" : h >= 2 && h <= 4 ? `${h} godziny` : `${h} godzin`;
 }
 
 export function FreePanel({
@@ -141,7 +135,7 @@ export function FreePanel({
         params: { examId: trial!.examId!, subjectId: "" },
       });
   } else if (trial?.active) {
-    examText = `Oferta odebrana — wybierz przedmiot, a arkusz otworzy się od razu. Masz na to ${hoursLeft(trial.remainingMs)}.`;
+    examText = "Oferta odebrana — wybierz przedmiot, kiedy chcesz, a arkusz otworzy się od razu.";
     examCta = FS_PICK_CTA;
     onExam = () => setPicker(true);
   } else if (isFreePackBlocked(trial)) {
@@ -155,7 +149,9 @@ export function FreePanel({
     examCta = FS_PICK_CTA;
     onExam = () => setPicker(true);
   } else if (trial) {
-    examText = trial.claimedAt ? FS_MSG_EXPIRED : FS_MSG_NOT_ELIGIBLE;
+    // Odebrana oferta zostaje aktywna bez terminu, więc tu trafia już tylko
+    // konto, któremu darmowy arkusz nie przysługuje.
+    examText = FS_MSG_NOT_ELIGIBLE;
     examCta = FS_CTA_UNAVAILABLE;
     onExam = onPremium;
   } else {
