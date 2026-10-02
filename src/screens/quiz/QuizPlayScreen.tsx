@@ -1135,7 +1135,7 @@ export function QuizPlayScreen() {
                   numberOfLines={1}
                   style={{ fontSize: 11, color: colors.brand[500], fontWeight: "700" }}
                 >
-                  {diagnosis!.mode === "review" ? "Przegląd diagnozy" : "Darmowa diagnoza"}
+                  {diagnosis!.mode === "review" ? "Przegląd quizu" : "Darmowy quiz"}
                 </Text>
                 {!!diagSubjectLabel && (
                   <Text

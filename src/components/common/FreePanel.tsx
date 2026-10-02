@@ -99,12 +99,12 @@ export function FreePanel({
       `Twój wynik: ${diag.scorePercent ?? 0}%.`
     : diagInProgress
       ? `Zaczęta — rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
-      : "Tak wygląda nauka w apce: 13 zadań, ocena po każdym.";
+      : "Tak wygląda nauka w aplikacji. Rozwiąż 13 zadań, ocena po każdym.";
   const diagCta = diag
     ? "Zobacz wynik"
     : diagInProgress
-      ? "Kontynuuj diagnozę"
-      : "Zrób darmową diagnozę";
+      ? "Kontynuuj quiz"
+      : "Rozwiąż darmowy quiz";
   const onDiag = () =>
     navigation.navigate("Diagnosis", diag ? { token: diag.token } : undefined);
 
@@ -145,7 +145,7 @@ export function FreePanel({
     examCta = FS_CTA_UNAVAILABLE;
     onExam = onPremium;
   } else if (trial?.eligible) {
-    examText = "Pełny arkusz z oceną AI, bez limitu czasu. Najpierw wybierasz przedmiot — arkusz otworzy się od razu.";
+    examText = "Zobacz, jak wygląda rozwiązywanie arkuszy w aplikacji.";
     examCta = FS_PICK_CTA;
     onExam = () => setPicker(true);
   } else if (trial) {
@@ -155,7 +155,7 @@ export function FreePanel({
     examCta = FS_CTA_UNAVAILABLE;
     onExam = onPremium;
   } else {
-    examText = "Pełny arkusz z oceną AI, bez limitu czasu.";
+    examText = "Zobacz, jak wygląda rozwiązywanie arkuszy w aplikacji.";
   }
 
   const row = (
@@ -223,7 +223,7 @@ export function FreePanel({
         Za darmo
       </Text>
 
-      {row("📊", "Darmowa diagnoza", diagText, diagCta, onDiag)}
+      {row("📊", "Darmowy quiz", diagText, diagCta, onDiag)}
       <View
         style={{ height: 1, backgroundColor: theme.border, marginVertical: 14 }}
       />

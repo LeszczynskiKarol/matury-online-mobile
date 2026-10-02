@@ -441,7 +441,7 @@ export function DiagnosisScreen() {
   if (phase.kind === "pick") {
     return (
       <ScrollView style={container} contentContainerStyle={content}>
-        <Header title="Darmowa diagnoza" />
+        <Header title="Darmowy quiz" />
         <Text style={{ fontSize: 26, fontWeight: "800", color: theme.text, marginBottom: 6 }}>
           Sprawdź za darmo swoją wiedzę i działanie apki
         </Text>
