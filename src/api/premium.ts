@@ -30,6 +30,9 @@ export interface TrialStatus {
     maxPoints: number;
   } | null;
   attemptStatus: string | null;
+  /** Oddany niepełny arkusz da się dokończyć (backend od 02.10.2026). */
+  canContinue?: boolean;
+  remainingTasks?: number;
   creditsGranted: number;
   /** @deprecated Tylko dla starych buildów (bez OTA) — nowy kod tego nie czyta. */
   windowHours: number;

@@ -16,6 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "../../context/ThemeContext";
 import { getTrialStatus, isFreePackBlocked, type TrialStatus } from "../../api/premium";
 import { FreeSheetPicker } from "./FreeSheetPicker";
+import { openFreeSheet } from "../../lib/openFreeSheet";
 import { colors } from "../../theme/colors";
 import { radius } from "../../theme";
 
@@ -38,13 +39,11 @@ export function FreeSheetGateRow() {
   let cta: string;
   let onPress: () => void;
   if (done && trial.examAttemptId) {
-    text = "Oddany. Wynik zostaje na stałe.";
-    cta = "Zobacz wynik →";
-    onPress = () =>
-      navigation.getParent()?.navigate("ExamTab", {
-        screen: "ExamResults",
-        params: { attemptId: trial.examAttemptId! },
-      });
+    text = trial.canContinue
+      ? `Oddany. Zadań do zrobienia: ${trial.remainingTasks ?? 0}.`
+      : "Oddany. Wynik zostaje na stałe.";
+    cta = "Zobacz swój arkusz →";
+    onPress = () => openFreeSheet(navigation, trial);
   } else if (trial.examId) {
     text = "Otwarty i czeka na Ciebie, bez limitu czasu.";
     cta = "Kontynuuj arkusz →";

@@ -24,6 +24,7 @@ import {
   type TrialStatus,
 } from "../../api/premium";
 import { FreeSheetPicker } from "./FreeSheetPicker";
+import { openFreeSheet } from "../../lib/openFreeSheet";
 import {
   FS_CTA_UNAVAILABLE,
   FS_MSG_NOT_ELIGIBLE,
@@ -115,13 +116,11 @@ export function FreePanel({
   let examCta: string | null = null;
   let onExam: (() => void) | null = null;
   if (examDone && trial?.examAttemptId) {
-    examText = "Oddany. Wynik zostaje na stałe.";
-    examCta = "Zobacz wynik →";
-    onExam = () =>
-      navigation.getParent()?.navigate("ExamTab", {
-        screen: "ExamResults",
-        params: { attemptId: trial!.examAttemptId! },
-      });
+    examText = trial.canContinue
+      ? `Oddany. Zadań do zrobienia: ${trial.remainingTasks ?? 0}.`
+      : "Oddany. Wynik zostaje na stałe.";
+    examCta = "Zobacz swój arkusz →";
+    onExam = () => openFreeSheet(navigation, trial!);
   } else if (trial?.examId) {
     examText = "Otwarty i czeka na Ciebie — bez limitu czasu, odpowiedzi zapisują się same.";
     examCta = "Kontynuuj arkusz →";
