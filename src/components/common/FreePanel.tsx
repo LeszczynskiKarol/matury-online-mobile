@@ -95,7 +95,7 @@ export function FreePanel({
     ? // Bez „najsłabszego działu" — przy 13 pytaniach to zwykle jedno pytanie.
       `Twój wynik: ${diag.scorePercent ?? 0}%.`
     : diagInProgress
-      ? `Zaczęta — rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
+      ? `Zaczęty: rozwiązane ${diagCur!.answeredCount} z ${diagCur!.questionCount}.`
       : "13 zadań z wybranego przedmiotu, każde od razu ocenione.";
   const diagCta = diag
     ? "Zobacz wynik →"
