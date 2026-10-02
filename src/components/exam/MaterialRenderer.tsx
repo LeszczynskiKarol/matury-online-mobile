@@ -20,6 +20,7 @@ import { SvgViewer } from "./SvgViewer";
 import { ZoomableBox } from "./ZoomableBox";
 import { parseChemText } from "../../utils/chemText";
 import { CodeAwareText } from "../common/CodeAwareText";
+import { splitPipeTableSegments } from "../../utils/pipeTables";
 import { osmMapHtml, parseGeoportalPos } from "../../utils/osmMap";
 import { SqlSchemaView } from "./Tier2TaskRenderers";
 import { tableColWidths } from "../../lib/tableWidths";
@@ -1562,6 +1563,21 @@ function normalizeMaterial(rawMat: any): any {
 
 const CHART_FIELDS = ["experimentChartData", "chartData", "diagramData"];
 
+// Tekst materiału nad tabelą BEZ jej kopii w markdownie. Generator zapisuje
+// tabelę strukturalnie (mat.table) i bywa, że ta sama tabela stoi jeszcze
+// w `content` jako `| a | b |` — apka pokazywała ją wtedy dwa razy: surowy
+// markdown, a pod nim właściwą tabelę (2.10.2026, WOS PR). Web robi to samo
+// (stripInlinePipeTable w ExamPlayer). Tniemy tylko bloki, które parser
+// rozpoznaje jako tabelę; reszta tekstu (źródło, opis) zostaje.
+function tableIntro(content: unknown): string {
+  if (typeof content !== "string" || !content) return "";
+  return splitPipeTableSegments(content)
+    .filter((sg) => sg.kind === "text")
+    .map((sg) => (sg as { text: string }).text)
+    .join("\n\n")
+    .trim();
+}
+
 export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) {
   if (!rawMat) return null;
   const mat = normalizeMaterial(rawMat);
@@ -1689,9 +1705,9 @@ export function MaterialRenderer({ mat: rawMat, theme, isDark }: MaterialProps) 
       )}
       {/* Tabela jak na webie: najpierw tekst materiału (zwykłą czcionką),
           pod nim tabela. Wcześniej tekst lądował pod tabelą drobną kursywą. */}
-      {isTable && mat.content ? (
+      {isTable && tableIntro(mat.content) ? (
         <CodeAwareText
-          text={mat.content}
+          text={tableIntro(mat.content)}
           style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
           containerStyle={{ marginBottom: 8 }}
           isDark={isDark}
