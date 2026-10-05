@@ -5,7 +5,7 @@
 
 import React, { useCallback, useState } from "react";
 import { getDashboard } from "../../api/sessions";
-import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useNavigation,
@@ -16,6 +16,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { PremiumGate } from "../../components/common/PremiumGate";
+import { DiagnosisScreen } from "../home/DiagnosisScreen";
+import { getFreeStatus, type FreeQuiz } from "../../api/freeStatus";
 import { QuizReviewsSetupRow } from "../../components/quiz/QuizReviewsPref";
 import { useAuth } from "../../context/AuthContext";
 import { subjectsApi } from "../../api";
@@ -381,6 +383,17 @@ export function QuizSetupScreen() {
   const { isPremium } = useAuth();
   const navigation = useNavigation<Nav>();
   const route = useRoute<any>();
+  // Konto FREE (od 5.10.2026): zakładka Quiz = darmowy quiz (wybór
+  // przedmiotu albo wznowienie); po wykorzystaniu przegląd + bramka.
+  const [freeQuiz, setFreeQuiz] = useState<FreeQuiz | null | undefined>(undefined);
+  useFocusEffect(
+    useCallback(() => {
+      if (isPremium) return;
+      getFreeStatus()
+        .then((st) => setFreeQuiz(st.quiz))
+        .catch(() => setFreeQuiz(null));
+    }, [isPremium]),
+  );
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
@@ -513,7 +526,47 @@ export function QuizSetupScreen() {
     ) || [];
 
   if (!isPremium) {
-    return <PremiumGate mode="quiz" />;
+    if (freeQuiz === undefined) {
+      return (
+        <View style={{ flex: 1, backgroundColor: theme.background, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color={colors.brand[500]} />
+        </View>
+      );
+    }
+    if (freeQuiz && freeQuiz.state !== "used") return <DiagnosisScreen inline />;
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        {freeQuiz?.state === "used" && (
+          <TouchableOpacity
+            onPress={() => (navigation as any).navigate("Diagnosis", { token: freeQuiz.token })}
+            style={{
+              marginTop: insets.top + 12,
+              marginHorizontal: 20,
+              padding: 14,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: theme.border,
+              backgroundColor: theme.card,
+            }}
+          >
+            <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
+              💡 Twój darmowy quiz: {freeQuiz.subject.name}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 2 }}>
+              {freeQuiz.unansweredCount > 0
+                ? `Zostało zadań do zrobienia: ${freeQuiz.unansweredCount}.`
+                : "Wszystkie zadania rozwiązane. Odpowiedzi i wyjaśnienia zostają na stałe."}
+            </Text>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: colors.brand[500], marginTop: 8 }}>
+              Przejrzyj quiz →
+            </Text>
+          </TouchableOpacity>
+        )}
+        <View style={{ flex: 1 }}>
+          <PremiumGate mode="quiz" />
+        </View>
+      </View>
+    );
   }
 
   const handleStart = async () => {

@@ -149,6 +149,14 @@ function QuizStackNav() {
         component={QuizResultScreen}
         options={{ gestureEnabled: false }}
       />
+      {/* Konto FREE (od 5.10.2026): zakładka Quiz otwiera darmowy quiz
+          w swoim stosie, bez przeskoku na Start. */}
+      <QuizStack.Screen name="Diagnosis" component={DiagnosisScreen} />
+      <QuizStack.Screen
+        name="DiagnosisPlay"
+        component={QuizPlayScreen}
+        options={{ gestureEnabled: false }}
+      />
     </QuizStack.Navigator>
   );
 }

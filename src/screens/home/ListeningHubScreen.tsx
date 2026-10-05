@@ -2,7 +2,7 @@
 // ListeningHubScreen — wybór języka dla listeningu, deep-link do QuizTab
 // ============================================================================
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { getFreeStatus, type FreeStatus } from "../../api/freeStatus";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -46,6 +47,16 @@ export function ListeningHubScreen() {
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
+  // Konto FREE (od 5.10.2026): 3 darmowe nagrania. undefined = wczytuję.
+  const [free, setFree] = useState<FreeStatus["listening"] | null | undefined>(undefined);
+  useFocusEffect(
+    useCallback(() => {
+      if (isPremium) return;
+      getFreeStatus()
+        .then((st) => setFree(st.listening))
+        .catch(() => setFree(null));
+    }, [isPremium]),
+  );
 
   useEffect(() => {
     (async () => {
@@ -62,10 +73,16 @@ export function ListeningHubScreen() {
   const startListening = (subject: Subject) => {
     // Pomijamy QuizSetup — od razu QuizPlay z trybem LISTENING.
     // Sesja "__listening__" sygnalizuje QuizPlay żeby użył listening API.
+    // Konto FREE: backend sam daje darmową sesję (albo jej przegląd).
     navigation.navigate("QuizTab", {
       screen: "QuizPlay",
+      // Nad ekranem startowym Quizu, nie zamiast niego (inaczej po wyjściu
+      // zakładka Quiz zostawała na Słuchaniu).
+      initial: false,
       params: {
-        sessionId: "__listening__",
+        // Unikalne id ekranu: każde wejście to świeży odtwarzacz (getId
+        // w QuizStack), a nie stary ekran z poprzednim stanem.
+        sessionId: `__listening__:${Date.now()}`,
         questions: [],
         subjectName: subject.name,
         subjectId: subject.id,
@@ -74,9 +91,60 @@ export function ListeningHubScreen() {
     });
   };
 
-  // Backend i tak odmówi (/listening/start → PREMIUM_REQUIRED), ale wtedy
-  // uczeń lądował w pustym odtwarzaczu z „To było ostatnie zadanie".
-  if (!isPremium) return <PremiumGate mode="listening" />;
+  // Zaczęta darmowa sesja otwiera się od razu (jak web, Karol 5.10.2026).
+  useEffect(() => {
+    if (isPremium || free?.state !== "in_progress" || subjects.length === 0) return;
+    const s = subjects.find((x) => x.slug === free.subjectSlug) ?? subjects[0];
+    startListening(s);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPremium, free, subjects]);
+
+  if (!isPremium) {
+    if (free === undefined || free?.state === "in_progress" || loading) {
+      return (
+        <View style={{ flex: 1, backgroundColor: theme.background, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color={colors.brand[500]} />
+        </View>
+      );
+    }
+    // Wykorzystane: bramka + powrót do swoich nagrań (przegląd z oceną).
+    if (free?.state === "used") {
+      return (
+        <View style={{ flex: 1, backgroundColor: theme.background }}>
+          <TouchableOpacity
+            onPress={() => {
+              const s = subjects.find((x) => x.slug === free.subjectSlug) ?? subjects[0];
+              if (s) startListening(s);
+            }}
+            style={{
+              marginTop: insets.top + 12,
+              marginHorizontal: spacing[5],
+              padding: 14,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: theme.border,
+              backgroundColor: theme.card,
+            }}
+          >
+            <Text style={{ fontSize: 15, fontWeight: "800", color: theme.text }}>
+              🎧 Twoje darmowe nagrania
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 2 }}>
+              Nagrania z Twoimi odpowiedziami i oceną zostają na stałe.
+            </Text>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: colors.brand[500], marginTop: 8 }}>
+              Wróć do swoich nagrań →
+            </Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <PremiumGate mode="listening" />
+          </View>
+        </View>
+      );
+    }
+    // Bez pakietu startowego albo błąd — jak dotąd bramka.
+    if (free?.state !== "available") return <PremiumGate mode="listening" />;
+  }
 
   return (
     <ScrollView
@@ -124,6 +192,23 @@ export function ListeningHubScreen() {
       >
         Wybierz język — nagrania i zadania są jak na maturze.
       </Text>
+      {!isPremium && (
+        <View
+          style={{
+            alignSelf: "flex-start",
+            marginTop: -12,
+            marginBottom: 18,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 999,
+            backgroundColor: isDark ? "rgba(16,185,129,0.15)" : "#ecfdf5",
+          }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: "800", color: isDark ? "#6ee7b7" : "#047857" }}>
+            3 nagrania za darmo · wybierz język
+          </Text>
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator

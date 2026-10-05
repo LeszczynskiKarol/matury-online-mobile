@@ -25,8 +25,10 @@ import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { ProgressBar } from "../../components/common/ProgressBar";
-import { FreePanel } from "../../components/common/FreePanel";
 import { ModeTiles } from "../../components/home/ModeTiles";
+import { FreeNextStep, freeModeBadges, freeModeStats } from "../../components/home/FreeDashboard";
+import { getFreeStatus, type FreeStatus } from "../../api/freeStatus";
+import { logIntent } from "../../api/premium";
 import {
   useContinueLearning,
   ContinueLearningCard,
@@ -92,6 +94,8 @@ export function DashboardScreen() {
   const [paymentFailed, setPaymentFailed] = useState<AppNotification | null>(
     null,
   );
+  // Konto FREE: co zostało za darmo (plakietki kafli, następny krok).
+  const [freeStatus, setFreeStatus] = useState<FreeStatus | null>(null);
 
 
   const fetchData = useCallback(async () => {
@@ -123,12 +127,13 @@ export function DashboardScreen() {
         ? notificationsData!.notifications
         : [];
       setPaymentFailed(list.find((n) => n.type === "PAYMENT_FAILED") ?? null);
+      if (!isPremium) getFreeStatus().then(setFreeStatus).catch(() => {});
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isPremium]);
 
   // Przy każdym wejściu na Start, nie tylko przy montowaniu: zakładka żyje
   // w tle, więc po oddaniu egzaminu wisiał baner „Egzamin w toku", a cel dnia
@@ -171,192 +176,15 @@ export function DashboardScreen() {
     );
   }
 
-  // ── FREE USER VIEW ──────────────────────────────────────────────────────
-  if (!isPremium) {
-    return (
-      <ScrollView
-        style={{ flex: 1, backgroundColor: theme.background }}
-        contentContainerStyle={{
-          paddingTop: insets.top + 16,
-          paddingBottom: insets.bottom + 100,
-          paddingHorizontal: spacing[5],
-        }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.brand[500]}
-          />
-        }
-      >
-        {/* Header */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 24,
-          }}
-        >
-          <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-            <Text style={{ fontSize: 14, color: theme.textSecondary }}>
-              Witaj 👋
-            </Text>
-            <Text
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              style={{ fontSize: 24, fontWeight: "700", color: theme.text }}
-            >
-              {firstName}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={toggle}>
-            <Ionicons
-              name={isDark ? "sunny-outline" : "moon-outline"}
-              size={22}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Uczeń z polecenia korepetytora: zadania na samej górze, reszta
-            apki (oferta, FreePanel) zostaje niżej jako zaproszenie. */}
-        {user?.hasTutor && <TutorHomeCard />}
-
-        {/* Nieudana płatność — na samej górze, nad ofertą i FreePanel */}
-        {paymentFailed && (
-          <PaymentFailedBanner
-            notification={paymentFailed}
-            onDismissed={() => setPaymentFailed(null)}
-          />
-        )}
-
-        <AccountNote
-          account={data?.account}
-          onSubscription={() => navigation.navigate("ProfileTab", { screen: "Subscription" })}
-        />
-
-        {/* JEDNA karta „Za darmo" (diagnoza, darmowy arkusz, linijka o
-            Premium). Wcześniej: duży box „Odblokuj pełny dostęp" z ofertą
-            arkusza, ceną i Pakietem, a pod nim drugi raz diagnoza i arkusz
-            (zdaj-angielski, 25.09.2026). Przy nieudanej płatności akcję
-            przejmuje baner wyżej. */}
-        {!paymentFailed && (
-          <View style={{ marginBottom: 24 }}>
-            <FreePanel
-              hidePremiumLine
-              onPremium={() =>
-                navigation.navigate("ProfileTab", { screen: "Subscription" })
-              }
-              premiumLabel={
-                user?.hasTutor
-                  ? "Cały bank pytań poza zadaniami korepetytora:"
-                  : "Wszystko bez limitu:"
-              }
-            />
-          </View>
-        )}
-
-        {/* Blok Premium POD kartą „Za darmo” — najpierw darmowa diagnoza
-            i arkusz, potem oferta (Karol 29.09.2026; 28.09 stał nad kartą).
-            Przy nieudanej płatności akcję ma baner. */}
-        {!paymentFailed && (
-          <DashboardUnlockBox
-            onUnlock={() =>
-              navigation.navigate("ProfileTab", { screen: "Subscription" })
-            }
-            subscriptionStatus={user?.subscriptionStatus}
-            hasTutor={!!user?.hasTutor}
-          />
-        )}
-
-        {/* Greyed-out subjects */}
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "700",
-            color: theme.text,
-            marginBottom: 12,
-          }}
-        >
-          Dostępne przedmioty
-        </Text>
-        <Text
-          style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 16 }}
-        >
-          Wykup Premium, aby uzyskać dostęp
-        </Text>
-
-        <View style={{ gap: 10 }}>
-          {subjects.map((s) => (
-            <View
-              key={s.id}
-              style={{
-                backgroundColor: theme.card,
-                borderWidth: 1,
-                borderColor: theme.cardBorder,
-                borderRadius: radius["2xl"],
-                padding: spacing[5],
-                opacity: 0.5,
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: radius.lg,
-                    backgroundColor: (s.color || "#6366f1") + "1A",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 20 }}>{s.icon || "📚"}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 15,
-                      fontWeight: "600",
-                      color: theme.text,
-                    }}
-                  >
-                    {s.name}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: theme.textSecondary }}>
-                    {s._count?.questions || "100+"} pytań
-                    {s._count?.exams ? ` · ${s._count.exams} ${arkuszy(s._count.exams)}` : ""}
-                  </Text>
-                </View>
-                <Ionicons
-                  name="lock-closed"
-                  size={18}
-                  color={theme.textTertiary}
-                />
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Link do planów — główne wezwanie jest w DashboardUnlockBox wyżej,
-            więc tu cichy link w stylu reszty apki („Zobacz Premium →”),
-            nie druga ciężka pigułka. */}
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("ProfileTab", { screen: "Subscription" })
-          }
-          accessibilityRole="link"
-          style={{ marginTop: 20, paddingVertical: 10, alignItems: "center" }}
-        >
-          <Text style={{ fontSize: 14, fontWeight: "800", color: colors.brand[500] }}>
-            Zobacz plany Premium →
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-    );
-  }
+  // Konto FREE (od 5.10.2026) widzi ten sam pulpit co Premium — różnice
+  // niżej: plakietki kafli, karta następnego darmowego kroku, „🔓 Premium”
+  // w nagłówku, Szybka powtórka z kłódką (components/home/FreeDashboard).
+  const quizUsed = freeStatus?.quiz.state === "used";
+  const examOpen = freeStatus?.exam.state === "available" || freeStatus?.exam.state === "in_progress";
+  const goPremium = (mode: string) => {
+    logIntent("GATE_CLICK", mode);
+    navigation.navigate("ProfileTab", { screen: "Subscription" });
+  };
 
   // ── PREMIUM USER VIEW (existing dashboard) ──────────────────────────────
   return (
@@ -425,7 +253,9 @@ export function DashboardScreen() {
               >
                 {firstName}
               </Text>
-              {profile?.title && (
+              {/* Konto FREE: bez tytułu — w nagłówku jest „🔓 Premium”, a tytuł
+                  wypychał imię (zrzut z telefonu 5.10.2026). */}
+              {isPremium && profile?.title && (
                 <View
                   style={{
                     paddingHorizontal: 8,
@@ -451,6 +281,27 @@ export function DashboardScreen() {
           </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          {/* Konto bez Premium: jedno stałe wezwanie w nagłówku (jak web
+              „🔓 Odblokuj wszystko”, na telefonie „🔓 Premium”). */}
+          {!isPremium && (
+            <TouchableOpacity
+              onPress={() => goPremium("header")}
+              accessibilityRole="button"
+              accessibilityLabel="Odblokuj wszystko w Premium, od 49 zł miesięcznie"
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+                backgroundColor: colors.brand[500],
+              }}
+            >
+              <Text style={{ fontSize: 12 }}>🔓</Text>
+              <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>Premium</Text>
+            </TouchableOpacity>
+          )}
           {/* Sam płomyk z liczbą nic nie znaczył — użytkownicy nie wiedzieli,
               czy to punkty, poziom, czy powiadomienia. Licznik zostaje (seria
               to najmocniejszy mechanizm powracalności), ale po dotknięciu
@@ -499,7 +350,8 @@ export function DashboardScreen() {
       />
 
       {/* ═══ ACTIVE EXAM RESUME — duży amber banner ═══ */}
-      {activeExam?.active && !activeExam.expired && (
+      {/* Konto FREE ma swój jedyny arkusz w karcie następnego kroku i w kaflu. */}
+      {isPremium && activeExam?.active && !activeExam.expired && (
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() =>
@@ -589,7 +441,7 @@ export function DashboardScreen() {
         </TouchableOpacity>
       )}
 
-      {activeExam?.expired && (
+      {isPremium && activeExam?.expired && (
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() =>
@@ -640,7 +492,11 @@ export function DashboardScreen() {
       )}
 
       {/* ═══ KONTYNUUJ NAUKĘ: co się wznowi + jeden przycisk ═══ */}
-      <ContinueLearningCard cl={cl} style={{ marginBottom: 20 }} />
+      {isPremium ? (
+        <ContinueLearningCard cl={cl} style={{ marginBottom: 20 }} />
+      ) : (
+        <FreeNextStep status={freeStatus} navigation={navigation} style={{ marginBottom: 20 }} />
+      )}
 
       {/* ═══ WYBIERZ TRYB — Egzamin Live / Quiz / Słuchanie ═══
           Jednakowe karty jak web „Wybierz tryb” (components/home/ModeTiles).
@@ -650,6 +506,8 @@ export function DashboardScreen() {
         onExam={() => navigation.navigate("ExamTab")}
         onQuiz={() => navigation.navigate("QuizTab")}
         onListening={() => navigation.navigate("ListeningHub")}
+        badges={!isPremium && freeStatus ? freeModeBadges(freeStatus) : undefined}
+        freeStats={!isPremium && freeStatus ? freeModeStats(freeStatus) : undefined}
       />
 
       {/* Twoje przedmioty — zaraz pod trybami, nad statystykami (jak na webie) */}
@@ -702,6 +560,18 @@ export function DashboardScreen() {
                   canRemove={data.subjectProgress.filter((x) => !x.hidden).length > 1}
                   onRemove={() => setSubjectHidden(sp.subject.slug, true)}
                   onQuiz={() => {
+                    // Konto FREE: darmowy quiz (z tym przedmiotem, jeśli jeszcze
+                    // niezaczęty) albo jego przegląd — zakładka Quiz.
+                    if (!isPremium) {
+                      navigation.navigate("QuizTab", {
+                        screen: freeStatus?.quiz.state === "available" ? "Diagnosis" : "QuizSetup",
+                        params:
+                          freeStatus?.quiz.state === "available"
+                            ? { subjectSlug: sp.subject.slug }
+                            : undefined,
+                      });
+                      return;
+                    }
                     if (subjectObj) {
                       navigation.navigate("QuizTab", {
                         screen: "QuizSetup",
@@ -717,7 +587,9 @@ export function DashboardScreen() {
                   }
                   onListening={
                     subjectObj && ["angielski", "niemiecki"].includes(sp.subject.slug)
-                      ? () =>
+                      ? !isPremium
+                        ? () => navigation.navigate("ListeningHub")
+                        : () =>
                           navigation.navigate("QuizTab", {
                             screen: "QuizPlay",
                             params: {
@@ -814,7 +686,20 @@ export function DashboardScreen() {
         subjects={subjects as any}
         progress={data?.subjectProgress as any}
         navigation={navigation}
+        locked={!isPremium}
       />
+
+      {/* Konto bez Premium po wykorzystaniu quizu i arkusza: blok Premium
+          (wcześniej pulpit sprzedaje darmowym krokiem, nie ceną). */}
+      {!isPremium && !paymentFailed && quizUsed && !examOpen && (
+        <View style={{ marginBottom: 20 }}>
+          <DashboardUnlockBox
+            onUnlock={() => goPremium("dashboard")}
+            subscriptionStatus={user?.subscriptionStatus}
+            hasTutor={!!user?.hasTutor}
+          />
+        </View>
+      )}
 
 
       {/* Stats row */}

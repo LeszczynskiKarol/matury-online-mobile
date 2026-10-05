@@ -25,14 +25,26 @@ function floor100(n?: number | null): string | null {
   return `${String(v).replace(/\B(?=(\d{3})+(?!\d))/g, " ")}+`;
 }
 
+export type ModeBadgeTone = "free" | "active" | "used" | "locked";
+export interface ModeBadge {
+  label: string;
+  tone: ModeBadgeTone;
+}
+
 export function ModeTiles({
   onExam,
   onQuiz,
   onListening,
+  badges,
+  freeStats,
 }: {
   onExam: () => void;
   onQuiz: () => void;
   onListening: () => void;
+  /** Konto FREE (od 5.10.2026): „1× za darmo”, „W trakcie”, „Wykorzystany”. */
+  badges?: Partial<Record<"exam" | "quiz" | "listening", ModeBadge>>;
+  /** Konto FREE: zamiast liczby z banku, np. „Matematyka, poziom podstawowy”. */
+  freeStats?: Partial<Record<"exam" | "quiz" | "listening", string>>;
 }) {
   const { colors: theme, isDark } = useTheme();
   const [stats, setStats] = useState<{ questions?: number; exams?: number } | null>(null);
@@ -121,15 +133,40 @@ export function ModeTiles({
               <Text style={{ fontSize: 24 }}>{m.icon}</Text>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 16, fontWeight: "800", color: m.color }}>
-                {m.label}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <Text style={{ fontSize: 16, fontWeight: "800", color: m.color }}>
+                  {m.label}
+                </Text>
+                {badges?.[m.key as "exam" | "quiz" | "listening"] && (() => {
+                  const b = badges[m.key as "exam" | "quiz" | "listening"]!;
+                  const bg =
+                    b.tone === "free"
+                      ? isDark ? "rgba(16,185,129,0.18)" : "#d1fae5"
+                      : b.tone === "active"
+                        ? isDark ? "rgba(34,197,94,0.16)" : "#dcfce7"
+                        : isDark ? "rgba(255,255,255,0.08)" : "#f4f4f5";
+                  const fg =
+                    b.tone === "free"
+                      ? isDark ? "#6ee7b7" : "#047857"
+                      : b.tone === "active"
+                        ? isDark ? "#4ade80" : "#15803d"
+                        : theme.textSecondary;
+                  return (
+                    <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: bg }}>
+                      <Text style={{ fontSize: 10, fontWeight: "800", color: fg }}>
+                        {b.tone === "locked" ? "🔒 " : ""}
+                        {b.label}
+                      </Text>
+                    </View>
+                  );
+                })()}
+              </View>
               <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 1, lineHeight: 18 }}>
                 {m.description}
               </Text>
-              {m.stat ? (
+              {(freeStats?.[m.key as "exam" | "quiz" | "listening"] ?? m.stat) ? (
                 <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text, marginTop: 3 }}>
-                  {m.stat}
+                  {freeStats?.[m.key as "exam" | "quiz" | "listening"] ?? m.stat}
                 </Text>
               ) : null}
             </View>

@@ -27,7 +27,8 @@ import {
   type ExamInfo,
   type SubjectExamAvailability,
 } from "../../api/exams";
-import { getTrialStatus, type TrialStatus } from "../../api/premium";
+import { getTrialStatus, isFreePackBlocked, type TrialStatus } from "../../api/premium";
+import { FreeSheetPicker } from "../../components/common/FreeSheetPicker";
 import { radius } from "../../theme";
 import type { ExamStackParamList } from "../../navigation/types";
 import { handlePremiumError } from "../../lib/premiumAlert";
@@ -66,6 +67,9 @@ export function ExamSelectorScreen() {
   }, [paramSlug]);
   // Przedmioty, które uczeń już ćwiczy (postęp na pulpicie) — na górę.
   const [mySlugs, setMySlugs] = useState<string[]>([]);
+  // Konto FREE z niewybranym darmowym arkuszem (od 5.10.2026): Egzamin
+  // otwiera od razu wybór przedmiotu i poziomu (jak /darmowy-arkusz na webie).
+  const [freePicker, setFreePicker] = useState(true);
 
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
@@ -371,7 +375,8 @@ export function ExamSelectorScreen() {
             }}
           >
             <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>
-              Zobacz swój arkusz →
+              {/* W trakcie: „Kontynuuj”, po oddaniu „Zobacz swój arkusz” (Karol 5.10.2026). */}
+              {done ? "Zobacz swój arkusz →" : "Kontynuuj arkusz →"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -423,6 +428,38 @@ export function ExamSelectorScreen() {
   // Premium gate — wcześniej bez ŻADNEGO CTA (ślepa uliczka); teraz wspólny
   // konwersyjny ekran z przejściem do subskrypcji. Konto z odebraną ofertą
   // przechodzi dalej, do katalogu.
+  if (
+    isPremium === false &&
+    !!trial &&
+    !trial.examId &&
+    (trial.active || (trial.eligible && !isFreePackBlocked(trial)))
+  ) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background, paddingTop: insets.top + 24, paddingHorizontal: 20 }}>
+        <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 6 }}>
+          Darmowy arkusz
+        </Text>
+        <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 21, marginBottom: 20 }}>
+          Pełny arkusz maturalny bez zegara, z punktacją według klucza i oceną zadań otwartych.
+          Wybierz przedmiot i poziom, a arkusz otworzy się od razu. Jeden arkusz na konto.
+        </Text>
+        <TouchableOpacity
+          onPress={() => setFreePicker(true)}
+          style={{ backgroundColor: colors.brand[500], paddingVertical: 14, borderRadius: radius.xl, alignItems: "center" }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Wybierz przedmiot i poziom →</Text>
+        </TouchableOpacity>
+        <FreeSheetPicker
+          visible={freePicker}
+          onClose={() => setFreePicker(false)}
+          trial={trial}
+          trigger="tab:exam"
+          onFreePackBlocked={() => setTrial((t) => (t ? { ...t, eligible: false, active: false, freePackBlocked: true } as any : t))}
+        />
+      </View>
+    );
+  }
+
   if (isPremium === false && !trial?.active) {
     return <PremiumGate mode="exam" />;
   }

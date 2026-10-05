@@ -45,6 +45,8 @@ export type SubjectsStackParamList = {
 
 export type QuizStackParamList = {
   QuizSetup: { subjectId?: string; topicId?: string } | undefined;
+  Diagnosis: { subjectSlug?: string; token?: string; view?: "report" } | undefined;
+  DiagnosisPlay: any;
   QuizPlay: {
     sessionId: string;
     questions: any[];

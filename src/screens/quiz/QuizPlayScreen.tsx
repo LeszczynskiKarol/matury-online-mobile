@@ -259,15 +259,28 @@ export function QuizPlayScreen() {
   // darmowy user dostawał tryb słuchania z pominięciem bramki.
   const [listeningFailed, setListeningFailed] = useState<string | null>(null);
   const [listeningGate, setListeningGate] = useState(false);
+  // Darmowe Słuchanie konta FREE (od 5.10.2026): 3 nagrania wczytane naraz,
+  // po ostatnim przejście dalej zatrzymuje bramka Premium w tej sesji.
+  const [freeListening, setFreeListening] = useState(false);
+  const [freeGate, setFreeGate] = useState(false);
+  // Darmowe Słuchanie gra w stosie zakładki Quiz. Po wyjściu z niego ekran
+  // znika ze stosu — inaczej zakładka Quiz pokazywała potem Słuchanie
+  // (zrzut z telefonu 5.10.2026). Powrót do nagrań idzie przez zakładkę Słuchanie.
+  useEffect(() => {
+    if (!freeListening) return;
+    const unsub = navigation.addListener("blur", () => {
+      const nav: any = navigation;
+      if (nav.canGoBack?.()) nav.popToTop?.();
+      else nav.replace?.("QuizSetup");
+    });
+    return unsub;
+  }, [freeListening, navigation]);
 
   // Init listening session
   useEffect(() => {
     if (!isListeningOnly || !listeningInit) return;
-    if (!isPremium) {
-      setListeningGate(true);
-      setListeningInit(false);
-      return;
-    }
+    // Konto FREE też woła /listening/start — backend daje darmową sesję
+    // (3 nagrania z banku) albo odmawia, wtedy bramka.
     (async () => {
       setListeningLoading(true);
       setListeningFailed(null);
@@ -278,12 +291,27 @@ export function QuizPlayScreen() {
           return;
         }
         setListeningSessionId(res.sessionId);
+        if (res.free && Array.isArray(res.questions) && res.questions.length > 0) {
+          // Powrót do darmowych nagrań: zapisane odpowiedzi wracają z oceną.
+          setFreeListening(true);
+          res.questions.forEach((q: any) => answeredIds.current.add(q.id));
+          const ans = res.answered ?? [];
+          setResultsMap(Object.fromEntries(ans.map((a) => [a.questionId, a.result])));
+          setAnswersMap(Object.fromEntries(ans.map((a) => [a.questionId, a.response])));
+          setQuestions(res.questions as any);
+          setCurrentIndex(res.startIndex ?? 0);
+          return;
+        }
         const q = res.question as any;
         answeredIds.current.add(q.id);
         setQuestions([q]);
         setCurrentIndex(0);
       } catch (err: any) {
-        if (err?.code === "PREMIUM_REQUIRED") {
+        if (
+          err?.code === "PREMIUM_REQUIRED" ||
+          err?.code === "AI_CREDITS_EXHAUSTED" ||
+          err?.code === "FREE_PACK_USED_NETWORK"
+        ) {
           refresh().catch(() => {});
           setListeningGate(true);
           return;
@@ -689,6 +717,15 @@ export function QuizPlayScreen() {
       }
       return;
     }
+    // Darmowe nagrania: tylko przejście (bez zapisu pominięcia), po ostatnim bramka.
+    if (freeListening) {
+      if (currentIndex >= questions.length - 1) setFreeGate(true);
+      else {
+        setCurrentIndex((i) => i + 1);
+        resetForNextQuestion();
+      }
+      return;
+    }
     apiSkipQuestion(question.id, listeningSessionId || sessionId).catch(
       console.error,
     );
@@ -752,6 +789,9 @@ export function QuizPlayScreen() {
     filters,
     subjectId,
     isListeningOnly,
+    freeListening,
+    currentIndex,
+    questions.length,
   ]);
 
   // ── NEXT — after feedback, loads more if pool empty ────────────────────
@@ -761,6 +801,15 @@ export function QuizPlayScreen() {
         if (diagnosis!.mode === "review") openDiagReport();
         else await finishDiagnosis();
       } else {
+        setCurrentIndex((i) => i + 1);
+        resetForNextQuestion();
+      }
+      return;
+    }
+    // Darmowe nagrania: następne z wczytanych, po ostatnim bramka w sesji.
+    if (freeListening) {
+      if (currentIndex >= questions.length - 1) setFreeGate(true);
+      else {
         setCurrentIndex((i) => i + 1);
         resetForNextQuestion();
       }
@@ -836,6 +885,9 @@ export function QuizPlayScreen() {
     subjectId,
     isListeningOnly,
     listeningSessionId,
+    freeListening,
+    currentIndex,
+    questions.length,
   ]);
 
   const handlePrevious = useCallback(() => {
@@ -903,6 +955,13 @@ export function QuizPlayScreen() {
   };
 
   const goToResults = async () => {
+    // Darmowe nagrania: „Zakończ” przed ostatnim = wyjście z zapisaną sesją
+    // (wraca się do niej), na ostatnim = bramka Premium w sesji.
+    if (freeListening) {
+      if (currentIndex >= questions.length - 1) setFreeGate(true);
+      else handleQuit();
+      return;
+    }
     if (isListeningOnly && listeningSessionId) {
       endListening(listeningSessionId).catch(console.error);
     }
@@ -975,6 +1034,37 @@ export function QuizPlayScreen() {
   // ── Słuchanie bez dostępu / nieudany start ──────────────────────────────
   if (isListeningOnly && listeningGate) {
     return <PremiumGate mode="listening" />;
+  }
+  // Po ostatnim darmowym nagraniu — bramka w tej sesji (Karol 5.10.2026).
+  if (freeGate) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <Text
+          style={{
+            textAlign: "center",
+            fontSize: 13,
+            color: theme.textSecondary,
+            paddingTop: insets.top + 14,
+            paddingHorizontal: 20,
+          }}
+        >
+          To były 3 darmowe nagrania. Kolejne odblokujesz w Premium.
+        </Text>
+        <View style={{ flex: 1 }}>
+          <PremiumGate mode="listening" />
+        </View>
+        <TouchableOpacity
+          onPress={() => {
+            setFreeGate(false);
+          }}
+          style={{ alignItems: "center", paddingVertical: 12, paddingBottom: insets.bottom + 12 }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.brand[500] }}>
+            ← Wróć do swoich nagrań
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
   if (isListeningOnly && listeningFailed && !question && !listeningLoading) {
     return (
@@ -1255,7 +1345,7 @@ export function QuizPlayScreen() {
         }}
       >
         {/* ── LIVE FILTER BAR (nie w zadaniu od korepetytora) ─────────── */}
-        {!isAssignment && !isDiag && (
+        {!isAssignment && !isDiag && !freeListening && (
         <LiveFilterBar
           filters={filters}
           onFiltersChange={handleFiltersChange}
@@ -1454,6 +1544,8 @@ export function QuizPlayScreen() {
                   return (question as any).aiGraded ? (
                     <AiBadge label="za darmo" isDark={isDark} />
                   ) : null;
+                // Darmowe nagrania konta FREE nie kosztują kredytów.
+                if (t === "LISTENING" && freeListening) return null;
                 if (t === "LISTENING")
                   return <AiBadge label="~4 kr." isDark={isDark} />;
                 if (t === "OPEN")
@@ -4922,7 +5014,9 @@ export function QuizPlayScreen() {
                     Poprzednie
                   </Text>
                 </TouchableOpacity>
-                {(!isDiag || diagnosis!.mode === "play") && (
+                {/* Także przy dokańczaniu quizu po zakończeniu (tryb review): pasek
+                    jest tylko przy zadaniu bez odpowiedzi, jak na webie (Karol 5.10.2026). */}
+                {(
                   <TouchableOpacity
                     disabled={revealing || loading}
                     hitSlop={8}

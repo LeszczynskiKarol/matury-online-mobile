@@ -6,6 +6,14 @@ import { api } from "./client";
 
 interface ListeningStartResponse {
   sessionId: string;
+  /** Darmowe Słuchanie konta FREE (backend od 5.10.2026): wszystkie
+   *  wylosowane nagrania naraz, pozycja startu i zapisane odpowiedzi. */
+  free?: boolean;
+  freeCount?: number;
+  completed?: boolean;
+  startIndex?: number;
+  questions?: any[];
+  answered?: { questionId: string; response: any; result: any }[];
   question: {
     id: string;
     type: "LISTENING";

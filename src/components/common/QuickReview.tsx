@@ -24,6 +24,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { createSession } from "../../api/sessions";
 import { getSubject, type Subject } from "../../api/subjects";
+import { logIntent } from "../../api/premium";
 
 interface QTopic {
   id: string;
@@ -73,13 +74,18 @@ export function QuickReview({
   subjects,
   progress,
   navigation,
+  locked = false,
 }: {
   subjects: QSubject[];
   progress: ProgressEntry[] | undefined;
   navigation: any;
+  /** Konto FREE (od 5.10.2026): wybór działa, start quizu z tematu jest
+   *  za kłódką — jedna linijka z odblokowaniem, jak na webie. */
+  locked?: boolean;
 }) {
   const { colors: theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const [lockedPick, setLockedPick] = useState<{ name: string; count: number } | null>(null);
 
   // Przedmioty ucznia: najwięcej odpowiedzi pierwsze, remis → ostatnia aktywność.
   const ordered = useMemo(() => {
@@ -171,6 +177,12 @@ export function QuickReview({
   };
 
   const start = async (topic: QTopic) => {
+    if (locked) {
+      setSheetOpen(false);
+      setLockedPick({ name: topic.name, count: topic.questionCount });
+      logIntent("GATE_VIEW", "quick_review");
+      return;
+    }
     if (!subject || starting) return;
     setStarting(topic.id);
     try {
@@ -258,7 +270,9 @@ export function QuickReview({
         borderColor: theme.border,
       }}
     >
-      <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>⚡ Szybka powtórka</Text>
+      <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>
+        ⚡ Szybka powtórka{locked ? "  🔒 Premium" : ""}
+      </Text>
       <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2, marginBottom: 10 }}>
         Wybierz przedmiot i dział, quiz ruszy od razu.
       </Text>
@@ -350,6 +364,36 @@ export function QuickReview({
         <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 6 }}>
           Dotknij {parentNoun}, żeby powtórzyć całość albo wybrać {childNoun}.
         </Text>
+      )}
+
+      {locked && lockedPick && (
+        <View
+          style={{
+            marginTop: 10,
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.brand[500] + "14",
+            borderWidth: 1,
+            borderColor: colors.brand[500] + "55",
+          }}
+        >
+          <Text style={{ fontSize: 13, color: theme.text }}>
+            <Text style={{ fontWeight: "800" }}>{lockedPick.name}</Text>: {lockedPick.count}{" "}
+            {pytan(lockedPick.count)}. Quiz z wybranego tematu jest w Premium.
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              logIntent("GATE_CLICK", "quick_review");
+              navigation.navigate("ProfileTab", { screen: "Subscription" });
+            }}
+            style={{ marginTop: 8 }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "800", color: colors.brand[500] }}>
+              🔓 Odblokuj wszystko →
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>Od 49 zł miesięcznie</Text>
+        </View>
       )}
 
       {/* Lista lektur / tematów: arkusz od dołu */}

@@ -628,6 +628,9 @@ export function ExamPlayerScreen() {
     // Arkusz otwarty ponownie (dokańczanie / przegląd): jak za pierwszym razem.
     const reopened = lockedIds.size > 0;
     const started = answeredCount > 0 && !reopened;
+    // Arkusz otwarty już wcześniej, ale bez odpowiedzi: „Kontynuuj”, nie
+    // „Zaczynam od początku” (Karol 5.10.2026).
+    const resumed = !started && !reopened && Date.now() - examStartedAtRef.current > 2 * 60 * 1000;
     // „Rozumienie tekstów pisanych" to czytanie, nie pisanie — stąd kolejność.
     const kindOf = (name: string) =>
       /słuch|listening/i.test(name)
@@ -653,8 +656,23 @@ export function ExamPlayerScreen() {
     return (
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.background }}
-        contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20, paddingBottom: 60 }}
+        contentContainerStyle={{ padding: 20, paddingTop: insets.top + 12, paddingBottom: 60 }}
       >
+        {/* Wstecz — ekranu startowego nie dało się opuścić (Karol 5.10.2026). */}
+        <TouchableOpacity
+          onPress={() =>
+            navigation.canGoBack()
+              ? navigation.goBack()
+              : (navigation as any).getParent()?.navigate("HomeTab", { screen: "Dashboard" })
+          }
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Wstecz"
+          style={{ flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start", marginBottom: 14 }}
+        >
+          <Ionicons name="chevron-back" size={20} color={theme.textSecondary} />
+          <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textSecondary }}>Wstecz</Text>
+        </TouchableOpacity>
         <Text style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: "800", color: colors.brand[500], backgroundColor: isDark ? "rgba(59,130,246,0.15)" : "#eff6ff", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, overflow: "hidden", marginBottom: 12 }}>
           {started ? `DARMOWY ARKUSZ TESTOWY · ROZWIĄZANE ${answeredCount}/${allTasks.length}` : "DARMOWY ARKUSZ TESTOWY"}
         </Text>
@@ -665,14 +683,20 @@ export function ExamPlayerScreen() {
             a przy 4–6 częściach przycisk pod listą lądował poza ekranem. */}
         <View style={{ marginBottom: 24 }}>
           <Button
-            title={started ? `Wróć do zadania ${currentTask.number} →` : "Zaczynam od początku →"}
-            onPress={() => (started ? setShowIntro(false) : parts[0] && startAt(parts[0]))}
+            title={
+              started
+                ? `Wróć do zadania ${currentTask.number} →`
+                : resumed
+                  ? "Kontynuuj arkusz →"
+                  : "Zaczynam od początku →"
+            }
+            onPress={() => (started || resumed ? setShowIntro(false) : parts[0] && startAt(parts[0]))}
           />
         </View>
         {/* Na mobile tylko etykieta, tytuł i „Od czego chcesz zacząć?” —
             opis i lista punktów zajmowały cały ekran (Karol 26.09.2026). */}
         <Text style={{ fontSize: 12, fontWeight: "700", color: theme.textSecondary, letterSpacing: 1, marginBottom: 10 }}>
-          {started ? "ALBO PRZEJDŹ DO CZĘŚCI" : "ALBO ZACZNIJ OD WYBRANEJ CZĘŚCI"}
+          {started || resumed ? "ALBO PRZEJDŹ DO CZĘŚCI" : "ALBO ZACZNIJ OD WYBRANEJ CZĘŚCI"}
         </Text>
         {parts.map((part: any) => (
           <TouchableOpacity

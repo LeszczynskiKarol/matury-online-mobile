@@ -222,10 +222,14 @@ function ScoreRing({
   );
 }
 
-export function DiagnosisScreen() {
+/** inline: ekran osadzony w zakładce Quiz (konto FREE, od 5.10.2026) — quiz
+ *  otwiera się nad nim (navigate), zamiast podmieniać korzeń zakładki. */
+export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
   const insets = useSafeAreaInsets();
   const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<any>();
+  const goPlay = (params: any) =>
+    inline ? navigation.navigate("DiagnosisPlay", params) : navigation.replace("DiagnosisPlay", params);
   const route = useRoute<any>();
   const params = (route.params ?? {}) as {
     subjectSlug?: string;
@@ -256,7 +260,7 @@ export function DiagnosisScreen() {
           feedback: q.answered === false ? { ...q.feedback, revealed: true } : q.feedback,
         };
       }
-      navigation.replace("DiagnosisPlay", {
+      goPlay({
         sessionId: "",
         subjectId: "",
         subjectName: r.subject.name,
@@ -301,7 +305,7 @@ export function DiagnosisScreen() {
           await loadResult(token);
           return;
         }
-        navigation.replace("DiagnosisPlay", {
+        goPlay({
           sessionId: "",
           subjectId: "",
           subjectName: st.subject?.name ?? "",
@@ -365,7 +369,7 @@ export function DiagnosisScreen() {
         method: "POST",
         body: { subject: subject.slug },
       });
-      navigation.replace("DiagnosisPlay", {
+      goPlay({
         sessionId: "",
         subjectId: "",
         subjectName: d.subject?.name ?? subject.name,
@@ -393,7 +397,7 @@ export function DiagnosisScreen() {
 
   const back = () => {
     if (navigation.canGoBack()) navigation.goBack();
-    else navigation.navigate("Dashboard");
+    else navigation.getParent()?.navigate("HomeTab", { screen: "Dashboard" });
   };
 
   const container = {

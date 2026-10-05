@@ -46,7 +46,7 @@ export function FreeSheetGateRow() {
     onPress = () => openFreeSheet(navigation, trial);
   } else if (trial.examId) {
     text = "Otwarty i czeka na Ciebie, bez limitu czasu.";
-    cta = "Zobacz swój arkusz →";
+    cta = "Kontynuuj arkusz →";
     onPress = () =>
       navigation.getParent()?.navigate("ExamTab", {
         screen: "ExamPlay",
