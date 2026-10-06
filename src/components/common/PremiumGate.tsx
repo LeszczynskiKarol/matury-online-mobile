@@ -59,7 +59,7 @@ const MODE_CONFIG: Record<
       "System sam dobiera pytania pod Twoje braki i trudność",
       "Szybka powtórka: wybierasz przedmiot i dział, quiz rusza od razu",
     ],
-    personalizedVerb: "Ten tryb dobierze Ci pytania dokładnie z tego działu.",
+    personalizedVerb: "Ten tryb dobierze Ci pytania tam, gdzie tracisz punkty.",
   },
   // Słuchanie — backend zamyka /listening/start i /next (requireAiCredits);
   // bez bramki user trafiał w pusty ekran „To było ostatnie zadanie", a stamtąd

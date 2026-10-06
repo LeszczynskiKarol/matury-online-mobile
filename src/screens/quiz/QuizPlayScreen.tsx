@@ -6090,7 +6090,7 @@ function FormattedAnswer({
         <View>
           {label}
           <Text style={{ fontSize: 14, color: theme.text, lineHeight: 21 }}>
-            {opt ? `${opt.id}. ${opt.text}` : answer}
+            {opt ? <>{opt.id}. {parseChemText(opt.text)}</> : parseChemText(answer)}
           </Text>
         </View>
       );
@@ -6099,7 +6099,7 @@ function FormattedAnswer({
       <View>
         {label}
         <Text style={{ fontSize: 14, color: theme.text, lineHeight: 21 }}>
-          {answer}
+          {parseChemText(answer)}
         </Text>
       </View>
     );
@@ -6138,7 +6138,7 @@ function FormattedAnswer({
               key={i}
               style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
             >
-              • {s.text} → {answer[i] ? "Prawda" : "Fałsz"}
+              • {parseChemText(s.text)} → {answer[i] ? "Prawda" : "Fałsz"}
             </Text>
           ))}
         </View>
@@ -6156,7 +6156,7 @@ function FormattedAnswer({
                 key={id}
                 style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
               >
-                • {opt ? `${opt.id}. ${opt.text}` : id}
+                • {opt ? <>{opt.id}. {parseChemText(opt.text)}</> : id}
               </Text>
             );
           })}
@@ -6173,7 +6173,7 @@ function FormattedAnswer({
               key={i}
               style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
             >
-              {i + 1}. {content.items[idx] || idx}
+              {i + 1}. {parseChemText(String(content.items[idx] ?? idx))}
             </Text>
           ))}
         </View>
@@ -6192,7 +6192,7 @@ function FormattedAnswer({
               key={sq.id}
               style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
             >
-              • {sq.text}: {answer[i] || "—"}
+              • {parseChemText(sq.text)}: {answer[i] ? parseChemText(String(answer[i])) : "—"}
             </Text>
           ))}
         </View>
@@ -6208,7 +6208,7 @@ function FormattedAnswer({
               key={i}
               style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
             >
-              • {p.left} → {p.right}
+              • {parseChemText(String(p.left))} → {parseChemText(String(p.right))}
             </Text>
           ))}
         </View>
@@ -6223,7 +6223,7 @@ function FormattedAnswer({
             key={i}
             style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
           >
-            {i + 1}. {typeof item === "string" ? item : JSON.stringify(item)}
+            {i + 1}. {typeof item === "string" ? parseChemText(item) : JSON.stringify(item)}
           </Text>
         ))}
       </View>
@@ -6242,7 +6242,7 @@ function FormattedAnswer({
               key={i}
               style={{ fontSize: 13, color: theme.text, lineHeight: 21 }}
             >
-              • {p.left} → {p.right}
+              • {parseChemText(String(p.left))} → {parseChemText(String(p.right))}
             </Text>
           ))}
         </View>
