@@ -1039,19 +1039,23 @@ export function QuizPlayScreen() {
   if (freeGate) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.background }}>
-        <Text
-          style={{
-            textAlign: "center",
-            fontSize: 13,
-            color: theme.textSecondary,
-            paddingTop: insets.top + 14,
-            paddingHorizontal: 20,
-          }}
-        >
-          To były 3 darmowe nagrania. Kolejne odblokujesz w Premium.
-        </Text>
         <View style={{ flex: 1 }}>
-          <PremiumGate mode="listening" />
+          <PremiumGate
+            mode="listening"
+            header={
+              <Text
+                style={{
+                  textAlign: "center",
+                  fontSize: 13,
+                  color: theme.textSecondary,
+                  marginBottom: 16,
+                  paddingHorizontal: 8,
+                }}
+              >
+                To były 3 darmowe nagrania. Kolejne odblokujesz w Premium.
+              </Text>
+            }
+          />
         </View>
         <TouchableOpacity
           onPress={() => {

@@ -446,7 +446,15 @@ function ExamPreview() {
 
 // ── Główny komponent ─────────────────────────────────────────────────────────
 
-export function PremiumGate({ mode }: { mode: GateMode }) {
+export function PremiumGate({
+  mode,
+  header,
+}: {
+  mode: GateMode;
+  /** Treść nad kartą, przewijana razem z nią (np. „Twoje darmowe nagrania”) —
+   *  karta postawiona nad ScrollView wyglądała, jakby bramka pod nią wjeżdżała. */
+  header?: React.ReactNode;
+}) {
   const { colors: theme } = useTheme();
   const navigation = useNavigation<any>();
   const cfg = MODE_CONFIG[mode];
@@ -507,6 +515,7 @@ export function PremiumGate({ mode }: { mode: GateMode }) {
         paddingBottom: 100,
       }}
     >
+      {header}
       <View
         style={{
           backgroundColor: theme.card,

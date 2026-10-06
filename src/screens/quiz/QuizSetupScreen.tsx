@@ -534,14 +534,16 @@ export function QuizSetupScreen() {
       );
     }
     if (freeQuiz && freeQuiz.state !== "used") return <DiagnosisScreen inline />;
+    // Karta w nagłówku bramki — przewija się razem z nią.
     return (
-      <View style={{ flex: 1, backgroundColor: theme.background }}>
-        {freeQuiz?.state === "used" && (
+      <PremiumGate
+        mode="quiz"
+        header={
+        freeQuiz?.state === "used" ? (
           <TouchableOpacity
             onPress={() => (navigation as any).navigate("Diagnosis", { token: freeQuiz.token })}
             style={{
-              marginTop: insets.top + 12,
-              marginHorizontal: 20,
+              marginBottom: 16,
               padding: 14,
               borderRadius: 16,
               borderWidth: 1,
@@ -561,11 +563,9 @@ export function QuizSetupScreen() {
               Przejrzyj quiz →
             </Text>
           </TouchableOpacity>
-        )}
-        <View style={{ flex: 1 }}>
-          <PremiumGate mode="quiz" />
-        </View>
-      </View>
+        ) : null
+        }
+      />
     );
   }
 

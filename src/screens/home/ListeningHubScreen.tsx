@@ -109,16 +109,19 @@ export function ListeningHubScreen() {
     }
     // Wykorzystane: bramka + powrót do swoich nagrań (przegląd z oceną).
     if (free?.state === "used") {
+      // Karta w nagłówku bramki — przewija się razem z nią (stała nad
+      // ScrollView wyglądała, jakby bramka pod nią wjeżdżała).
       return (
-        <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <PremiumGate
+          mode="listening"
+          header={
           <TouchableOpacity
             onPress={() => {
               const s = subjects.find((x) => x.slug === free.subjectSlug) ?? subjects[0];
               if (s) startListening(s);
             }}
             style={{
-              marginTop: insets.top + 12,
-              marginHorizontal: spacing[5],
+              marginBottom: spacing[4],
               padding: 14,
               borderRadius: 16,
               borderWidth: 1,
@@ -136,10 +139,8 @@ export function ListeningHubScreen() {
               Wróć do swoich nagrań →
             </Text>
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <PremiumGate mode="listening" />
-          </View>
-        </View>
+          }
+        />
       );
     }
     // Bez pakietu startowego albo błąd — jak dotąd bramka.
