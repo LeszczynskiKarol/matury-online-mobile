@@ -65,6 +65,8 @@ interface TopicRow {
   topicName: string;
   earned: number;
   total: number;
+  /** „Pokaż odpowiedź” w tym dziale (backend od 6.10.2026; starsze wyniki bez pola). */
+  revealed?: number;
 }
 
 interface ResultQuestion {
@@ -548,7 +550,18 @@ export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
     const rows = [...(r.topicBreakdown ?? [])]
       .filter((t) => t && t.total > 0)
       .sort((a, b) => a.earned / a.total - b.earned / b.total);
-    const weak = rows.filter((t) => t.earned / t.total < 0.5);
+    // Odsłonięte odpowiedzi liczą się jako 0 pkt, ale pokazujemy je osobno —
+    // kto tylko odsłaniał, widział „najwięcej punktów uciekło” we wszystkich
+    // działach jak po samych błędach (Karol 6.10.2026). Starszy wynik nie ma
+    // pola w dziale — liczymy wtedy z pytań.
+    const isRevealed = (q: any) => q?.revealed === true || q?.feedback?.revealed === true;
+    const revealedIn = (t: TopicRow) =>
+      typeof t.revealed === "number"
+        ? t.revealed
+        : (r.questions ?? []).filter((q: any) => isRevealed(q) && q.topicName === t.topicName).length;
+    const revealedCount = (r.questions ?? []).filter(isRevealed).length;
+    const mostlyRevealed = revealedCount > 0 && revealedCount * 2 >= quizCount;
+    const weak = rows.filter((t) => t.earned / t.total < 0.5 && revealedIn(t) < t.total);
     const lockedN = Number(r.aiLockedCount) || 0;
     const days = r.examKind === "MATURA" || r.examKind === undefined ? daysToMatura() : null;
     const toSubscription = () =>
@@ -662,6 +675,20 @@ export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
           >
             {headline}
           </Text>
+          {revealedCount > 0 && (
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "700",
+                color: "#d97706",
+                textAlign: "center",
+                lineHeight: 19,
+                marginTop: 8,
+              }}
+            >
+              Odsłonięte odpowiedzi: {revealedCount} z {quizCount} — liczą się jako 0 pkt.
+            </Text>
+          )}
           {(
             <Text
               style={{
@@ -672,7 +699,9 @@ export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
                 marginTop: 8,
               }}
             >
-              To próbka nauki, nie prognoza wyniku egzaminu. Pełny obraz da arkusz egzaminacyjny.
+              {mostlyRevealed
+                ? "Najpierw spróbuj sam — wtedy wynik pokaże, co naprawdę umiesz."
+                : "To próbka nauki, nie prognoza wyniku egzaminu. Pełny obraz da arkusz egzaminacyjny."}
             </Text>
           )}
         </View>
@@ -734,7 +763,7 @@ export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
             <View style={{ gap: 6, marginBottom: 14 }}>
               {[
                 "Cały bank zadań z wyborem działu, typu zadań i poziomu trudności",
-                "Wyjaśnienie po każdej odpowiedzi i powtórki tego, co sprawiło trudność",
+                "Wyjaśnienie po każdej odpowiedzi i pytania tam, gdzie tracisz punkty",
                 isE8
                   ? "Wszystkie przedmioty i arkusze egzaminacyjne"
                   : "Wszystkie przedmioty maturalne i arkusze egzaminacyjne",
@@ -909,6 +938,9 @@ export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
                           fontVariant: ["tabular-nums"],
                         }}
                       >
+                        {revealedIn(t) > 0 ? (
+                          <Text style={{ color: "#d97706" }}>odsłonięte: {revealedIn(t)}  </Text>
+                        ) : null}
                         {pct}%
                       </Text>
                     </View>
@@ -948,7 +980,11 @@ export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
           }}
         >
           <Text style={{ fontSize: 17, fontWeight: "800", color: "#fff", marginBottom: 6 }}>
-            {weak.length > 0 ? "W tych zadaniach najwięcej punktów uciekło tutaj" : "Dobry start. Teraz przełóż go na wynik"}
+            {weak.length > 0
+              ? "W tych zadaniach najwięcej punktów uciekło tutaj"
+              : mostlyRevealed
+                ? "Najpierw spróbuj sam"
+                : "Dobry start. Teraz przełóż go na wynik"}
           </Text>
           <Text style={{ fontSize: 14, color: colors.navy[100], lineHeight: 21, marginBottom: 12 }}>
             {weak.length > 0 ? (
@@ -963,6 +999,8 @@ export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
                   ? ". W Premium ćwiczysz pytania z tych działów, pełne arkusze na czas i ocenę zadań otwartych według kryteriów CKE."
                   : ". W Premium ćwiczysz pytania z tych działów, pełne arkusze maturalne na czas i ocenę wypracowań według kryteriów CKE."}
               </>
+            ) : mostlyRevealed ? (
+              "Odsłonięte odpowiedzi nie pokazują, co umiesz. W Premium rozwiązujesz pytania z każdego działu, a po każdej odpowiedzi od razu widzisz ocenę i wyjaśnienie."
             ) : (
               `${quizCount} zadań to tylko próbka. O wyniku egzaminu decydują zadania otwarte i wypracowania — te odblokowujesz w Premium, razem z pełnymi arkuszami na czas.`
             )}
