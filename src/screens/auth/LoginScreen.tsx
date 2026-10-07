@@ -40,7 +40,7 @@ type Nav = NativeStackNavigationProp<AuthStackParamList>;
 
 export function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { colors: theme, isDark, toggle } = useTheme();
+  const { colors: theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
   const { login, loginWithGoogle } = useAuth();
 
@@ -116,17 +116,6 @@ export function LoginScreen() {
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Dark mode toggle */}
-        <TouchableOpacity
-          onPress={toggle}
-          style={{ alignSelf: "flex-end", padding: 8 }}
-        >
-          <Ionicons
-            name={isDark ? "sunny-outline" : "moon-outline"}
-            size={22}
-            color={theme.textSecondary}
-          />
-        </TouchableOpacity>
 
         {/* Logo */}
         <View style={{ alignItems: "center", marginTop: 40, marginBottom: 48 }}>

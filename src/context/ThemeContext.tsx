@@ -10,6 +10,7 @@ import React, {
   useMemo,
 } from "react";
 import { useColorScheme } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import { lightTheme, darkTheme, type ThemeColors } from "../theme/colors";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -24,9 +25,25 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+// Wybór z Profilu („Tryb ciemny”) przeżywa restart apki (7.10.2026).
+const STORE_KEY = "theme_mode";
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
-  const [mode, setMode] = useState<ThemeMode>("system");
+  const [mode, setModeState] = useState<ThemeMode>("system");
+
+  useEffect(() => {
+    SecureStore.getItemAsync(STORE_KEY)
+      .then((v) => {
+        if (v === "light" || v === "dark" || v === "system") setModeState(v);
+      })
+      .catch(() => {});
+  }, []);
+
+  const setMode = (m: ThemeMode) => {
+    setModeState(m);
+    SecureStore.setItemAsync(STORE_KEY, m).catch(() => {});
+  };
 
   const isDark = useMemo(() => {
     if (mode === "system") return systemScheme === "dark";
