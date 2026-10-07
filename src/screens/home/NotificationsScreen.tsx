@@ -22,6 +22,7 @@ import { colors } from "../../theme/colors";
 import { fontFamily as F } from "../../theme/typography";
 import {
   listNotifications,
+  markAllNotificationsRead,
   markNotificationRead,
   type NotificationListItem,
 } from "../../api/notifications";
@@ -90,6 +91,11 @@ export function NotificationsScreen() {
     }
   };
 
+  const readAll = () => {
+    setItems((prev) => prev.map((i) => ({ ...i, isRead: true })));
+    markAllNotificationsRead().catch(() => {});
+  };
+
   const open = (n: NotificationListItem) => {
     if (!n.isRead) {
       setItems((prev) => prev.map((i) => (i.id === n.id ? { ...i, isRead: true } : i)));
@@ -156,7 +162,19 @@ export function NotificationsScreen() {
         >
           <Text style={{ fontSize: 16, fontWeight: "600", color: theme.textSecondary }}>‹ Wróć</Text>
         </TouchableOpacity>
-        <Text style={{ fontFamily: F.display.bold, fontSize: 20, color: theme.text }}>Powiadomienia</Text>
+        <Text style={{ flex: 1, fontFamily: F.display.bold, fontSize: 20, color: theme.text }}>Powiadomienia</Text>
+        {items.some((i) => !i.isRead) && (
+          <TouchableOpacity
+            onPress={readAll}
+            hitSlop={8}
+            accessibilityRole="button"
+            style={{ paddingVertical: 6, paddingLeft: 8 }}
+          >
+            <Text style={{ fontFamily: F.body.semibold, fontSize: 13, color: colors.brand[500] }}>
+              Przeczytane
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading ? (

@@ -82,8 +82,17 @@ export async function listNotifications(params: {
   return {
     items,
     nextCursor: r?.nextCursor ?? null,
-    unreadCount: typeof r?.unreadCount === "number" ? r.unreadCount : null,
+    unreadCount:
+      typeof r?.unread === "number"
+        ? r.unread
+        : typeof r?.unreadCount === "number"
+          ? r.unreadCount
+          : null,
   };
+}
+
+export function markAllNotificationsRead(): Promise<unknown> {
+  return api("/notifications/read-all", { method: "POST" });
 }
 
 export function markNotificationRead(id: string): Promise<unknown> {
