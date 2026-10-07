@@ -55,7 +55,7 @@ import { spacing, radius } from "../../theme";
 
 export function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { colors: theme, isDark, toggle } = useTheme();
+  const { colors: theme, isDark } = useTheme();
   const { user, isPremium } = useAuth();
   const navigation = useNavigation<any>();
   // „Kontynuuj naukę”: ostatnia sesja Quizu w toku (dowolny przedmiot), a bez
@@ -356,18 +356,8 @@ export function DashboardScreen() {
               </View>
             )}
           </TouchableOpacity>
-          {/* Przełącznik motywu tylko dla Premium — u konta FREE nagłówek ma
-              jeszcze „🔓 Premium” i dzwonek, a imię ścinało się do „f…”
-              (7.10.2026). Tryb ciemny jest też w Profilu. */}
-          {isPremium && (
-            <TouchableOpacity onPress={toggle}>
-              <Ionicons
-                name={isDark ? "sunny-outline" : "moon-outline"}
-                size={22}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
+          {/* Motyw: tylko w Profilu („Tryb ciemny”) — przycisk wyleciał z nagłówka
+              dla wszystkich kont (Karol 7.10.2026, miejsce na dzwonek). */}
         </View>
       </View>
 
