@@ -49,6 +49,10 @@
         "projectId": "1f3ea108-1701-4d72-ab54-490ec21ca248"
       }
     },
-    "owner": "karolleszczynski"
+    "owner": "karolleszczynski",
+    "notification": {
+      "icon": "./assets/notification/notification-icon.png",
+      "color": "#14b8a6"
+    }
   }
 }
