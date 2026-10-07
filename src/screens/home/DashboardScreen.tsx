@@ -356,13 +356,18 @@ export function DashboardScreen() {
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity onPress={toggle}>
-            <Ionicons
-              name={isDark ? "sunny-outline" : "moon-outline"}
-              size={22}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
+          {/* Przełącznik motywu tylko dla Premium — u konta FREE nagłówek ma
+              jeszcze „🔓 Premium” i dzwonek, a imię ścinało się do „f…”
+              (7.10.2026). Tryb ciemny jest też w Profilu. */}
+          {isPremium && (
+            <TouchableOpacity onPress={toggle}>
+              <Ionicons
+                name={isDark ? "sunny-outline" : "moon-outline"}
+                size={22}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
