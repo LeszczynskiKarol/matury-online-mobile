@@ -24,7 +24,7 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { BillingProvider } from "./src/context/BillingContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
-import { navigationRef } from "./src/navigation/navigationRef";
+import { navigationRef, flushPendingNavigation } from "./src/navigation/navigationRef";
 import { installAppStateTracking, trackScreen } from "./src/lib/usage";
 import { setupNotificationHandlers } from "./src/lib/pushNotifications";
 import { colors } from "./src/theme/colors";
@@ -180,7 +180,10 @@ function AppInner() {
       <NavigationContainer
         ref={navigationRef}
         theme={isDark ? navDarkTheme : navLightTheme}
-        onReady={() => trackScreen(navigationRef.getCurrentRoute()?.name)}
+        onReady={() => {
+          trackScreen(navigationRef.getCurrentRoute()?.name);
+          flushPendingNavigation();
+        }}
         onStateChange={() => trackScreen(navigationRef.getCurrentRoute()?.name)}
       >
         <RootNavigator />

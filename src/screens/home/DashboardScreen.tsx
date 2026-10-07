@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useUnreadNotifications } from "../../hooks/useUnreadNotifications";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -143,6 +144,8 @@ export function DashboardScreen() {
       void fetchData();
     }, [fetchData]),
   );
+
+  const unread = useUnreadNotifications();
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -323,6 +326,35 @@ export function DashboardScreen() {
               variant="streak"
               value={`${data?.user.currentStreak || 0}🔥`}
             />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Notifications")}
+            hitSlop={8}
+            accessibilityLabel={unread > 0 ? `Powiadomienia, nieprzeczytane: ${unread}` : "Powiadomienia"}
+          >
+            <Ionicons name="notifications-outline" size={22} color={theme.textSecondary} />
+            {unread > 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: -6,
+                  right: -8,
+                  minWidth: 17,
+                  height: 17,
+                  paddingHorizontal: 4,
+                  borderRadius: 9,
+                  backgroundColor: colors.brand[500],
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 2,
+                  borderColor: theme.background,
+                }}
+              >
+                <Text style={{ fontSize: 9, fontWeight: "800", color: "#fff" }}>
+                  {unread > 9 ? "9+" : unread}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity onPress={toggle}>
             <Ionicons

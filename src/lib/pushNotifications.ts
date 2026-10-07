@@ -16,6 +16,8 @@ import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 import { api } from "../api/client";
 import { navigate } from "../navigation/navigationRef";
+import { reportPushOpened } from "../api/notifications";
+import { routeFromUrl } from "./notificationLinks";
 
 const ASKED_KEY = "mo_push_perm_asked";
 let cachedPushToken: string | null = null;
@@ -133,7 +135,11 @@ export function setupNotificationHandlers(): () => void {
         }),
       });
 
+      // Centrum komunikatów (7.10.2026): każdy tap zgłaszamy jako „otwarte”
+      // (deliveryId z backendu), a potem routujemy — najpierw znane `type`,
+      // potem `url` (ścieżka webowa → ekran apki, src/lib/notificationLinks).
       const routeFromData = (data: any) => {
+        void reportPushOpened(data?.deliveryId);
         if (data?.type === "exam_graded" && data.attemptId) {
           navigate("Main", {
             screen: "ExamTab",
@@ -142,18 +148,33 @@ export function setupNotificationHandlers(): () => void {
               params: { attemptId: String(data.attemptId) },
             },
           });
+          return;
         }
+        routeFromUrl(data?.url);
       };
 
-      const sub = Notifications.addNotificationResponseReceivedListener(
-        (response) => {
-          routeFromData(response.notification.request.content.data);
-        },
-      );
+      // Ten sam tap może przyjść i z listenera, i z getLast… przy starcie.
+      const handled = new Set<string>();
+      const onResponse = (response: any) => {
+        const id = response?.notification?.request?.identifier;
+        if (id) {
+          if (handled.has(id)) return;
+          handled.add(id);
+        }
+        routeFromData(response?.notification?.request?.content?.data);
+      };
+
+      const sub = Notifications.addNotificationResponseReceivedListener(onResponse);
 
       // Cold start z tapnięcia w powiadomienie
       const last = await Notifications.getLastNotificationResponseAsync();
-      if (last) routeFromData(last.notification.request.content.data);
+      if (last) {
+        onResponse(last);
+        // Bez czyszczenia ten sam tap wracałby przy każdym kolejnym starcie.
+        try {
+          await (Notifications as any).clearLastNotificationResponseAsync?.();
+        } catch {}
+      }
 
       cleanup = () => sub.remove();
     } catch {}

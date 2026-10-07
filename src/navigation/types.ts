@@ -23,6 +23,8 @@ export type MainTabParamList = {
 // ── Nested Stacks ─────────────────────────────────────────────────────────
 export type HomeStackParamList = {
   Dashboard: undefined;
+  /** Lista powiadomień (dzwonek na pulpicie). */
+  Notifications: undefined;
   // sessionId — od razu przebieg tej sesji (z „Ostatniej aktywności”).
   SessionHistory: { sessionId?: string } | undefined;
   ListeningHub: undefined;

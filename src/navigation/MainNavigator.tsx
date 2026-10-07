@@ -26,6 +26,7 @@ import type {
 } from "./types";
 
 import { DashboardScreen } from "../screens/home/DashboardScreen";
+import { NotificationsScreen } from "../screens/home/NotificationsScreen";
 import { SessionHistoryScreen } from "../screens/home/SessionHistoryScreen";
 import { ListeningHubScreen } from "../screens/home/ListeningHubScreen";
 import { TutorAssignmentsScreen } from "../screens/tutor/TutorAssignmentsScreen";
@@ -51,6 +52,11 @@ function HomeStackNav() {
       }}
     >
       <HomeStack.Screen name="Dashboard" component={DashboardScreen} />
+      <HomeStack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{ animation: "slide_from_right" }}
+      />
       <HomeStack.Screen
         name="SessionHistory"
         component={SessionHistoryScreen}
