@@ -162,16 +162,17 @@ export function NotificationsScreen() {
         >
           <Text style={{ fontSize: 16, fontWeight: "600", color: theme.textSecondary }}>‹ Wróć</Text>
         </TouchableOpacity>
-        <Text style={{ flex: 1, fontFamily: F.display.bold, fontSize: 20, color: theme.text }}>Powiadomienia</Text>
+        <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.display.bold, fontSize: 18, color: theme.text }}>Powiadomienia</Text>
         {items.some((i) => !i.isRead) && (
           <TouchableOpacity
             onPress={readAll}
             hitSlop={8}
             accessibilityRole="button"
+            accessibilityLabel="Oznacz wszystkie jako przeczytane"
             style={{ paddingVertical: 6, paddingLeft: 8 }}
           >
             <Text style={{ fontFamily: F.body.semibold, fontSize: 13, color: colors.brand[500] }}>
-              Przeczytane
+              Odczytaj
             </Text>
           </TouchableOpacity>
         )}
