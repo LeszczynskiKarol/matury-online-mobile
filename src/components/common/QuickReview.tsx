@@ -101,7 +101,11 @@ export function QuickReview({
       .sort((a, b) => b.questionsAnswered - a.questionsAnswered || at(b) - at(a));
     const bySlug = new Map(subjects.map((s) => [s.slug, s]));
     const list = prog.map((p) => bySlug.get(p.subject.slug)).filter(Boolean) as QSubject[];
-    return list.length > 0 ? list : subjects;
+    // Przedmioty ucznia pierwsze, potem WSZYSTKIE pozostałe — jak na webie.
+    // Wcześniej był tylko rząd przedmiotów z pulpitu: konto z samym polskim
+    // nie mogło tu wybrać biologii (Karol 7.10.2026).
+    const mine = new Set(list.map((s) => s.slug));
+    return [...list, ...subjects.filter((s) => !mine.has(s.slug))];
   }, [subjects, progress]);
 
   const [slug, setSlug] = useState<string | null>(null);
