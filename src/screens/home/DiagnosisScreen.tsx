@@ -49,6 +49,7 @@ import { hasPassThreshold, PASS_PERCENT } from "../../utils/passThreshold";
 const RECRUIT_PERCENT = 65;
 import { radius, spacing } from "../../theme";
 import { parseChemText } from "../../utils/chemText";
+import { askForPushPermissionOnce } from "../../lib/pushNotifications";
 import { subjectGenitive as subjectGenitiveOf } from "../../lib/subjectGenitive";
 
 interface DiagSubject {
@@ -240,6 +241,14 @@ export function DiagnosisScreen({ inline = false }: { inline?: boolean } = {}) {
   };
 
   const [phase, setPhase] = useState<Phase>({ kind: "loading", label: "Ładuję…" });
+
+  // Zgoda na powiadomienia po wyniku darmowego quizu — moment wartości, jak po
+  // Quizie i arkuszu. Bez tego konto darmowe, które robi tylko darmowy quiz,
+  // nigdy nie było pytane o pushe (7.10.2026). Pyta raz (flaga w SecureStore).
+  const isResult = phase.kind === "result";
+  useEffect(() => {
+    if (isResult) askForPushPermissionOnce();
+  }, [isResult]);
   const [openQ, setOpenQ] = useState<string | null>(null);
   const { isPremium } = useAuth();
 
