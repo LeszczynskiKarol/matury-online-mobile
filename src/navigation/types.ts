@@ -73,6 +73,7 @@ export type QuizStackParamList = {
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
+  NotificationSettings: undefined;
   Subscription: undefined;
   Badges: undefined;
   Ranking: undefined;

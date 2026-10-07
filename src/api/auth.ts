@@ -25,6 +25,8 @@ export interface User {
   // arkusz) i niedzielne podsumowanie. Domyślnie włączone.
   emailReminders?: boolean;
   emailSummary?: boolean;
+  pushReminders?: boolean;
+  pushUpdates?: boolean;
   // Strefa korepetytora: hasTutor = uczeń przyjął zaproszenie korepetytora
   // (apka pokazuje „Zadania od korepetytora"); isTutor = ma własny panel
   // (tylko na webie). subscriptionProvider "tutor" nie występuje — miejsce
@@ -190,6 +192,8 @@ export async function loginWithGoogle(
 export async function setEmailPrefs(prefs: {
   emailReminders?: boolean;
   emailSummary?: boolean;
+  pushReminders?: boolean;
+  pushUpdates?: boolean;
   emailTutorZone?: boolean;
 }): Promise<{
   emailReminders: boolean;

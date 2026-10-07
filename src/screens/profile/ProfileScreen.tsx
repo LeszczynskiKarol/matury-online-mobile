@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { getProfile, type ProfileResponse } from "../../api/gamification";
-import { deleteAccount, setMarketingConsent, setEmailPrefs } from "../../api/auth";
+import { deleteAccount } from "../../api/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -49,10 +49,28 @@ const TIER_COLORS: Record<string, { border: string; bg: string }> = {
   DIAMOND: { border: "#e879f9", bg: "#e879f9" },
 };
 
+
+// Wyjaśnienia chipów w nagłówku Profilu — reguły z backend/services/gamification.ts.
+const STAT_INFO = {
+  level: {
+    title: "Poziom",
+    text: "Poziom rośnie razem z punktami XP: poziom 2 od 200 XP, 3 od 600 XP, 4 od 1500 XP, a każdy kolejny wymaga więcej. Najwyższy to poziom 10.",
+  },
+  xp: {
+    title: "Punkty XP",
+    text: "XP dostajesz za każde rozwiązane zadanie: więcej za dobrą odpowiedź i za trudniejsze zadanie, a do 20 XP premii za serię dni nauki. Za „Pokaż odpowiedź” XP nie ma.",
+  },
+  streak: {
+    title: "Seria",
+    text: "Seria to liczba kolejnych dni z choć jednym rozwiązanym zadaniem. Rośnie o 1 każdego dnia nauki i wraca do zera, jeśli opuścisz dzień.",
+  },
+} as const;
+
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const { colors: theme, isDark, toggle } = useTheme();
+  const [statInfo, setStatInfo] = useState<keyof typeof STAT_INFO | null>(null);
   const { user, isPremium, logout, refresh } = useAuth();
   // „Powtórki w quizie” (sekcja Nauka) — stan i PATCH w hooku.
   const quizReviews = useQuizReviewsPref();
@@ -60,56 +78,7 @@ export function ProfileScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteWord, setDeleteWord] = useState("");
   const [deleting, setDeleting] = useState(false);
-  // Zgoda marketingowa — stan lokalny z optymistycznym przełączeniem
-  // i cofnięciem, gdy serwer nie przyjmie. Źródło prawdy: /me.
-  const [mktConsent, setMktConsent] = useState<boolean>(
-    user?.marketingConsent === true,
-  );
-  const [mktSaving, setMktSaving] = useState(false);
-  useEffect(() => {
-    setMktConsent(user?.marketingConsent === true);
-  }, [user?.marketingConsent]);
-  const toggleMktConsent = async () => {
-    if (mktSaving) return;
-    const want = !mktConsent;
-    setMktConsent(want);
-    setMktSaving(true);
-    try {
-      await setMarketingConsent(want);
-      refresh().catch(() => {});
-    } catch {
-      setMktConsent(!want); // serwer nie przyjął — wróć do stanu faktycznego
-    } finally {
-      setMktSaving(false);
-    }
-  };
-  // Maile serwisowe (2.10.2026): do tej pory dało się je wyłączyć tylko
-  // linkiem w mailu albo w profilu na webie. Optymistycznie, jak zgoda wyżej.
-  const [prefs, setPrefs] = useState({
-    emailReminders: user?.emailReminders !== false,
-    emailSummary: user?.emailSummary !== false,
-  });
-  const [prefsSaving, setPrefsSaving] = useState(false);
-  useEffect(() => {
-    setPrefs({
-      emailReminders: user?.emailReminders !== false,
-      emailSummary: user?.emailSummary !== false,
-    });
-  }, [user?.emailReminders, user?.emailSummary]);
-  const togglePref = async (key: "emailReminders" | "emailSummary") => {
-    if (prefsSaving) return;
-    const want = !prefs[key];
-    setPrefs((p) => ({ ...p, [key]: want }));
-    setPrefsSaving(true);
-    try {
-      await setEmailPrefs({ [key]: want });
-      refresh().catch(() => {});
-    } catch {
-      setPrefs((p) => ({ ...p, [key]: !want }));
-    } finally {
-      setPrefsSaving(false);
-    }
-  };
+  // Zgody i powiadomienia: ekran NotificationSettings (7.10.2026).
   const navigation = useNavigation<Nav>();
   const [credits, setCredits] = useState<{
     remaining: number;
@@ -296,11 +265,58 @@ export function ProfileScreen() {
             ))}
           </View>
         )}
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
-          <Badge variant="level" value={user?.globalLevel || 1} />
-          <Badge variant="xp" value={`${user?.totalXp || 0} XP`} icon="⚡" />
-          <Badge variant="streak" value={`${user?.currentStreak || 0}🔥`} />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 16 }}>
+          {/* Poziom / XP / seria — z podpisem i wyjaśnieniem po stuknięciu
+              (Karol 7.10.2026: same „1”, „X” i płomień nic nie mówiły). */}
+          {(
+            [
+              { key: "level", label: `Poziom ${user?.globalLevel || 1}`, icon: "🏅" },
+              { key: "xp", label: `${user?.totalXp || 0} XP`, icon: "⚡" },
+              { key: "streak", label: `Seria ${user?.currentStreak || 0} ${(user?.currentStreak || 0) === 1 ? "dzień" : "dni"}`, icon: "🔥" },
+            ] as const
+          ).map((c) => (
+            <TouchableOpacity
+              key={c.key}
+              onPress={() => setStatInfo(c.key)}
+              accessibilityRole="button"
+              accessibilityHint="Pokaż wyjaśnienie"
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: theme.borderLight,
+                backgroundColor: theme.backgroundSecondary ?? theme.card,
+                flexShrink: 0,
+              }}
+            >
+              <Text style={{ fontSize: 12 }}>{c.icon}</Text>
+              <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>{c.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
+        <Modal visible={statInfo !== null} transparent animationType="fade" onRequestClose={() => setStatInfo(null)}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setStatInfo(null)}
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 28 }}
+          >
+            <View style={{ backgroundColor: theme.card, borderRadius: 18, padding: 20 }}>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: theme.text, marginBottom: 8 }}>
+                {statInfo ? STAT_INFO[statInfo].title : ""}
+              </Text>
+              <Text style={{ fontSize: 14, lineHeight: 21, color: theme.textSecondary }}>
+                {statInfo ? STAT_INFO[statInfo].text : ""}
+              </Text>
+              <TouchableOpacity onPress={() => setStatInfo(null)} style={{ alignSelf: "flex-end", marginTop: 14 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.brand[500] }}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </Card>
       {/* Badges link */}
       <TouchableOpacity
@@ -802,12 +818,10 @@ export function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Zgoda marketingowa (art. 10 UŚUDE) — to samo miejsce cofnięcia,
-            które obiecuje polityka prywatności. Maile transakcyjne
-            (płatności, kody) przychodzą niezależnie od tej zgody. */}
+        {/* Powiadomienia (7.10.2026): jeden wiersz → ekran z tabelą rodzaj × kanał
+            (aplikacja / e-mail) zamiast rzędu przełączników w Profilu. */}
         <TouchableOpacity
-          onPress={toggleMktConsent}
-          disabled={mktSaving}
+          onPress={() => (navigation as any).navigate("NotificationSettings")}
           style={{
             flexDirection: "row",
             justifyContent: "space-between",
@@ -816,110 +830,19 @@ export function ProfileScreen() {
             paddingVertical: spacing[4],
             borderBottomWidth: 1,
             borderBottomColor: theme.borderLight,
-            opacity: mktSaving ? 0.6 : 1,
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
-            <Ionicons name="mail-outline" size={20} color={theme.textSecondary} />
+            <Ionicons name="notifications-outline" size={20} color={theme.textSecondary} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "500", color: theme.text }}>
-                Maile z nowościami i promocjami
-              </Text>
+              <Text style={{ fontSize: 15, fontWeight: "500", color: theme.text }}>Powiadomienia</Text>
               <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 2 }}>
-                Dobrowolne — włączasz i wyłączasz kiedy chcesz
+                Przypomnienia, wyniki, promocje
               </Text>
             </View>
           </View>
-          <View
-            style={{
-              width: 48,
-              height: 28,
-              borderRadius: 14,
-              backgroundColor: mktConsent ? colors.brand[500] : colors.zinc[300],
-              justifyContent: "center",
-              paddingHorizontal: 3,
-            }}
-          >
-            <View
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 11,
-                backgroundColor: "#fff",
-                alignSelf: mktConsent ? "flex-end" : "flex-start",
-              }}
-            />
-          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textTertiary} />
         </TouchableOpacity>
-
-        {/* Maile serwisowe: te same przełączniki co w profilu na webie. */}
-        {(
-          [
-            {
-              key: "emailReminders" as const,
-              icon: "notifications-outline" as const,
-              title: "Przypomnienia o nauce",
-              sub: "Seria zagrożona, darmowy arkusz czeka. Najwyżej jedno dziennie",
-            },
-            {
-              key: "emailSummary" as const,
-              icon: "stats-chart-outline" as const,
-              title: "Tygodniowe podsumowanie",
-              sub: "Niedzielny raport z Twojej nauki",
-            },
-          ]
-        ).map((row) => {
-          const on = prefs[row.key];
-          return (
-            <TouchableOpacity
-              key={row.key}
-              onPress={() => togglePref(row.key)}
-              disabled={prefsSaving}
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                paddingHorizontal: spacing[5],
-                paddingVertical: spacing[4],
-                borderBottomWidth: 1,
-                borderBottomColor: theme.borderLight,
-                opacity: prefsSaving ? 0.6 : 1,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
-                <Ionicons name={row.icon} size={20} color={theme.textSecondary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "500", color: theme.text }}>
-                    {row.title}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: theme.textTertiary, marginTop: 2 }}>
-                    {row.sub}
-                  </Text>
-                </View>
-              </View>
-              <View
-                style={{
-                  width: 48,
-                  height: 28,
-                  borderRadius: 14,
-                  backgroundColor: on ? colors.brand[500] : colors.zinc[300],
-                  justifyContent: "center",
-                  paddingHorizontal: 3,
-                }}
-              >
-                <View
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    backgroundColor: "#fff",
-                    alignSelf: on ? "flex-end" : "flex-start",
-                  }}
-                />
-              </View>
-            </TouchableOpacity>
-          );
-        })}
 
         <View
           style={{
@@ -939,7 +862,7 @@ export function ProfileScreen() {
             </Text>
           </View>
           <Text style={{ fontSize: 15, fontWeight: "600", color: theme.text }}>
-            {user?.longestStreak || 0} dni
+            {user?.longestStreak || 0} {(user?.longestStreak || 0) === 1 ? "dzień" : "dni"}
           </Text>
         </View>
       </Card>

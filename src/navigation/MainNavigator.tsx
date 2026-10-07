@@ -38,6 +38,7 @@ import { QuizSetupScreen } from "../screens/quiz/QuizSetupScreen";
 import { QuizPlayScreen } from "../screens/quiz/QuizPlayScreen";
 import { QuizResultScreen } from "../screens/quiz/QuizResultScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
+import NotificationSettingsScreen from "../screens/profile/NotificationSettingsScreen";
 import { SubscriptionScreen } from "../screens/profile/SubscriptionScreen";
 import { ExamSelectorScreen } from "../screens/exam/ExamSelectorScreen";
 
@@ -204,6 +205,7 @@ function ProfileStackNav() {
       }}
     >
       <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
+      <ProfileStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <ProfileStack.Screen name="Subscription" component={SubscriptionScreen} />
       <ProfileStack.Screen name="Badges" component={BadgesScreen} />
       <ProfileStack.Screen name="Ranking" component={RankingScreen} />
